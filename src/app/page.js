@@ -180,7 +180,7 @@ const posts = [
 const socials = [
   { icon: Instagram, label: "Instagram" },
   { icon: Facebook, label: "Facebook" },
-  { icon: Linkedin, label: "LinkedIn" },
+  { icon: Linkedin, label: "Linkedin" },
 ];
 
 export default function LandingPage() {
