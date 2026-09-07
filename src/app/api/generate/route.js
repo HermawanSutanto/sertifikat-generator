@@ -221,10 +221,18 @@ export async function POST(req) {
     const uniqueFontFamilies = [
       ...new Set(textElements.map((el) => el.fontFamily))
     ];
+
+    // 2. Selalu pastikan "Roboto" masuk ke dalam daftar buffer sebagai FALLBACK
+    if (!uniqueFontFamilies.includes("Roboto")) {
+      uniqueFontFamilies.push("Roboto");
+    }
+
+    // 3. Baca buffer font
     const fontBuffers = uniqueFontFamilies
       .map((fontFamily) => getFontTtfBuffer(fontFamily))
       .filter(Boolean);
 
+    console.log(`[VERCEL LOG] Loaded ${fontBuffers.length} font buffers for families: ${uniqueFontFamilies.join(", ")}`);
     if (fontBuffers.length === 0 && uniqueFontFamilies.length > 0) {
       console.error(
         `PERINGATAN: 0 dari ${uniqueFontFamilies.length} font berhasil dibaca dari public/fonts/ (${uniqueFontFamilies.join(
