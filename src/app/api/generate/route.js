@@ -9,6 +9,8 @@ import {
 import sharp from "sharp";
 import { Resvg } from "@resvg/resvg-js";
 import { NextResponse } from "next/server";
+import path from "path";
+import fs from "fs";
 import admin from "../../../lib/firebaseAdmin";
 import { runWithConcurrencyLimit } from "../../../lib/concurrency";
 
@@ -20,79 +22,63 @@ const UPLOAD_CONCURRENCY = 5;
 // ---------------------------------------------------------------------------
 // Font handling
 // ---------------------------------------------------------------------------
-// PENTING: resvg-js (berbasis Rust `fontdb`/`ttf-parser`) tidak mendukung
-// woff2 dengan baik, dan TIDAK membaca font lewat CSS @font-face di dalam
-// SVG sama sekali (berbeda dari librsvg yang dipakai sharp sebelumnya).
-// Font harus didaftarkan sebagai Buffer TTF/OTF mentah lewat opsi
-// `font.fontBuffers` saat membuat instance Resvg, dan SVG cukup mereferensi
-// nama font-family biasa tanpa @font-face.
+// RIWAYAT MIGRASI (dari sharp/librsvg -> resvg-js):
+// 1. sharp + librsvg + @font-face base64 woff2   -> kadang gagal (tofu box)
+// 2. resvg-js + fetch Google Fonts CSS (UA lama) -> unreliable, sering kosong
+// 3. resvg-js + fetch Google Fonts Developer API -> masih kosong di production
+//    meskipun API key valid & tidak ada error di log (root cause tidak
+//    pernah benar-benar terkonfirmasi -- bisa jaringan egress serverless,
+//    cold start race condition, dsb).
 //
-// CATATAN MIGRASI: percobaan pertama memakai trik "User-Agent lama" ke
-// endpoint fonts.googleapis.com/css supaya Google mengirim .ttf alih-alih
-// .woff2. Trik itu TIDAK reliable -- Google mengubah/mengetatkan deteksi UA
-// di endpoint CSS tsb, sehingga kadang berhasil di lokal (browser/DNS cache
-// lama) tapi gagal saat request fresh dari server produksi.
+// KEPUTUSAN FINAL: karena daftar font TETAP (cuma 7 pilihan), font di-bundle
+// sebagai file .ttf statis langsung di dalam project (public/fonts/) dan
+// dibaca dari disk (fs.readFileSync) -- BUKAN fetch dari internet sama
+// sekali saat runtime. Ini menghilangkan seluruh kelas masalah yang sudah
+// kita temui (API key, restriction, rate limit, endpoint berubah, network
+// egress serverless): file-nya sudah pasti ada di server karena ikut
+// ter-deploy bersama kode (dijamin oleh `outputFileTracingIncludes` di
+// next_config.mjs).
 //
-// Solusi yang dipakai di sini: Google Fonts DEVELOPER API resmi
-// (https://developers.google.com/fonts/docs/developer_api), bukan endpoint
-// CSS yang men-sniff User-Agent. Field `files` di API ini SELALU berisi URL
-// .ttf statis secara default (didokumentasikan resmi oleh Google, tidak
-// bergantung User-Agent). Butuh API key gratis dari Google Cloud Console
-// (aktifkan "Google Fonts Developer API"), disimpan di env var
-// GOOGLE_FONTS_API_KEY.
+// resvg-js (Rust `fontdb`/`ttf-parser`) menerima font sebagai Buffer mentah
+// lewat `font.fontBuffers`, dan mencocokkannya ke `font-family` di SVG
+// berdasarkan nama family yang tertanam di dalam font itu sendiri -- SVG
+// tidak perlu (dan tidak boleh) pakai @font-face sama sekali.
+const FONTS_DIR = path.join(process.cwd(), "public", "fonts");
+
+// Nama file untuk tiap font yang didukung. Semua sudah di-bundle di
+// public/fonts/ (lihat FONTS_DIR di atas) -- tidak ada lagi fetch runtime.
+const fontFileMap = {
+  Roboto: "Roboto-Bold.ttf",
+  Montserrat: "Montserrat-Bold.ttf",
+  "Playfair Display": "Playfair-Bold.ttf",
+  Poppins: "Poppins-Bold.ttf",
+  Lora: "Lora-Bold.ttf",
+  Pacifico: "Pacifico-Regular.ttf", // Pacifico cuma punya varian Regular
+  Caveat: "Caveat-Bold.ttf"
+};
+
 const fontBufferCache = new Map();
 
-const GOOGLE_FONTS_API_KEY = process.env.GOOGLE_FONTS_API_KEY;
-
-// Query metadata untuk satu family lewat Google Fonts Developer API resmi,
-// lalu ambil URL file .ttf-nya dari field `files`.
-async function fetchFontFileUrl(fontFamily) {
-  const url = `https://www.googleapis.com/webfonts/v1/webfonts?family=${encodeURIComponent(
-    fontFamily
-  )}&key=${GOOGLE_FONTS_API_KEY}`;
-  const res = await fetch(url);
-  if (!res.ok) {
-    throw new Error(`Google Fonts API error (${fontFamily}): ${res.status}`);
-  }
-  const data = await res.json();
-  const item = data.items && data.items[0];
-  if (!item) {
-    throw new Error(`Font "${fontFamily}" tidak ditemukan di Google Fonts.`);
-  }
-  // Pilih varian bold (700) kalau ada, jatuh ke regular kalau tidak.
-  const fileUrl = item.files["700"] || item.files.regular || item.menu;
-  if (!fileUrl) {
-    throw new Error(`Tidak ada file .ttf untuk font "${fontFamily}".`);
-  }
-  // API kadang mengembalikan http://, upgrade ke https:// untuk fetch aman.
-  return fileUrl.replace(/^http:\/\//, "https://");
-}
-
-async function getFontTtfBuffer(fontFamily) {
+function getFontTtfBuffer(fontFamily) {
   if (fontBufferCache.has(fontFamily)) {
     return fontBufferCache.get(fontFamily);
   }
 
+  const fileName = fontFileMap[fontFamily] || fontFileMap["Roboto"];
+  const filePath = path.join(FONTS_DIR, fileName);
+
   try {
-    if (!GOOGLE_FONTS_API_KEY) {
-      throw new Error(
-        "GOOGLE_FONTS_API_KEY belum diset di environment variables."
-      );
-    }
-
-    const ttfUrl = await fetchFontFileUrl(fontFamily);
-
-    const fontResponse = await fetch(ttfUrl);
-    if (!fontResponse.ok) {
-      throw new Error(`Gagal mengunduh file font: ${fontFamily}`);
-    }
-    const arrayBuffer = await fontResponse.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
-
+    const buffer = fs.readFileSync(filePath);
     fontBufferCache.set(fontFamily, buffer);
     return buffer;
   } catch (error) {
-    console.error("Error fetching font ttf:", error);
+    // Kalau ini terjadi, artinya file tidak ikut ter-deploy -- cek
+    // `outputFileTracingIncludes` di next_config.mjs dan pastikan path-nya
+    // ("./public/fonts/**") match dengan lokasi file sebenarnya.
+    console.error(
+      `Gagal membaca font lokal "${fileName}" di ${filePath}:`,
+      error.message
+    );
     return null;
   }
 }
@@ -107,9 +93,9 @@ function sanitizeSvgText(text) {
 }
 
 // Membuat SATU layer SVG yang berisi semua elemen teks untuk sebuah sertifikat.
-// Tidak ada lagi @font-face di sini -- resvg-js mencocokkan `font-family`
-// pada elemen <text> langsung terhadap buffer font yang didaftarkan lewat
-// opsi `font.fontBuffers` saat instance Resvg dibuat.
+// Tidak ada @font-face di sini -- resvg-js mencocokkan `font-family` pada
+// elemen <text> langsung terhadap buffer font yang didaftarkan lewat opsi
+// `font.fontBuffers` saat instance Resvg dibuat.
 function generateCombinedSvgLayer({ items, imageWidth, imageHeight }) {
   const textNodes = items
     .map(
@@ -129,8 +115,8 @@ function generateCombinedSvgLayer({ items, imageWidth, imageHeight }) {
 }
 
 // Merender SVG teks menjadi PNG buffer lewat resvg-js, dengan font yang
-// sudah diambil dari internet didaftarkan sebagai fontBuffers.
-function renderTextLayerToPng({ svg, imageWidth, imageHeight, fontBuffers }) {
+// sudah dibaca dari disk didaftarkan sebagai fontBuffers.
+function renderTextLayerToPng({ svg, imageWidth, fontBuffers }) {
   const resvg = new Resvg(svg, {
     fitTo: { mode: "width", value: imageWidth },
     font: {
@@ -222,21 +208,21 @@ export async function POST(req) {
     const imageHeight = metadata.height;
     const scaleFactor = imageWidth / previewWidth;
 
-    // Ambil semua font unik sebagai Buffer TTF dari internet, paralel & di-cache.
+    // Baca semua font unik dari disk (bukan fetch internet).
     const uniqueFontFamilies = [
       ...new Set(textElements.map((el) => el.fontFamily))
     ];
-    const fontBufferEntries = await Promise.all(
-      uniqueFontFamilies.map(async (fontFamily) => [
-        fontFamily,
-        await getFontTtfBuffer(fontFamily)
-      ])
-    );
-    // fontBuffers untuk resvg-js: cukup array Buffer, cocokkan berdasarkan
-    // nama family yang tersimpan di dalam file font itu sendiri.
-    const fontBuffers = fontBufferEntries
-      .map(([, buf]) => buf)
+    const fontBuffers = uniqueFontFamilies
+      .map((fontFamily) => getFontTtfBuffer(fontFamily))
       .filter(Boolean);
+
+    if (fontBuffers.length === 0 && uniqueFontFamilies.length > 0) {
+      console.error(
+        `PERINGATAN: 0 dari ${uniqueFontFamilies.length} font berhasil dibaca dari public/fonts/ (${uniqueFontFamilies.join(
+          ", "
+        )}). Semua teks pada sertifikat batch ini TIDAK akan muncul. Cek apakah file ttf ikut ter-deploy.`
+      );
+    }
 
     // 4. Proses Generate Gambar secara Dinamis
     const primaryIdentifierLabel =
@@ -278,7 +264,6 @@ export async function POST(req) {
           const pngBuffer = renderTextLayerToPng({
             svg,
             imageWidth,
-            imageHeight,
             fontBuffers
           });
           compositeLayers.push({ input: pngBuffer, top: 0, left: 0 });
