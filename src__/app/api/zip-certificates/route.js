@@ -11,7 +11,7 @@ import {
   limit,
   getDocs
 } from "firebase/firestore";
-import { supabaseAdmin as supabase } from "../../../lib/supabaseAdmin";
+import { supabase } from "../../../lib/supabase";
 import JSZip from "jszip";
 import { runWithConcurrencyLimit } from "../../../lib/concurrency";
 
@@ -66,49 +66,21 @@ export async function POST(req) {
     // tidak membuka ratusan koneksi download sekaligus dan membebani memori
     // dengan menyimpan semua arrayBuffer di RAM secara bersamaan.
     const zip = new JSZip();
-    const skippedCertificates = [];
-
-    // Ekstrak path file relatif terhadap bucket dari sebuah Supabase Storage
-    // public URL. Menangani baik pola "/object/public/<bucket>/<path>"
-    // maupun "/object/sign/<bucket>/<path>", bukan hanya string match polos
-    // ke nama bucket (yang gagal diam-diam kalau format URL berbeda).
-    function extractStoragePath(publicUrl, bucketName) {
-      try {
-        const url = new URL(publicUrl);
-        const marker = `/${bucketName}/`;
-        const markerIndex = url.pathname.indexOf(marker);
-        if (markerIndex === -1) return null;
-        const rawPath = url.pathname.slice(markerIndex + marker.length);
-        return rawPath ? decodeURIComponent(rawPath) : null;
-      } catch {
-        return null;
-      }
-    }
 
     await runWithConcurrencyLimit(
       certificateData,
       DOWNLOAD_CONCURRENCY,
       async (cert) => {
-        const filePath = extractStoragePath(
-          cert.urlSertifikat,
-          "generated-certificates"
-        );
-
-        if (!filePath) {
-          console.error(
-            `Tidak bisa mengekstrak path dari URL: ${cert.urlSertifikat}`
-          );
-          skippedCertificates.push(cert.namaPeserta);
-          return; // Lewati file yang URL-nya tidak dikenali
-        }
+        // Ekstrak path file dari URL
+        const url = new URL(cert.urlSertifikat);
+        const filePath = url.pathname.split("/generated-certificates/")[1];
 
         const { data, error } = await supabase.storage
           .from("generated-certificates")
-          .download(filePath);
+          .download(decodeURIComponent(filePath));
 
         if (error) {
           console.error(`Gagal mengunduh file ${filePath}:`, error);
-          skippedCertificates.push(cert.namaPeserta);
           return; // Lewati file yang gagal
         }
 
@@ -119,16 +91,6 @@ export async function POST(req) {
         zip.file(fileName, await data.arrayBuffer());
       }
     );
-
-    if (Object.keys(zip.files).length === 0) {
-      return NextResponse.json(
-        {
-          message:
-            "Semua file sertifikat gagal diunduh, ZIP tidak dapat dibuat."
-        },
-        { status: 500 }
-      );
-    }
 
     // 4. Generate Buffer ZIP dan Unggah ke Supabase
     const zipBuffer = await zip.generateAsync({ type: "nodebuffer" });
@@ -149,14 +111,8 @@ export async function POST(req) {
       data: { publicUrl }
     } = supabase.storage.from("generated-certificates").getPublicUrl(zipPath);
 
-    // 6. Kirim URL ZIP kembali ke Client, sertakan info jika ada sertifikat
-    // yang terlewat agar pengguna tahu ZIP tidak lengkap (bukan gagal diam-diam).
-    return NextResponse.json({
-      zipUrl: publicUrl,
-      skippedCount: skippedCertificates.length,
-      skippedNames:
-        skippedCertificates.length > 0 ? skippedCertificates : undefined
-    });
+    // 6. Kirim URL ZIP kembali ke Client
+    return NextResponse.json({ zipUrl: publicUrl });
   } catch (error) {
     console.error("Kesalahan saat membuat file ZIP:", error);
     return NextResponse.json(

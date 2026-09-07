@@ -1,4 +1,4 @@
-import { supabaseAdmin as supabase } from "../../../lib/supabaseAdmin";
+import { supabase } from "../../../lib/supabase";
 import { db } from "../../../lib/firebase";
 import {
   collection,
@@ -122,47 +122,19 @@ export async function POST(req) {
     const templateFile = formData.get("template");
     const previewWidth = parseInt(formData.get("previewWidth"), 10) || 500;
 
-    // Validasi field wajib SEBELUM mem-parsing JSON, agar pesan error yang
-    // dikembalikan jelas ("Data tidak lengkap") alih-alih generic parsing
-    // error ("Unexpected token ... in JSON") saat salah satu field lupa
-    // dikirim oleh client.
-    const textElementsRaw = formData.get("textElements");
-    const csvDataRaw = formData.get("csvData");
-    const mappingRaw = formData.get("mapping");
+    // Mengambil dan mem-parsing data JSON dari frontend
+    const textElements = JSON.parse(formData.get("textElements"));
+    const csvData = JSON.parse(formData.get("csvData")); // Ini adalah `dataToSend` dari frontend
+    const mapping = JSON.parse(formData.get("mapping"));
 
-    if (!templateFile || !textElementsRaw || !csvDataRaw || !mappingRaw) {
+    const isManualMode = Object.keys(mapping).length === 0;
+
+    if (!templateFile || !textElements || !csvData) {
       return NextResponse.json(
         { message: "Data tidak lengkap" },
         { status: 400 }
       );
     }
-
-    let textElements, csvData, mapping;
-    try {
-      textElements = JSON.parse(textElementsRaw);
-      csvData = JSON.parse(csvDataRaw); // Ini adalah `dataToSend` dari frontend
-      mapping = JSON.parse(mappingRaw);
-    } catch (parseError) {
-      return NextResponse.json(
-        { message: "Format data tidak valid (gagal mem-parsing JSON)." },
-        { status: 400 }
-      );
-    }
-
-    if (!Array.isArray(textElements) || textElements.length === 0) {
-      return NextResponse.json(
-        { message: "Elemen teks sertifikat tidak boleh kosong." },
-        { status: 400 }
-      );
-    }
-    if (!Array.isArray(csvData) || csvData.length === 0) {
-      return NextResponse.json(
-        { message: "Data CSV tidak boleh kosong." },
-        { status: 400 }
-      );
-    }
-
-    const isManualMode = Object.keys(mapping).length === 0;
 
     // 3. Persiapan Gambar Template dan Font
     let templateFileBuffer = Buffer.from(await templateFile.arrayBuffer());
@@ -191,11 +163,6 @@ export async function POST(req) {
     );
 
     // 4. Proses Generate Gambar secara Dinamis
-    // primaryIdentifierLabel konstan untuk semua baris CSV, jadi dihitung
-    // sekali di sini alih-alih diulang pada setiap iterasi row.
-    const primaryIdentifierLabel =
-      textElements.find((el) => el.isLocked)?.label || textElements[0].label;
-
     // Dibatasi dengan concurrency limit (bukan Promise.all polos) agar CSV
     // berisi ratusan/ribuan baris tidak memicu ratusan operasi sharp composite
     // berjalan bersamaan (risiko OOM & timeout di serverless).
@@ -203,6 +170,9 @@ export async function POST(req) {
       csvData,
       GENERATE_CONCURRENCY,
       async (row) => {
+        const primaryIdentifierLabel =
+          textElements.find((el) => el.isLocked)?.label ||
+          textElements[0].label;
         const primaryIdentifier = isManualMode
           ? row[primaryIdentifierLabel]
           : row[mapping[primaryIdentifierLabel]] || `sertifikat-${Date.now()}`;

@@ -438,19 +438,11 @@ export default function Dashboard() {
       if (!response.ok) {
         throw new Error(result.message || "Gagal membuat file ZIP.");
       }
-      if (result.skippedCount > 0) {
-        setNotification({
-          show: true,
-          message: `Unduhan dimulai, tapi ${result.skippedCount} sertifikat gagal disertakan dalam ZIP (file mungkin sudah tidak ada).`,
-          type: "error"
-        });
-      } else {
-        setNotification({
-          show: true,
-          message: "Unduhan Anda akan segera dimulai!",
-          type: "success"
-        });
-      }
+      setNotification({
+        show: true,
+        message: "Unduhan Anda akan segera dimulai!",
+        type: "success"
+      });
       window.open(result.zipUrl, "_blank");
     } catch (error) {
       console.error("Zip error:", error);
