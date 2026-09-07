@@ -17,25 +17,29 @@ const UPLOAD_CONCURRENCY = 5;
 
 // Helper function untuk mengambil dan cache font
 const fontCache = new Map();
+// 1. Ubah fontUrlMap ke URL format .ttf (menggunakan link gstatic langsung)
 async function getFontBase64(fontFamily) {
   if (fontCache.has(fontFamily)) {
     return fontCache.get(fontFamily);
   }
+
   const fontUrlMap = {
     Roboto:
-      "https://fonts.gstatic.com/s/roboto/v49/KFO5CnqEu92Fr1Mu53ZEC9_Vu3r1gIhOszmkC3kaWzU.woff2",
+      "https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxP.ttf",
     Montserrat:
-      "https://fonts.gstatic.com/s/montserrat/v31/JTUQjIg1_i6t8kCHKm459WxRxC7mw9c.woff2",
+      "https://fonts.gstatic.com/s/montserrat/v26/JTUHjIg1_i6t8kCHKm4532VJOt5-QNFgpCtr6Hw5aX8.ttf",
     "Playfair Display":
-      "https://fonts.gstatic.com/s/playfairdisplay/v40/nuFkD-vYSZviVYUb_rj3ij__anPXDTnohkk72xU.woff2",
+      "https://fonts.gstatic.com/s/playfairdisplay/v30/nuFvD-vYSZviVYUb_rj3ij__anPXJzDwcbmjWBN2PKdFvXDXbtM.ttf",
     Poppins:
-      "https://fonts.gstatic.com/s/poppins/v24/pxiEyp8kv8JHgFVrJJbecmNE.woff2",
-    Lora: "https://fonts.gstatic.com/s/lora/v37/0QIhMX1D_JOuMw_LLPtLp_A.woff2",
+      "https://fonts.gstatic.com/s/poppins/v20/pxiByp8kv8JHgFVrLCz7Z1xlFQ.ttf",
+    Lora:
+      "https://fonts.gstatic.com/s/lora/v32/0QI6MX1D_JOu868d483648g.ttf",
     Pacifico:
-      "https://fonts.gstatic.com/s/pacifico/v23/FwZY7-Qmy14u9lezJ-6K6MmTpA.woff2",
+      "https://fonts.gstatic.com/s/pacifico/v22/FwZY7-Qmy14u9lezJ-6H6MmBP0u-.ttf",
     Caveat:
-      "https://fonts.gstatic.com/s/caveat/v23/Wnz6HAc5bAfYB2Q7azYYmg8.woff2"
+      "https://fonts.gstatic.com/s/caveat/v18/WnzmHAc5bAfYB2QRah785AC5Wjc.ttf"
   };
+
   const fontUrl = fontUrlMap[fontFamily] || fontUrlMap["Roboto"];
   try {
     const response = await fetch(fontUrl);
@@ -48,6 +52,39 @@ async function getFontBase64(fontFamily) {
     console.error("Error fetching font:", error);
     return null;
   }
+}
+
+// 2. Ubah format data di @font-face dari font/woff2 menjadi font/ttf
+function generateCombinedSvgLayer({ items, imageWidth, imageHeight }) {
+  const uniqueFonts = [...new Set(items.map((i) => i.fontFamily))];
+  const fontFaces = uniqueFonts
+    .map(
+      (fontFamily) => `
+        @font-face {
+          font-family: "${fontFamily}";
+          src: url(data:font/ttf;charset=utf-8;base64,${
+            items.find((i) => i.fontFamily === fontFamily).fontBase64
+          }) format('truetype');
+        }`
+    )
+    .join("\n");
+
+  const textNodes = items
+    .map(
+      ({ text, textColor, fontSize, fontFamily, positionX, positionY }) => `
+      <text x="${positionX}" y="${positionY}" text-anchor="middle" dominant-baseline="middle"
+        style="fill:${textColor}; font-size:${fontSize}px; font-weight:bold; font-family:'${fontFamily}', sans-serif;">
+        ${sanitizeSvgText(text)}
+      </text>`
+    )
+    .join("\n");
+
+  const svg = `
+    <svg width="${imageWidth}" height="${imageHeight}" xmlns="http://www.w3.org/2000/svg">
+      <style>${fontFaces}</style>
+      ${textNodes}
+    </svg>`;
+  return Buffer.from(svg);
 }
 
 function sanitizeSvgText(text) {
