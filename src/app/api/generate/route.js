@@ -101,8 +101,15 @@ function generateCombinedSvgLayer({ items, imageWidth, imageHeight }) {
   const textNodes = items
     .map(
       ({ text, textColor, fontSize, fontFamily, positionX, positionY }) => `
-      <text x="${positionX}" y="${positionY}" text-anchor="middle" dominant-baseline="middle"
-        style="fill:${textColor}; font-size:${fontSize}px; font-weight:bold; font-family:'${fontFamily}', sans-serif;">
+      <text 
+        x="${positionX}" 
+        y="${positionY}" 
+        text-anchor="middle" 
+        dominant-baseline="central"
+        fill="${textColor}"
+        font-size="${fontSize}px"
+        font-weight="bold"
+        font-family="${fontFamily}, Roboto, sans-serif">
         ${sanitizeSvgText(text)}
       </text>`
     )
@@ -122,7 +129,8 @@ function renderTextLayerToPng({ svg, imageWidth, fontBuffers }) {
     fitTo: { mode: "width", value: imageWidth },
     font: {
       fontBuffers,
-      loadSystemFonts: false, // konsisten di semua environment/server
+      loadSystemFonts: false,
+      // Pastikan defaultFontFamily diset ke "Roboto" (atau nama font utama yang pasti ada di fontBuffers)
       defaultFontFamily: "Roboto"
     }
   });
