@@ -97,37 +97,37 @@ function sanitizeSvgText(text) {
 }
 
 // Membuat SATU layer SVG yang berisi semua elemen teks untuk sebuah sertifikat
-function generateCombinedSvgLayer({ items, imageWidth, imageHeight }) {
-  const uniqueFonts = [...new Set(items.map((i) => i.fontFamily))];
-  const fontFaces = uniqueFonts
-    .map(
-      (fontFamily) => `
-        @font-face {
-          font-family: "${fontFamily}";
-          src: url(data:font/woff2;base64,${
-            items.find((i) => i.fontFamily === fontFamily).fontBase64
-          });
-        }`
-    )
-    .join("\n");
+// function generateCombinedSvgLayer({ items, imageWidth, imageHeight }) {
+//   const uniqueFonts = [...new Set(items.map((i) => i.fontFamily))];
+//   const fontFaces = uniqueFonts
+//     .map(
+//       (fontFamily) => `
+//         @font-face {
+//           font-family: "${fontFamily}";
+//           src: url(data:font/woff2;base64,${
+//             items.find((i) => i.fontFamily === fontFamily).fontBase64
+//           });
+//         }`
+//     )
+//     .join("\n");
 
-  const textNodes = items
-    .map(
-      ({ text, textColor, fontSize, fontFamily, positionX, positionY }) => `
-      <text x="${positionX}" y="${positionY}" text-anchor="middle" dominant-baseline="middle"
-        style="fill:${textColor}; font-size:${fontSize}px; font-weight:bold; font-family:'${fontFamily}', sans-serif;">
-        ${sanitizeSvgText(text)}
-      </text>`
-    )
-    .join("\n");
+//   const textNodes = items
+//     .map(
+//       ({ text, textColor, fontSize, fontFamily, positionX, positionY }) => `
+//       <text x="${positionX}" y="${positionY}" text-anchor="middle" dominant-baseline="middle"
+//         style="fill:${textColor}; font-size:${fontSize}px; font-weight:bold; font-family:'${fontFamily}', sans-serif;">
+//         ${sanitizeSvgText(text)}
+//       </text>`
+//     )
+//     .join("\n");
 
-  const svg = `
-    <svg width="${imageWidth}" height="${imageHeight}" xmlns="http://www.w3.org/2000/svg">
-      <style>${fontFaces}</style>
-      ${textNodes}
-    </svg>`;
-  return Buffer.from(svg);
-}
+//   const svg = `
+//     <svg width="${imageWidth}" height="${imageHeight}" xmlns="http://www.w3.org/2000/svg">
+//       <style>${fontFaces}</style>
+//       ${textNodes}
+//     </svg>`;
+//   return Buffer.from(svg);
+// }
 
 export async function POST(req) {
   try {
