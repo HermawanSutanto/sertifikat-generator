@@ -9,6 +9,8 @@ import {
 import sharp from "sharp";
 import { Resvg } from "@resvg/resvg-js";
 import { NextResponse } from "next/server";
+import fs from "fs";
+import path from "path";
 import admin from "../../../lib/firebaseAdmin";
 import { runWithConcurrencyLimit } from "../../../lib/concurrency";
 
@@ -34,70 +36,54 @@ const UPLOAD_CONCURRENCY = 5;
 // CATATAN #1: sebelumnya font di-encode ke base64 dan disisipkan lewat CSS
 // @font-face di dalam SVG, lalu SVG itu dirender langsung oleh sharp
 // (yang di baliknya memakai librsvg). librsvg TIDAK mendukung @font-face
-// dengan data URI - ia hanya mengenali font yang benar-benar terpasang di
-// sistem (via fontconfig). Karena server (terutama serverless) umumnya
-// tidak punya font-font ini terpasang, hasilnya teks dirender sebagai
-// kotak "tofu" (glyph pengganti), bukan huruf sungguhan.
+// dengan data URI - hasilnya teks dirender sebagai kotak "tofu".
 //
-// CATATAN #2: setelah pindah ke resvg (yang membaca font lewat
-// `font.fontBuffers`), ternyata teks malah hilang total, bukan tofu lagi.
-// Penyebabnya: font di atas diambil dalam format .woff2 (font terkompresi
-// Brotli), dan fontdb yang dipakai resvg tidak bisa mem-parsing .woff2.
-// Karena `loadSystemFonts: false` (lihat renderSvgToPngBuffer), tidak ada
-// fallback font sama sekali begitu font utama gagal dimuat - hasilnya teks
-// dirender kosong tanpa error.
+// CATATAN #2: pindah ke resvg + fetch font .woff2 dari Google Fonts -
+// fontdb yang dipakai resvg tidak bisa mem-parsing .woff2, hasilnya teks
+// hilang total (bukan tofu lagi, tapi kosong tanpa error).
 //
-// Fix: ambil font dalam format .ttf, bukan .woff2. Google Fonts API v1
-// (fonts.googleapis.com/css) mendeteksi User-Agent request - kalau kita
-// menyamar sebagai browser lama yang belum mendukung WOFF2, Google akan
-// mengembalikan CSS yang linknya mengarah ke file .ttf, bukan .woff2.
+// CATATAN #3: coba ambil .ttf lewat trik User-Agent lawas ke Google Fonts
+// API v1 - ternyata Google sekarang tidak lagi mengembalikan link .ttf
+// lewat trik itu (linknya sudah tidak ditemukan di response CSS).
+//
+// FIX FINAL: berhenti bergantung pada layanan pihak ketiga untuk font sama
+// sekali. Font di-bundle langsung sebagai file .ttf statis di dalam project
+// (folder `public/fonts/`) dan dibaca dari disk lewat fs.readFileSync saat
+// request masuk. Ini satu-satunya cara yang tidak bergantung pada format apa
+// yang kebetulan disediakan penyedia font eksternal atau font apa yang
+// kebetulan terpasang di sistem server.
+//
+// PENTING: kamu perlu mengunduh sendiri file-file .ttf berikut dan
+// menaruhnya persis di `public/fonts/` dengan nama file yang sama seperti
+// di FONT_FILES di bawah (unduh dari fonts.google.com, pilih "Download
+// family", lalu ambil file .ttf dari dalam .zip-nya):
+const FONT_FILES = {
+  Roboto: "Roboto-Bold.ttf",
+  Montserrat: "Montserrat-Bold.ttf",
+  "Playfair Display": "PlayfairDisplay-Bold.ttf",
+  Poppins: "Poppins-Bold.ttf",
+  Lora: "Lora-Bold.ttf",
+  Pacifico: "Pacifico-Regular.ttf", // Pacifico tidak punya varian Bold
+  Caveat: "Caveat-Bold.ttf"
+};
+
 const fontCache = new Map();
-const ttfUrlCache = new Map();
 
-async function resolveGoogleFontTtfUrl(fontFamily) {
-  if (ttfUrlCache.has(fontFamily)) return ttfUrlCache.get(fontFamily);
-
-  const familyParam = encodeURIComponent(fontFamily).replace(/%20/g, "+");
-  const cssUrl = `https://fonts.googleapis.com/css?family=${familyParam}`;
-
-  try {
-    const res = await fetch(cssUrl, {
-      headers: {
-        // User-Agent browser lama (tidak dukung WOFF2) supaya Google Fonts
-        // mengembalikan URL .ttf di dalam CSS-nya.
-        "User-Agent":
-          "Mozilla/5.0 (Windows NT 6.1; rv:2.0.1) Gecko/20100101 Firefox/4.0.1"
-      }
-    });
-    if (!res.ok) throw new Error(`Gagal resolve font ${fontFamily} (${res.status})`);
-    const css = await res.text();
-    const match = css.match(/url\((https:\/\/fonts\.gstatic\.com\/[^)]+\.ttf)\)/);
-    const ttfUrl = match ? match[1] : null;
-    if (!ttfUrl) {
-      throw new Error(`Tidak menemukan URL .ttf untuk font ${fontFamily}`);
-    }
-    ttfUrlCache.set(fontFamily, ttfUrl);
-    return ttfUrl;
-  } catch (error) {
-    console.error("Error resolving Google Font TTF URL:", error);
-    return null;
-  }
-}
-
-async function getFontBuffer(fontFamily) {
+function getFontBuffer(fontFamily) {
   if (fontCache.has(fontFamily)) {
     return fontCache.get(fontFamily);
   }
+  const fileName = FONT_FILES[fontFamily] || FONT_FILES["Roboto"];
+  const fontPath = path.join(process.cwd(), "public", "fonts", fileName);
   try {
-    const ttfUrl = await resolveGoogleFontTtfUrl(fontFamily);
-    if (!ttfUrl) return null;
-    const response = await fetch(ttfUrl);
-    if (!response.ok) throw new Error(`Gagal mengambil font: ${fontFamily}`);
-    const buffer = Buffer.from(await response.arrayBuffer());
+    const buffer = fs.readFileSync(fontPath);
     fontCache.set(fontFamily, buffer);
     return buffer;
   } catch (error) {
-    console.error("Error fetching font:", error);
+    console.error(
+      `Gagal membaca file font "${fileName}" di ${fontPath}. Pastikan file ini sudah diunduh dan ditaruh di public/fonts/.`,
+      error
+    );
     return null;
   }
 }
@@ -243,13 +229,15 @@ export async function POST(req) {
     const imageHeight = metadata.height;
     const scaleFactor = imageWidth / previewWidth;
 
-    // Cache semua font yang dibutuhkan secara paralel untuk efisiensi
+    // Pre-load semua font yang dibutuhkan ke cache. getFontBuffer sekarang
+    // membaca file lokal secara sinkron (bukan fetch jaringan), jadi tidak
+    // perlu Promise.all lagi - cukup panggil sekali per font family supaya
+    // errornya (kalau file font belum ada) langsung kelihatan di log lebih
+    // awal, bukan tersembunyi di dalam loop per baris CSV.
     const uniqueFontFamilies = [
       ...new Set(textElements.map((el) => el.fontFamily))
     ];
-    await Promise.all(
-      uniqueFontFamilies.map((fontFamily) => getFontBuffer(fontFamily))
-    );
+    uniqueFontFamilies.forEach((fontFamily) => getFontBuffer(fontFamily));
 
     // 4. Proses Generate Gambar secara Dinamis
     // primaryIdentifierLabel konstan untuk semua baris CSV, jadi dihitung
