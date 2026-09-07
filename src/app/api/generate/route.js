@@ -222,7 +222,7 @@ export async function POST(req) {
     if (templateFileBuffer.length > maxSizeInBytes) {
       templateFileBuffer = await sharp(templateFileBuffer)
         .resize({ width: 1920, withoutEnlargement: true })
-        .jpeg({ quality: 80 })
+        .png({ quality: 80 })
         .toBuffer();
     }
 
@@ -338,10 +338,10 @@ export async function POST(req) {
         const certPath = `sertifikat-${String(data.name).replace(
           /\s+/g,
           "-"
-        )}-${Date.now()}.jpeg`;
+        )}-${Date.now()}.png`;
         const { error: uploadError } = await supabase.storage
           .from("generated-certificates")
-          .upload(certPath, data.buffer, { contentType: "image/jpeg" });
+          .upload(certPath, data.buffer, { contentType: "image/png" });
 
         if (uploadError) {
           console.error(`Gagal upload sertifikat ${data.name}:`, uploadError);

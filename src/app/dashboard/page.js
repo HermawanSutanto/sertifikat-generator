@@ -586,7 +586,7 @@ export default function Dashboard() {
                 id="file-upload"
                 type="file"
                 className="sr-only"
-                accept="image/png, image/jpeg"
+                accept="image/png, image/png"
                 onChange={handleFileChange}
               />
               <label

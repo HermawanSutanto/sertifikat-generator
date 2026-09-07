@@ -115,7 +115,7 @@ export async function POST(req) {
         const fileName = `sertifikat-${cert.namaPeserta.replace(
           /\s+/g,
           "-"
-        )}.jpeg`;
+        )}.png`;
         zip.file(fileName, await data.arrayBuffer());
       }
     );
