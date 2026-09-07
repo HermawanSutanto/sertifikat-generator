@@ -7,84 +7,54 @@ import {
   doc
 } from "firebase/firestore";
 import sharp from "sharp";
+import { Resvg } from "@resvg/resvg-js";
 import { NextResponse } from "next/server";
 import admin from "../../../lib/firebaseAdmin";
 import { runWithConcurrencyLimit } from "../../../lib/concurrency";
 
-// Batas jumlah proses generate gambar & upload yang berjalan bersamaan.
 const GENERATE_CONCURRENCY = 5;
 const UPLOAD_CONCURRENCY = 5;
 
-// Helper function untuk mengambil dan cache font
-const fontCache = new Map();
-// 1. Ubah fontUrlMap ke URL format .ttf (menggunakan link gstatic langsung)
-async function getFontBase64(fontFamily) {
-  if (fontCache.has(fontFamily)) {
-    return fontCache.get(fontFamily);
+// Cache buffer font TTF mentah untuk resvg-js
+const fontBufferCache = new Map();
+
+const fontUrlMap = {
+  Roboto:
+    "https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxP.ttf",
+  Montserrat:
+    "https://fonts.gstatic.com/s/montserrat/v26/JTUHjIg1_i6t8kCHKm4532VJOt5-QNFgpCtr6Hw5aX8.ttf",
+  "Playfair Display":
+    "https://fonts.gstatic.com/s/playfairdisplay/v30/nuFvD-vYSZviVYUb_rj3ij__anPXJzDwcbmjWBN2PKdFvXDXbtM.ttf",
+  Poppins:
+    "https://fonts.gstatic.com/s/poppins/v20/pxiByp8kv8JHgFVrLCz7Z1xlFQ.ttf",
+  Lora:
+    "https://fonts.gstatic.com/s/lora/v32/0QI6MX1D_JOu868d483648g.ttf",
+  Pacifico:
+    "https://fonts.gstatic.com/s/pacifico/v22/FwZY7-Qmy14u9lezJ-6H6MmBP0u-.ttf",
+  Caveat:
+    "https://fonts.gstatic.com/s/caveat/v18/WnzmHAc5bAfYB2QRah785AC5Wjc.ttf"
+};
+
+async function getFontTtfBuffer(fontFamily) {
+  if (fontBufferCache.has(fontFamily)) {
+    return fontBufferCache.get(fontFamily);
   }
 
-  const fontUrlMap = {
-    Roboto:
-      "https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxP.ttf",
-    Montserrat:
-      "https://fonts.gstatic.com/s/montserrat/v26/JTUHjIg1_i6t8kCHKm4532VJOt5-QNFgpCtr6Hw5aX8.ttf",
-    "Playfair Display":
-      "https://fonts.gstatic.com/s/playfairdisplay/v30/nuFvD-vYSZviVYUb_rj3ij__anPXJzDwcbmjWBN2PKdFvXDXbtM.ttf",
-    Poppins:
-      "https://fonts.gstatic.com/s/poppins/v20/pxiByp8kv8JHgFVrLCz7Z1xlFQ.ttf",
-    Lora:
-      "https://fonts.gstatic.com/s/lora/v32/0QI6MX1D_JOu868d483648g.ttf",
-    Pacifico:
-      "https://fonts.gstatic.com/s/pacifico/v22/FwZY7-Qmy14u9lezJ-6H6MmBP0u-.ttf",
-    Caveat:
-      "https://fonts.gstatic.com/s/caveat/v18/WnzmHAc5bAfYB2QRah785AC5Wjc.ttf"
-  };
-
-  const fontUrl = fontUrlMap[fontFamily] || fontUrlMap["Roboto"];
+  const ttfUrl = fontUrlMap[fontFamily] || fontUrlMap["Roboto"];
   try {
-    const response = await fetch(fontUrl);
-    if (!response.ok) throw new Error(`Gagal mengambil font: ${fontFamily}`);
-    const buffer = await response.arrayBuffer();
-    const base64 = Buffer.from(buffer).toString("base64");
-    fontCache.set(fontFamily, base64);
-    return base64;
+    const fontResponse = await fetch(ttfUrl);
+    if (!fontResponse.ok) {
+      throw new Error(`Gagal mengunduh file font TTF: ${fontFamily}`);
+    }
+    const arrayBuffer = await fontResponse.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    fontBufferCache.set(fontFamily, buffer);
+    return buffer;
   } catch (error) {
-    console.error("Error fetching font:", error);
+    console.error("Error fetching font ttf:", error);
     return null;
   }
-}
-
-// 2. Ubah format data di @font-face dari font/woff2 menjadi font/ttf
-function generateCombinedSvgLayer({ items, imageWidth, imageHeight }) {
-  const uniqueFonts = [...new Set(items.map((i) => i.fontFamily))];
-  const fontFaces = uniqueFonts
-    .map(
-      (fontFamily) => `
-        @font-face {
-          font-family: "${fontFamily}";
-          src: url(data:font/ttf;charset=utf-8;base64,${
-            items.find((i) => i.fontFamily === fontFamily).fontBase64
-          }) format('truetype');
-        }`
-    )
-    .join("\n");
-
-  const textNodes = items
-    .map(
-      ({ text, textColor, fontSize, fontFamily, positionX, positionY }) => `
-      <text x="${positionX}" y="${positionY}" text-anchor="middle" dominant-baseline="middle"
-        style="fill:${textColor}; font-size:${fontSize}px; font-weight:bold; font-family:'${fontFamily}', sans-serif;">
-        ${sanitizeSvgText(text)}
-      </text>`
-    )
-    .join("\n");
-
-  const svg = `
-    <svg width="${imageWidth}" height="${imageHeight}" xmlns="http://www.w3.org/2000/svg">
-      <style>${fontFaces}</style>
-      ${textNodes}
-    </svg>`;
-  return Buffer.from(svg);
 }
 
 function sanitizeSvgText(text) {
@@ -96,38 +66,36 @@ function sanitizeSvgText(text) {
     .replace(/'/g, "&#039;");
 }
 
-// Membuat SATU layer SVG yang berisi semua elemen teks untuk sebuah sertifikat
-// function generateCombinedSvgLayer({ items, imageWidth, imageHeight }) {
-//   const uniqueFonts = [...new Set(items.map((i) => i.fontFamily))];
-//   const fontFaces = uniqueFonts
-//     .map(
-//       (fontFamily) => `
-//         @font-face {
-//           font-family: "${fontFamily}";
-//           src: url(data:font/woff2;base64,${
-//             items.find((i) => i.fontFamily === fontFamily).fontBase64
-//           });
-//         }`
-//     )
-//     .join("\n");
+// SVG polos TANPA @font-face (resvg akan mencocokkan font dari fontBuffers)
+function generateCombinedSvgLayer({ items, imageWidth, imageHeight }) {
+  const textNodes = items
+    .map(
+      ({ text, textColor, fontSize, fontFamily, positionX, positionY }) => `
+      <text x="${positionX}" y="${positionY}" text-anchor="middle" dominant-baseline="middle"
+        style="fill:${textColor}; font-size:${fontSize}px; font-weight:bold; font-family:'${fontFamily}', sans-serif;">
+        ${sanitizeSvgText(text)}
+      </text>`
+    )
+    .join("\n");
 
-//   const textNodes = items
-//     .map(
-//       ({ text, textColor, fontSize, fontFamily, positionX, positionY }) => `
-//       <text x="${positionX}" y="${positionY}" text-anchor="middle" dominant-baseline="middle"
-//         style="fill:${textColor}; font-size:${fontSize}px; font-weight:bold; font-family:'${fontFamily}', sans-serif;">
-//         ${sanitizeSvgText(text)}
-//       </text>`
-//     )
-//     .join("\n");
+  return `
+    <svg width="${imageWidth}" height="${imageHeight}" xmlns="http://www.w3.org/2000/svg">
+      ${textNodes}
+    </svg>`;
+}
 
-//   const svg = `
-//     <svg width="${imageWidth}" height="${imageHeight}" xmlns="http://www.w3.org/2000/svg">
-//       <style>${fontFaces}</style>
-//       ${textNodes}
-//     </svg>`;
-//   return Buffer.from(svg);
-// }
+function renderTextLayerToPng({ svg, imageWidth, fontBuffers }) {
+  const resvg = new Resvg(svg, {
+    fitTo: { mode: "width", value: imageWidth },
+    font: {
+      fontBuffers,
+      loadSystemFonts: false,
+      defaultFontFamily: "Roboto"
+    }
+  });
+  const pngData = resvg.render();
+  return pngData.asPng();
+}
 
 export async function POST(req) {
   try {
@@ -192,7 +160,7 @@ export async function POST(req) {
 
     const isManualMode = Object.keys(mapping).length === 0;
 
-    // 3. Persiapan Gambar Template dan Font
+    // 3. Persiapan Gambar Template
     let templateFileBuffer = Buffer.from(await templateFile.arrayBuffer());
     const maxSizeInBytes = 2 * 1024 * 1024;
     if (templateFileBuffer.length > maxSizeInBytes) {
@@ -208,13 +176,15 @@ export async function POST(req) {
     const imageHeight = metadata.height;
     const scaleFactor = imageWidth / previewWidth;
 
-    // Cache semua font yang dibutuhkan secara paralel
+    // Fetch font TTF mentah untuk dimasukkan ke resvg-js
     const uniqueFontFamilies = [
       ...new Set(textElements.map((el) => el.fontFamily))
     ];
-    await Promise.all(
-      uniqueFontFamilies.map((fontFamily) => getFontBase64(fontFamily))
-    );
+    const fontBuffers = (
+      await Promise.all(
+        uniqueFontFamilies.map((family) => getFontTtfBuffer(family))
+      )
+    ).filter(Boolean);
 
     // 4. Proses Generate Gambar secara Dinamis
     const primaryIdentifierLabel =
@@ -236,38 +206,30 @@ export async function POST(req) {
 
           if (!text) continue;
 
-          const fontBase64 = fontCache.get(element.fontFamily);
-          if (!fontBase64) {
-            console.error(
-              `ERROR: Font base64 untuk ${element.fontFamily} tidak ditemukan di cache. Mengabaikan layer.`
-            );
-            continue;
-          }
-
           svgItems.push({
             text,
             textColor: element.textColor,
             fontSize: Math.round(element.fontSize * scaleFactor),
             fontFamily: element.fontFamily,
-            fontBase64,
             positionX: imageWidth * element.positionPercent.x,
             positionY: imageHeight * element.positionPercent.y
           });
         }
 
-        const compositeLayers = svgItems.length
-          ? [
-              {
-                input: generateCombinedSvgLayer({
-                  items: svgItems,
-                  imageWidth,
-                  imageHeight
-                }),
-                top: 0,
-                left: 0
-              }
-            ]
-          : [];
+        const compositeLayers = [];
+        if (svgItems.length) {
+          const svg = generateCombinedSvgLayer({
+            items: svgItems,
+            imageWidth,
+            imageHeight
+          });
+          const pngTextBuffer = renderTextLayerToPng({
+            svg,
+            imageWidth,
+            fontBuffers
+          });
+          compositeLayers.push({ input: pngTextBuffer, top: 0, left: 0 });
+        }
 
         const generatedCertBuffer = await baseImage
           .clone()
@@ -283,7 +245,7 @@ export async function POST(req) {
       }
     );
 
-    // 5. Upload ke Supabase (menggunakan supabaseAdmin agar bypass RLS)
+    // 5. Upload ke Supabase via supabaseAdmin (Bypass RLS)
     const allUploadedCerts = await runWithConcurrencyLimit(
       allGeneratedData,
       UPLOAD_CONCURRENCY,
