@@ -319,7 +319,7 @@ export async function POST(req) {
         const generatedCertBuffer = await baseImage
           .clone()
           .composite(compositeLayers)
-          .jpeg({ quality: 85 })
+          .png({ quality: 85 })
           .toBuffer();
 
         return {
