@@ -2,15 +2,17 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useAuth } from "../context/AuthContext"; // sesuaikan path relatif jika AuthNav.js dipindah folder
+import { signOut } from "firebase/auth";
+import { auth } from "../lib/firebase";
+import { useAuth } from "../context/AuthContext";
 
 export default function AuthNav() {
-  const { user, logout } = useAuth();
+  const { user } = useAuth();
   const router = useRouter();
 
   const handleLogout = async () => {
     try {
-      await logout();
+      await signOut(auth);
       router.push("/");
     } catch (error) {
       console.error("Gagal melakukan logout:", error);
