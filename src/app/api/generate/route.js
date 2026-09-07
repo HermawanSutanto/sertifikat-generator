@@ -13,7 +13,8 @@ import path from "path";
 import fs from "fs";
 import admin from "../../../lib/firebaseAdmin";
 import { runWithConcurrencyLimit } from "../../../lib/concurrency";
-
+import path from "path";
+import fs from "fs";
 // Batas jumlah proses generate gambar & upload yang berjalan bersamaan.
 // Mencegah CPU/memory spike dan rate-limit ketika CSV berisi ratusan baris.
 const GENERATE_CONCURRENCY = 5;
@@ -65,23 +66,29 @@ function getFontTtfBuffer(fontFamily) {
   }
 
   const fileName = fontFileMap[fontFamily] || fontFileMap["Roboto"];
-  
-  // Vercel serverless kadang menempatkan root project di process.cwd()
-  const filePath = path.join(process.cwd(), "public", "fonts", fileName);
 
-  try {
-    if (!fs.existsSync(filePath)) {
-      console.error(`[VERCEL DEBUG] File font TIDAK DITEMUKAN di path: ${filePath}`);
-      return null;
+  // Coba beberapa kemungkinan path di lingkungan Vercel Serverless
+  const possiblePaths = [
+    path.join(process.cwd(), "public", "fonts", fileName),
+    path.join(__dirname, "..", "..", "..", "public", "fonts", fileName), // Sesuaikan kedalaman folder API Route Anda
+    path.resolve("./public/fonts", fileName)
+  ];
+
+  for (const filePath of possiblePaths) {
+    try {
+      if (fs.existsSync(filePath)) {
+        const buffer = fs.readFileSync(filePath);
+        fontBufferCache.set(fontFamily, buffer);
+        console.log(`[VERCEL SUCCESS] Font ${fontFamily} dimuat dari: ${filePath}`);
+        return buffer;
+      }
+    } catch (e) {
+      // Lanjut ke path berikutnya jika gagal
     }
-
-    const buffer = fs.readFileSync(filePath);
-    fontBufferCache.set(fontFamily, buffer);
-    return buffer;
-  } catch (error) {
-    console.error(`Gagal membaca font "${fileName}" di ${filePath}:`, error.message);
-    return null;
   }
+
+  console.error(`[VERCEL ERROR] Gagal menemukan font ${fileName} di semua path.`);
+  return null;
 }
 
 function sanitizeSvgText(text) {
