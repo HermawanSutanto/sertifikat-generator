@@ -12,6 +12,19 @@ import { NextResponse } from "next/server";
 import admin from "../../../lib/firebaseAdmin";
 import { runWithConcurrencyLimit } from "../../../lib/concurrency";
 
+// Paksa route ini jalan di Node.js runtime (bukan Edge). Wajib untuk
+// package native seperti sharp & @resvg/resvg-js yang butuh binary .node -
+// binary itu tidak bisa jalan di Edge runtime sama sekali.
+export const runtime = "nodejs";
+
+// @resvg/resvg-js memuat binary native (.node) lewat js-binding.js.
+// Turbopack mencoba membundel semua import ke dalam chunk ESM, dan gagal
+// karena binary .node bukan asset yang bisa "ditaruh" ke module id ESM
+// (-> error "non-ecmascript placeable asset"). Menandai package ini
+// sebagai external membuat Next.js cukup me-require-nya langsung saat
+// runtime, bukan mencoba membundelnya. Lihat next.config.js.
+
+
 // Batas jumlah proses generate gambar & upload yang berjalan bersamaan.
 // Mencegah CPU/memory spike dan rate-limit ketika CSV berisi ratusan baris.
 const GENERATE_CONCURRENCY = 5;
