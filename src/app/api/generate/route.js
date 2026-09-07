@@ -64,30 +64,40 @@ function getFontTtfBuffer(fontFamily) {
     return fontBufferCache.get(fontFamily);
   }
 
-  const fileName = fontFileMap[fontFamily] || fontFileMap["Roboto"];
+  const targetFileName = fontFileMap[fontFamily] || fontFileMap["Roboto"];
+  const fontsDir = path.join(process.cwd(), "public", "fonts");
 
-  // Coba beberapa kemungkinan path di lingkungan Vercel Serverless
-  const possiblePaths = [
-    path.join(process.cwd(), "public", "fonts", fileName),
-    path.join(__dirname, "..", "..", "..", "public", "fonts", fileName), // Sesuaikan kedalaman folder API Route Anda
-    path.resolve("./public/fonts", fileName)
-  ];
-
-  for (const filePath of possiblePaths) {
-    try {
-      if (fs.existsSync(filePath)) {
-        const buffer = fs.readFileSync(filePath);
-        fontBufferCache.set(fontFamily, buffer);
-        console.log(`[VERCEL SUCCESS] Font ${fontFamily} dimuat dari: ${filePath}`);
-        return buffer;
-      }
-    } catch (e) {
-      // Lanjut ke path berikutnya jika gagal
+  try {
+    if (!fs.existsSync(fontsDir)) {
+      console.error(`[VERCEL ERROR] Folder fonts tidak ada: ${fontsDir}`);
+      return null;
     }
-  }
 
-  console.error(`[VERCEL ERROR] Gagal menemukan font ${fileName} di semua path.`);
-  return null;
+    // Ambil semua file yang benar-benar ada di folder public/fonts/
+    const filesInDir = fs.readdirSync(fontsDir);
+    
+    // Cari file secara CASE-INSENSITIVE (mengatasi beda Poppins-Bold.ttf vs poppins-bold.ttf)
+    const actualFileName = filesInDir.find(
+      (file) => file.toLowerCase() === targetFileName.toLowerCase()
+    );
+
+    if (!actualFileName) {
+      console.error(
+        `[VERCEL ERROR] Font "${fontFamily}" (dicari: ${targetFileName}) tidak ditemukan di ${fontsDir}. File yang ada: [${filesInDir.join(", ")}]`
+      );
+      return null;
+    }
+
+    const filePath = path.join(fontsDir, actualFileName);
+    const buffer = fs.readFileSync(filePath);
+    fontBufferCache.set(fontFamily, buffer);
+    console.log(`[VERCEL SUCCESS] Font ${fontFamily} dimuat dari: ${filePath}`);
+    return buffer;
+
+  } catch (error) {
+    console.error(`[VERCEL ERROR] Gagal membaca font ${fontFamily}:`, error.message);
+    return null;
+  }
 }
 
 function sanitizeSvgText(text) {
@@ -121,13 +131,11 @@ function generateCombinedSvgLayer({ items, imageWidth, imageHeight }) {
     )
     .join("\n");
 
-  const svg = `
+  return `
     <svg width="${imageWidth}" height="${imageHeight}" xmlns="http://www.w3.org/2000/svg">
       ${textNodes}
     </svg>`;
-  return svg;
 }
-
 // Merender SVG teks menjadi PNG buffer lewat resvg-js, dengan font yang
 // sudah dibaca dari disk didaftarkan sebagai fontBuffers.
 function renderTextLayerToPng({ svg, imageWidth, fontBuffers }) {
@@ -208,6 +216,7 @@ export async function POST(req) {
     const isManualMode = Object.keys(mapping).length === 0;
 
     // 3. Persiapan Gambar Template
+    // 3. Persiapan Gambar Template
     let templateFileBuffer = Buffer.from(await templateFile.arrayBuffer());
     const maxSizeInBytes = 2 * 1024 * 1024;
     if (templateFileBuffer.length > maxSizeInBytes) {
@@ -223,29 +232,44 @@ export async function POST(req) {
     const imageHeight = metadata.height;
     const scaleFactor = imageWidth / previewWidth;
 
-    // Baca semua font unik dari disk (bukan fetch internet).
-    const uniqueFontFamilies = [
-      ...new Set(textElements.map((el) => el.fontFamily))
-    ];
+    // --- BAGIAN YANG DIREVISI (Pemuatan Font) ---
+    // Di Vercel Linux, readdir & load semua .ttf dari disk langsung tanpa pilih-pilih
+    const fontsDir = path.join(process.cwd(), "public", "fonts");
+    let fontBuffers = [];
 
-    // 2. Selalu pastikan "Roboto" masuk ke dalam daftar buffer sebagai FALLBACK
-    if (!uniqueFontFamilies.includes("Roboto")) {
-      uniqueFontFamilies.push("Roboto");
+    try {
+      if (fs.existsSync(fontsDir)) {
+        const fontFiles = fs.readdirSync(fontsDir).filter((file) =>
+          file.toLowerCase().endsWith(".ttf")
+        );
+
+        fontBuffers = fontFiles
+          .map((file) => {
+            try {
+              return fs.readFileSync(path.join(fontsDir, file));
+            } catch (err) {
+              console.error(`Gagal membaca file font ${file}:`, err.message);
+              return null;
+            }
+          })
+          .filter(Boolean);
+
+        console.log(
+          `[VERCEL LOG] Total font buffers di-load ke Resvg: ${fontBuffers.length} file ([${fontFiles.join(", ")}])`
+        );
+      } else {
+        console.error(`[VERCEL ERROR] Folder fonts tidak ditemukan di: ${fontsDir}`);
+      }
+    } catch (fontErr) {
+      console.error("[VERCEL ERROR] Gagal membaca direktori fonts:", fontErr.message);
     }
 
-    // 3. Baca buffer font
-    const fontBuffers = uniqueFontFamilies
-      .map((fontFamily) => getFontTtfBuffer(fontFamily))
-      .filter(Boolean);
-
-    console.log(`[VERCEL LOG] Loaded ${fontBuffers.length} font buffers for families: ${uniqueFontFamilies.join(", ")}`);
-    if (fontBuffers.length === 0 && uniqueFontFamilies.length > 0) {
+    if (fontBuffers.length === 0) {
       console.error(
-        `PERINGATAN: 0 dari ${uniqueFontFamilies.length} font berhasil dibaca dari public/fonts/ (${uniqueFontFamilies.join(
-          ", "
-        )}). Semua teks pada sertifikat batch ini TIDAK akan muncul. Cek apakah file ttf ikut ter-deploy.`
+        "PERINGATAN: 0 font berhasil dibaca dari public/fonts/. Teks pada sertifikat tidak akan muncul."
       );
     }
+    // --- AKHIR BAGIAN REVISI ---
 
     // 4. Proses Generate Gambar secara Dinamis
     const primaryIdentifierLabel =
