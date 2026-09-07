@@ -7,6 +7,7 @@ import {
   doc
 } from "firebase/firestore";
 import sharp from "sharp";
+import { Resvg } from "@resvg/resvg-js";
 import { NextResponse } from "next/server";
 import admin from "../../../lib/firebaseAdmin";
 import { runWithConcurrencyLimit } from "../../../lib/concurrency";
@@ -16,9 +17,21 @@ import { runWithConcurrencyLimit } from "../../../lib/concurrency";
 const GENERATE_CONCURRENCY = 5;
 const UPLOAD_CONCURRENCY = 5;
 
-// Helper function untuk mengambil dan cache font (Tidak ada perubahan)
+// Helper function untuk mengambil dan cache font.
+// CATATAN: sebelumnya font di-encode ke base64 dan disisipkan lewat CSS
+// @font-face di dalam SVG, lalu SVG itu dirender langsung oleh sharp
+// (yang di baliknya memakai librsvg). librsvg TIDAK mendukung @font-face
+// dengan data URI - ia hanya mengenali font yang benar-benar terpasang di
+// sistem (via fontconfig). Karena server (terutama serverless) umumnya
+// tidak punya font-font ini terpasang, hasilnya teks dirender sebagai
+// kotak "tofu" (glyph pengganti), bukan huruf sungguhan.
+//
+// Sekarang font disimpan sebagai Buffer mentah dan diserahkan langsung ke
+// resvg (lihat generateCombinedSvgLayer & pemanggilnya) lewat opsi
+// `font.fontBuffers`, sehingga tidak lagi bergantung pada font yang
+// terpasang di sistem sama sekali.
 const fontCache = new Map();
-async function getFontBase64(fontFamily) {
+async function getFontBuffer(fontFamily) {
   if (fontCache.has(fontFamily)) {
     return fontCache.get(fontFamily);
   }
@@ -41,10 +54,9 @@ async function getFontBase64(fontFamily) {
   try {
     const response = await fetch(fontUrl);
     if (!response.ok) throw new Error(`Gagal mengambil font: ${fontFamily}`);
-    const buffer = await response.arrayBuffer();
-    const base64 = Buffer.from(buffer).toString("base64");
-    fontCache.set(fontFamily, base64);
-    return base64;
+    const buffer = Buffer.from(await response.arrayBuffer());
+    fontCache.set(fontFamily, buffer);
+    return buffer;
   } catch (error) {
     console.error("Error fetching font:", error);
     return null;
@@ -60,25 +72,16 @@ function sanitizeSvgText(text) {
     .replace(/'/g, "&#039;");
 }
 
-// Membuat SATU layer SVG yang berisi semua elemen teks untuk sebuah sertifikat,
-// alih-alih satu layer SVG terpisah per elemen teks. Ini menghindari:
-// - embedding base64 font berkali-kali (dulu: N kali per baris data, N = jumlah teks)
-// - N kali parsing/render SVG oleh sharp/librsvg per sertifikat (sekarang cukup 1 kali)
+// Membuat SATU markup SVG yang berisi semua elemen teks untuk sebuah
+// sertifikat, alih-alih satu SVG terpisah per elemen teks. Ini menghindari
+// N kali parsing/render SVG per sertifikat (sekarang cukup 1 kali render
+// lewat resvg - lihat pemanggil fungsi ini).
+//
+// Tidak ada lagi @font-face di sini: font diserahkan ke resvg sebagai
+// Buffer lewat opsi `font.fontBuffers` pada saat render, resvg mencocokkan
+// font-family di bawah ini dengan nama font yang ada di dalam file font
+// tersebut (dibaca dari metadata font, bukan dari @font-face).
 function generateCombinedSvgLayer({ items, imageWidth, imageHeight }) {
-  // Hanya sertakan @font-face untuk font yang benar-benar dipakai di sertifikat ini
-  const uniqueFonts = [...new Set(items.map((i) => i.fontFamily))];
-  const fontFaces = uniqueFonts
-    .map(
-      (fontFamily) => `
-        @font-face {
-          font-family: "${fontFamily}";
-          src: url(data:font/woff2;base64,${
-            items.find((i) => i.fontFamily === fontFamily).fontBase64
-          });
-        }`
-    )
-    .join("\n");
-
   const textNodes = items
     .map(
       ({ text, textColor, fontSize, fontFamily, positionX, positionY }) => `
@@ -89,12 +92,31 @@ function generateCombinedSvgLayer({ items, imageWidth, imageHeight }) {
     )
     .join("\n");
 
-  const svg = `
+  return `
     <svg width="${imageWidth}" height="${imageHeight}" xmlns="http://www.w3.org/2000/svg">
-      <style>${fontFaces}</style>
       ${textNodes}
     </svg>`;
-  return Buffer.from(svg);
+}
+
+// Merender markup SVG (elemen <text> saja, tanpa @font-face) menjadi PNG
+// buffer memakai resvg, dengan font-font yang dibutuhkan diberikan langsung
+// sebagai Buffer. Ini menggantikan pendekatan lama (SVG di-composite
+// langsung oleh sharp/librsvg) yang gagal merender font ter-embed.
+function renderSvgToPngBuffer({ svgMarkup, fontBuffers }) {
+  const resvg = new Resvg(svgMarkup, {
+    font: {
+      fontBuffers,
+      // Font yang dibutuhkan sudah kita berikan manual lewat fontBuffers,
+      // jadi tidak perlu resvg memindai font sistem - lebih cepat dan
+      // hasilnya konsisten di environment apa pun (termasuk serverless
+      // yang tidak punya font-font ini terpasang).
+      loadSystemFonts: false
+    },
+    // Latar transparan supaya saat di-composite ke atas gambar template
+    // oleh sharp, hanya teksnya saja yang menimpa, bukan kotak solid.
+    background: "rgba(255, 255, 255, 0)"
+  });
+  return resvg.render().asPng();
 }
 
 export async function POST(req) {
@@ -187,7 +209,7 @@ export async function POST(req) {
       ...new Set(textElements.map((el) => el.fontFamily))
     ];
     await Promise.all(
-      uniqueFontFamilies.map((fontFamily) => getFontBase64(fontFamily))
+      uniqueFontFamilies.map((fontFamily) => getFontBuffer(fontFamily))
     );
 
     // 4. Proses Generate Gambar secara Dinamis
@@ -215,10 +237,10 @@ export async function POST(req) {
 
           if (!text) continue;
 
-          const fontBase64 = fontCache.get(element.fontFamily);
-          if (!fontBase64) {
+          const fontBuffer = fontCache.get(element.fontFamily);
+          if (!fontBuffer) {
             console.error(
-              `ERROR: Font base64 for ${element.fontFamily} not found in cache. Skipping layer.`
+              `ERROR: Font buffer for ${element.fontFamily} not found in cache. Skipping layer.`
             );
             continue;
           }
@@ -228,26 +250,30 @@ export async function POST(req) {
             textColor: element.textColor,
             fontSize: Math.round(element.fontSize * scaleFactor),
             fontFamily: element.fontFamily,
-            fontBase64,
             positionX: imageWidth * element.positionPercent.x,
             positionY: imageHeight * element.positionPercent.y
           });
         }
 
-        // Satu layer SVG gabungan per sertifikat, bukan satu layer per elemen teks.
-        const compositeLayers = svgItems.length
-          ? [
-              {
-                input: generateCombinedSvgLayer({
-                  items: svgItems,
-                  imageWidth,
-                  imageHeight
-                }),
-                top: 0,
-                left: 0
-              }
-            ]
-          : [];
+        // Satu layer teks gabungan per sertifikat, dirender ke PNG via resvg
+        // (bukan diserahkan mentah-mentah sebagai SVG ke sharp/librsvg),
+        // lalu di-composite ke atas template seperti biasa.
+        let compositeLayers = [];
+        if (svgItems.length) {
+          const fontsUsed = [...new Set(svgItems.map((i) => i.fontFamily))];
+          const fontBuffers = fontsUsed
+            .map((fontFamily) => fontCache.get(fontFamily))
+            .filter(Boolean);
+
+          const svgMarkup = generateCombinedSvgLayer({
+            items: svgItems,
+            imageWidth,
+            imageHeight
+          });
+
+          const pngBuffer = renderSvgToPngBuffer({ svgMarkup, fontBuffers });
+          compositeLayers = [{ input: pngBuffer, top: 0, left: 0 }];
+        }
 
         const generatedCertBuffer = await baseImage
           .clone()
