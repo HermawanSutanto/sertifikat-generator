@@ -7,95 +7,45 @@ import {
   doc
 } from "firebase/firestore";
 import sharp from "sharp";
-import { Resvg } from "@resvg/resvg-js";
 import { NextResponse } from "next/server";
-import path from "path";
-import fs from "fs";
 import admin from "../../../lib/firebaseAdmin";
 import { runWithConcurrencyLimit } from "../../../lib/concurrency";
 
 // Batas jumlah proses generate gambar & upload yang berjalan bersamaan.
-// Mencegah CPU/memory spike dan rate-limit ketika CSV berisi ratusan baris.
 const GENERATE_CONCURRENCY = 5;
 const UPLOAD_CONCURRENCY = 5;
 
-// ---------------------------------------------------------------------------
-// Font handling
-// ---------------------------------------------------------------------------
-// RIWAYAT MIGRASI (dari sharp/librsvg -> resvg-js):
-// 1. sharp + librsvg + @font-face base64 woff2   -> kadang gagal (tofu box)
-// 2. resvg-js + fetch Google Fonts CSS (UA lama) -> unreliable, sering kosong
-// 3. resvg-js + fetch Google Fonts Developer API -> masih kosong di production
-//    meskipun API key valid & tidak ada error di log (root cause tidak
-//    pernah benar-benar terkonfirmasi -- bisa jaringan egress serverless,
-//    cold start race condition, dsb).
-//
-// KEPUTUSAN FINAL: karena daftar font TETAP (cuma 7 pilihan), font di-bundle
-// sebagai file .ttf statis langsung di dalam project (public/fonts/) dan
-// dibaca dari disk (fs.readFileSync) -- BUKAN fetch dari internet sama
-// sekali saat runtime. Ini menghilangkan seluruh kelas masalah yang sudah
-// kita temui (API key, restriction, rate limit, endpoint berubah, network
-// egress serverless): file-nya sudah pasti ada di server karena ikut
-// ter-deploy bersama kode (dijamin oleh `outputFileTracingIncludes` di
-// next_config.mjs).
-//
-// resvg-js (Rust `fontdb`/`ttf-parser`) menerima font sebagai Buffer mentah
-// lewat `font.fontBuffers`, dan mencocokkannya ke `font-family` di SVG
-// berdasarkan nama family yang tertanam di dalam font itu sendiri -- SVG
-// tidak perlu (dan tidak boleh) pakai @font-face sama sekali.
-const FONTS_DIR = path.join(process.cwd(), "public", "fonts");
-
-// Nama file untuk tiap font yang didukung. Semua sudah di-bundle di
-// public/fonts/ (lihat FONTS_DIR di atas) -- tidak ada lagi fetch runtime.
-const fontFileMap = {
-  Roboto: "Roboto-Bold.ttf",
-  Montserrat: "Montserrat-Bold.ttf",
-  "Playfair Display": "Playfair-Bold.ttf",
-  Poppins: "Poppins-Bold.ttf",
-  Lora: "Lora-Bold.ttf",
-  Pacifico: "Pacifico-Regular.ttf", // Pacifico cuma punya varian Regular
-  Caveat: "Caveat-Bold.ttf"
-};
-
-const fontBufferCache = new Map();
-
-function getFontTtfBuffer(fontFamily) {
-  if (fontBufferCache.has(fontFamily)) {
-    return fontBufferCache.get(fontFamily);
+// Helper function untuk mengambil dan cache font
+const fontCache = new Map();
+async function getFontBase64(fontFamily) {
+  if (fontCache.has(fontFamily)) {
+    return fontCache.get(fontFamily);
   }
-
-  const targetFileName = fontFileMap[fontFamily] || fontFileMap["Roboto"];
-  const fontsDir = path.join(process.cwd(), "public", "fonts");
-
+  const fontUrlMap = {
+    Roboto:
+      "https://fonts.gstatic.com/s/roboto/v49/KFO5CnqEu92Fr1Mu53ZEC9_Vu3r1gIhOszmkC3kaWzU.woff2",
+    Montserrat:
+      "https://fonts.gstatic.com/s/montserrat/v31/JTUQjIg1_i6t8kCHKm459WxRxC7mw9c.woff2",
+    "Playfair Display":
+      "https://fonts.gstatic.com/s/playfairdisplay/v40/nuFkD-vYSZviVYUb_rj3ij__anPXDTnohkk72xU.woff2",
+    Poppins:
+      "https://fonts.gstatic.com/s/poppins/v24/pxiEyp8kv8JHgFVrJJbecmNE.woff2",
+    Lora: "https://fonts.gstatic.com/s/lora/v37/0QIhMX1D_JOuMw_LLPtLp_A.woff2",
+    Pacifico:
+      "https://fonts.gstatic.com/s/pacifico/v23/FwZY7-Qmy14u9lezJ-6K6MmTpA.woff2",
+    Caveat:
+      "https://fonts.gstatic.com/s/caveat/v23/Wnz6HAc5bAfYB2Q7azYYmg8.woff2"
+  };
+  const fontUrl = fontUrlMap[fontFamily] || fontUrlMap["Roboto"];
   try {
-    if (!fs.existsSync(fontsDir)) {
-      console.error(`[VERCEL ERROR] Folder fonts tidak ada: ${fontsDir}`);
-      return null;
-    }
-
-    // Ambil semua file yang benar-benar ada di folder public/fonts/
-    const filesInDir = fs.readdirSync(fontsDir);
-    
-    // Cari file secara CASE-INSENSITIVE (mengatasi beda Poppins-Bold.ttf vs poppins-bold.ttf)
-    const actualFileName = filesInDir.find(
-      (file) => file.toLowerCase() === targetFileName.toLowerCase()
-    );
-
-    if (!actualFileName) {
-      console.error(
-        `[VERCEL ERROR] Font "${fontFamily}" (dicari: ${targetFileName}) tidak ditemukan di ${fontsDir}. File yang ada: [${filesInDir.join(", ")}]`
-      );
-      return null;
-    }
-
-    const filePath = path.join(fontsDir, actualFileName);
-    const buffer = fs.readFileSync(filePath);
-    fontBufferCache.set(fontFamily, buffer);
-    console.log(`[VERCEL SUCCESS] Font ${fontFamily} dimuat dari: ${filePath}`);
-    return buffer;
-
+    const response = await fetch(fontUrl);
+    if (!response.ok) throw new Error(`Gagal mengambil font: ${fontFamily}`);
+    const buffer = await response.arrayBuffer();
+    const base64 = Buffer.from(buffer).toString("base64");
+    fontCache.set(fontFamily, base64);
+    return base64;
   } catch (error) {
-    console.error(`[VERCEL ERROR] Gagal membaca font ${fontFamily}:`, error.message);
+    console.error("Error fetching font:", error);
     return null;
   }
 }
@@ -109,52 +59,42 @@ function sanitizeSvgText(text) {
     .replace(/'/g, "&#039;");
 }
 
-// Membuat SATU layer SVG yang berisi semua elemen teks untuk sebuah sertifikat.
-// Tidak ada @font-face di sini -- resvg-js mencocokkan `font-family` pada
-// elemen <text> langsung terhadap buffer font yang didaftarkan lewat opsi
-// `font.fontBuffers` saat instance Resvg dibuat.
+// Membuat SATU layer SVG yang berisi semua elemen teks untuk sebuah sertifikat
 function generateCombinedSvgLayer({ items, imageWidth, imageHeight }) {
+  const uniqueFonts = [...new Set(items.map((i) => i.fontFamily))];
+  const fontFaces = uniqueFonts
+    .map(
+      (fontFamily) => `
+        @font-face {
+          font-family: "${fontFamily}";
+          src: url(data:font/woff2;base64,${
+            items.find((i) => i.fontFamily === fontFamily).fontBase64
+          });
+        }`
+    )
+    .join("\n");
+
   const textNodes = items
     .map(
       ({ text, textColor, fontSize, fontFamily, positionX, positionY }) => `
-      <text 
-        x="${positionX}" 
-        y="${positionY}" 
-        text-anchor="middle" 
-        dominant-baseline="central"
-        fill="${textColor}"
-        font-size="${fontSize}px"
-        font-weight="bold"
-        font-family="${fontFamily}, Roboto, sans-serif">
+      <text x="${positionX}" y="${positionY}" text-anchor="middle" dominant-baseline="middle"
+        style="fill:${textColor}; font-size:${fontSize}px; font-weight:bold; font-family:'${fontFamily}', sans-serif;">
         ${sanitizeSvgText(text)}
       </text>`
     )
     .join("\n");
 
-  return `
+  const svg = `
     <svg width="${imageWidth}" height="${imageHeight}" xmlns="http://www.w3.org/2000/svg">
+      <style>${fontFaces}</style>
       ${textNodes}
     </svg>`;
-}
-// Merender SVG teks menjadi PNG buffer lewat resvg-js, dengan font yang
-// sudah dibaca dari disk didaftarkan sebagai fontBuffers.
-function renderTextLayerToPng({ svg, imageWidth, fontBuffers }) {
-  const resvg = new Resvg(svg, {
-    fitTo: { mode: "width", value: imageWidth },
-    font: {
-      fontBuffers,
-      loadSystemFonts: false,
-      // Pastikan defaultFontFamily diset ke "Roboto" (atau nama font utama yang pasti ada di fontBuffers)
-      defaultFontFamily: "Roboto"
-    }
-  });
-  const pngData = resvg.render();
-  return pngData.asPng();
+  return Buffer.from(svg);
 }
 
 export async function POST(req) {
   try {
-    // 1. Autentikasi (Tidak ada perubahan)
+    // 1. Autentikasi
     const authorization = req.headers.get("Authorization");
     if (!authorization?.startsWith("Bearer ")) {
       return NextResponse.json(
@@ -172,7 +112,7 @@ export async function POST(req) {
       );
     }
 
-    // 2. Parsing FormData dengan data terstruktur baru
+    // 2. Parsing FormData
     const formData = await req.formData();
     const templateFile = formData.get("template");
     const previewWidth = parseInt(formData.get("previewWidth"), 10) || 500;
@@ -215,14 +155,13 @@ export async function POST(req) {
 
     const isManualMode = Object.keys(mapping).length === 0;
 
-    // 3. Persiapan Gambar Template
-    // 3. Persiapan Gambar Template
+    // 3. Persiapan Gambar Template dan Font
     let templateFileBuffer = Buffer.from(await templateFile.arrayBuffer());
     const maxSizeInBytes = 2 * 1024 * 1024;
     if (templateFileBuffer.length > maxSizeInBytes) {
       templateFileBuffer = await sharp(templateFileBuffer)
         .resize({ width: 1920, withoutEnlargement: true })
-        .png({ quality: 80 })
+        .jpeg({ quality: 80 })
         .toBuffer();
     }
 
@@ -232,44 +171,13 @@ export async function POST(req) {
     const imageHeight = metadata.height;
     const scaleFactor = imageWidth / previewWidth;
 
-    // --- BAGIAN YANG DIREVISI (Pemuatan Font) ---
-    // Di Vercel Linux, readdir & load semua .ttf dari disk langsung tanpa pilih-pilih
-    const fontsDir = path.join(process.cwd(), "public", "fonts");
-    let fontBuffers = [];
-
-    try {
-      if (fs.existsSync(fontsDir)) {
-        const fontFiles = fs.readdirSync(fontsDir).filter((file) =>
-          file.toLowerCase().endsWith(".ttf")
-        );
-
-        fontBuffers = fontFiles
-          .map((file) => {
-            try {
-              return fs.readFileSync(path.join(fontsDir, file));
-            } catch (err) {
-              console.error(`Gagal membaca file font ${file}:`, err.message);
-              return null;
-            }
-          })
-          .filter(Boolean);
-
-        console.log(
-          `[VERCEL LOG] Total font buffers di-load ke Resvg: ${fontBuffers.length} file ([${fontFiles.join(", ")}])`
-        );
-      } else {
-        console.error(`[VERCEL ERROR] Folder fonts tidak ditemukan di: ${fontsDir}`);
-      }
-    } catch (fontErr) {
-      console.error("[VERCEL ERROR] Gagal membaca direktori fonts:", fontErr.message);
-    }
-
-    if (fontBuffers.length === 0) {
-      console.error(
-        "PERINGATAN: 0 font berhasil dibaca dari public/fonts/. Teks pada sertifikat tidak akan muncul."
-      );
-    }
-    // --- AKHIR BAGIAN REVISI ---
+    // Cache semua font yang dibutuhkan secara paralel
+    const uniqueFontFamilies = [
+      ...new Set(textElements.map((el) => el.fontFamily))
+    ];
+    await Promise.all(
+      uniqueFontFamilies.map((fontFamily) => getFontBase64(fontFamily))
+    );
 
     // 4. Proses Generate Gambar secara Dinamis
     const primaryIdentifierLabel =
@@ -291,35 +199,43 @@ export async function POST(req) {
 
           if (!text) continue;
 
+          const fontBase64 = fontCache.get(element.fontFamily);
+          if (!fontBase64) {
+            console.error(
+              `ERROR: Font base64 untuk ${element.fontFamily} tidak ditemukan di cache. Mengabaikan layer.`
+            );
+            continue;
+          }
+
           svgItems.push({
             text,
             textColor: element.textColor,
             fontSize: Math.round(element.fontSize * scaleFactor),
             fontFamily: element.fontFamily,
+            fontBase64,
             positionX: imageWidth * element.positionPercent.x,
             positionY: imageHeight * element.positionPercent.y
           });
         }
 
-        const compositeLayers = [];
-        if (svgItems.length) {
-          const svg = generateCombinedSvgLayer({
-            items: svgItems,
-            imageWidth,
-            imageHeight
-          });
-          const pngBuffer = renderTextLayerToPng({
-            svg,
-            imageWidth,
-            fontBuffers
-          });
-          compositeLayers.push({ input: pngBuffer, top: 0, left: 0 });
-        }
+        const compositeLayers = svgItems.length
+          ? [
+              {
+                input: generateCombinedSvgLayer({
+                  items: svgItems,
+                  imageWidth,
+                  imageHeight
+                }),
+                top: 0,
+                left: 0
+              }
+            ]
+          : [];
 
         const generatedCertBuffer = await baseImage
           .clone()
           .composite(compositeLayers)
-          .png({ quality: 85 })
+          .jpeg({ quality: 85 })
           .toBuffer();
 
         return {
@@ -330,7 +246,7 @@ export async function POST(req) {
       }
     );
 
-    // 5. Upload ke Supabase
+    // 5. Upload ke Supabase (menggunakan supabaseAdmin agar bypass RLS)
     const allUploadedCerts = await runWithConcurrencyLimit(
       allGeneratedData,
       UPLOAD_CONCURRENCY,
@@ -338,10 +254,10 @@ export async function POST(req) {
         const certPath = `sertifikat-${String(data.name).replace(
           /\s+/g,
           "-"
-        )}-${Date.now()}.png`;
+        )}-${Date.now()}.jpeg`;
         const { error: uploadError } = await supabase.storage
           .from("generated-certificates")
-          .upload(certPath, data.buffer, { contentType: "image/png" });
+          .upload(certPath, data.buffer, { contentType: "image/jpeg" });
 
         if (uploadError) {
           console.error(`Gagal upload sertifikat ${data.name}:`, uploadError);
