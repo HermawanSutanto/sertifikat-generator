@@ -27,54 +27,61 @@ const UPLOAD_CONCURRENCY = 5;
 // `font.fontBuffers` saat membuat instance Resvg, dan SVG cukup mereferensi
 // nama font-family biasa tanpa @font-face.
 //
-// Karena itu di sini kita fetch varian **ttf** dari Google Fonts (bukan
-// woff2), dengan memaksa Google Fonts mengirim ttf lewat User-Agent lama
-// yang tidak mendukung woff/woff2.
+// CATATAN MIGRASI: percobaan pertama memakai trik "User-Agent lama" ke
+// endpoint fonts.googleapis.com/css supaya Google mengirim .ttf alih-alih
+// .woff2. Trik itu TIDAK reliable -- Google mengubah/mengetatkan deteksi UA
+// di endpoint CSS tsb, sehingga kadang berhasil di lokal (browser/DNS cache
+// lama) tapi gagal saat request fresh dari server produksi.
+//
+// Solusi yang dipakai di sini: Google Fonts DEVELOPER API resmi
+// (https://developers.google.com/fonts/docs/developer_api), bukan endpoint
+// CSS yang men-sniff User-Agent. Field `files` di API ini SELALU berisi URL
+// .ttf statis secara default (didokumentasikan resmi oleh Google, tidak
+// bergantung User-Agent). Butuh API key gratis dari Google Cloud Console
+// (aktifkan "Google Fonts Developer API"), disimpan di env var
+// GOOGLE_FONTS_API_KEY.
 const fontBufferCache = new Map();
 
-const fontFamilyMap = {
-  Roboto: "Roboto",
-  Montserrat: "Montserrat",
-  "Playfair Display": "Playfair+Display",
-  Poppins: "Poppins",
-  Lora: "Lora",
-  Pacifico: "Pacifico",
-  Caveat: "Caveat"
-};
+const GOOGLE_FONTS_API_KEY = process.env.GOOGLE_FONTS_API_KEY;
 
-// User-Agent lama (tanpa dukungan woff/woff2) membuat Google Fonts CSS API
-// mengembalikan url font dalam format .ttf, bukan .woff2.
-const LEGACY_UA =
-  "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)";
+// Query metadata untuk satu family lewat Google Fonts Developer API resmi,
+// lalu ambil URL file .ttf-nya dari field `files`.
+async function fetchFontFileUrl(fontFamily) {
+  const url = `https://www.googleapis.com/webfonts/v1/webfonts?family=${encodeURIComponent(
+    fontFamily
+  )}&key=${GOOGLE_FONTS_API_KEY}`;
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`Google Fonts API error (${fontFamily}): ${res.status}`);
+  }
+  const data = await res.json();
+  const item = data.items && data.items[0];
+  if (!item) {
+    throw new Error(`Font "${fontFamily}" tidak ditemukan di Google Fonts.`);
+  }
+  // Pilih varian bold (700) kalau ada, jatuh ke regular kalau tidak.
+  const fileUrl = item.files["700"] || item.files.regular || item.menu;
+  if (!fileUrl) {
+    throw new Error(`Tidak ada file .ttf untuk font "${fontFamily}".`);
+  }
+  // API kadang mengembalikan http://, upgrade ke https:// untuk fetch aman.
+  return fileUrl.replace(/^http:\/\//, "https://");
+}
 
 async function getFontTtfBuffer(fontFamily) {
   if (fontBufferCache.has(fontFamily)) {
     return fontBufferCache.get(fontFamily);
   }
 
-  const googleFamily = fontFamilyMap[fontFamily] || fontFamilyMap["Roboto"];
-  const cssUrl = `https://fonts.googleapis.com/css?family=${googleFamily}:700&display=swap`;
-
   try {
-    // 1. Ambil CSS dengan UA lama supaya Google mengirim link .ttf
-    const cssResponse = await fetch(cssUrl, {
-      headers: { "User-Agent": LEGACY_UA }
-    });
-    if (!cssResponse.ok) {
-      throw new Error(`Gagal mengambil CSS font: ${fontFamily}`);
-    }
-    const cssText = await cssResponse.text();
-
-    // 2. Ekstrak URL font (.ttf) dari CSS
-    const match = cssText.match(/url\((https:[^)]+\.ttf)\)/);
-    if (!match) {
+    if (!GOOGLE_FONTS_API_KEY) {
       throw new Error(
-        `Tidak menemukan URL .ttf untuk font ${fontFamily}. Google mungkin mengubah format respons.`
+        "GOOGLE_FONTS_API_KEY belum diset di environment variables."
       );
     }
-    const ttfUrl = match[1];
 
-    // 3. Unduh file .ttf sebagai Buffer
+    const ttfUrl = await fetchFontFileUrl(fontFamily);
+
     const fontResponse = await fetch(ttfUrl);
     if (!fontResponse.ok) {
       throw new Error(`Gagal mengunduh file font: ${fontFamily}`);
