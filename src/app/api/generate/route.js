@@ -65,20 +65,21 @@ function getFontTtfBuffer(fontFamily) {
   }
 
   const fileName = fontFileMap[fontFamily] || fontFileMap["Roboto"];
-  const filePath = path.join(FONTS_DIR, fileName);
+  
+  // Vercel serverless kadang menempatkan root project di process.cwd()
+  const filePath = path.join(process.cwd(), "public", "fonts", fileName);
 
   try {
+    if (!fs.existsSync(filePath)) {
+      console.error(`[VERCEL DEBUG] File font TIDAK DITEMUKAN di path: ${filePath}`);
+      return null;
+    }
+
     const buffer = fs.readFileSync(filePath);
     fontBufferCache.set(fontFamily, buffer);
     return buffer;
   } catch (error) {
-    // Kalau ini terjadi, artinya file tidak ikut ter-deploy -- cek
-    // `outputFileTracingIncludes` di next_config.mjs dan pastikan path-nya
-    // ("./public/fonts/**") match dengan lokasi file sebenarnya.
-    console.error(
-      `Gagal membaca font lokal "${fileName}" di ${filePath}:`,
-      error.message
-    );
+    console.error(`Gagal membaca font "${fileName}" di ${filePath}:`, error.message);
     return null;
   }
 }
