@@ -1,7 +1,20 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { Fraunces, Public_Sans } from "next/font/google";
+import {
+  ArrowRight,
+  Award,
+  Check,
+  Facebook,
+  Instagram,
+  Linkedin,
+  Medal,
+  Plus,
+  Printer,
+  Quote,
+  SlidersHorizontal,
+  Target,
+} from "lucide-react";
 import AuthNav from "./AuthNav"; // sesuaikan path jika struktur folder berbeda
 
 const fraunces = Fraunces({
@@ -17,10 +30,10 @@ const publicSans = Public_Sans({
   variable: "--font-body",
 });
 
-// SEO: sekarang bisa diekspor karena halaman ini server component.
-// Ganti "https://sertifikat-generator-olive.vercel.app/" dengan domain asli sebelum deploy.
+// SEO: halaman ini server component sehingga metadata bisa diekspor.
+// Ganti "https://sertigen.example.com" dengan domain asli sebelum deploy.
 export const metadata = {
-  metadataBase: new URL("https://sertifikat-generator-olive.vercel.app/"),
+  metadataBase: new URL("https://sertigen.example.com"),
   title: "SertiGen — Generator Sertifikat Otomatis untuk Webinar & Acara",
   description:
     "Buat ratusan sertifikat personal dalam hitungan menit. Unggah template, masukkan daftar nama, dan unduh sertifikat profesional siap cetak maupun digital. Gratis untuk 50 sertifikat pertama.",
@@ -50,6 +63,7 @@ export const metadata = {
   },
 };
 
+// Ganti angka-angka di bawah (badge, stats) dengan data riil sebelum publish.
 const faqs = [
   {
     q: "Apakah SertiGen gratis?",
@@ -84,38 +98,22 @@ const features = [
   {
     title: "Cepat & Efisien",
     desc: "Proses ratusan nama hanya dalam sekali klik, bukan berjam-jam kerja manual.",
-    icon: (
-      <>
-        <path d="m12 14 4-4" />
-        <path d="M3.34 19a10 10 0 1 1 17.32 0" />
-      </>
-    ),
+    icon: Target,
   },
   {
     title: "Kustomisasi Mudah",
     desc: "Atur posisi nama, ukuran, jenis, dan warna font dengan pratinjau interaktif.",
-    icon: <path d="M12 15-3.4 4.2c-.5-.8-1.5-.8-2-.1l-.8.8c-.5.7-.5 1.7 0 2.4l13.2 13.2c.7.7 1.7.7 2.4 0l.8-.8c.7-.5.7-1.5-.1-2Z" />,
+    icon: SlidersHorizontal,
   },
   {
     title: "Kualitas Profesional",
     desc: "Ekspor sertifikat dalam format PNG resolusi tinggi, siap dibagikan digital.",
-    icon: (
-      <>
-        <path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
-        <path d="m12 9 1.8 3.6a.5.5 0 0 0 .8.4l3.6 1.8-3.6 1.8a.5.5 0 0 0-.8.4L12 21l-1.8-3.6a.5.5 0 0 0-.8-.4L5.8 15l3.6-1.8a.5.5 0 0 0 .8-.4Z" />
-      </>
-    ),
+    icon: Medal,
   },
   {
     title: "Siap Cetak & Digital",
     desc: "File PNG tajam saat dicetak dan sempurna untuk dibagikan online.",
-    icon: (
-      <>
-        <path d="M6 18h12a2 2 0 0 0 2-2v-5a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2Z" />
-        <path d="M6 9V6a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v3" />
-        <path d="M10 12h4" />
-      </>
-    ),
+    icon: Printer,
   },
 ];
 
@@ -125,18 +123,21 @@ const testimonials = [
       "SertiGen benar-benar mengubah cara kami mengelola sertifikat webinar. Dari yang tadinya butuh berjam-jam, sekarang selesai dalam 5 menit.",
     name: "Budi Santoso",
     role: "Event Organizer, TechTalks ID",
+    initials: "BS",
   },
   {
     quote:
       "Awalnya ragu, tapi ternyata antarmukanya sangat mudah digunakan. Fitur kustomisasi posisinya sangat membantu.",
     name: "Citra Lestari",
     role: "Panitia, Lomba Desain Nasional",
+    initials: "CL",
   },
   {
     quote:
       "Fitur download semua sebagai ZIP adalah penyelamat. Tidak perlu lagi mengunduh satu per satu. Efisiensi kerja tim kami meningkat drastis.",
     name: "Rian Adriansyah",
     role: "Koordinator, Pelatihan Digital Marketing",
+    initials: "RA",
   },
 ];
 
@@ -146,41 +147,46 @@ const steps = [
   { step: "03", title: "Generate & Unduh", desc: "Klik \u201cGenerate\u201d dan semua sertifikat siap diunduh." },
 ];
 
+const plans = [
+  {
+    name: "Gratis",
+    price: "Rp0",
+    perks: ["50 sertifikat pertama", "Semua fitur kustomisasi", "Export PNG resolusi tinggi"],
+    highlight: false,
+  },
+  {
+    name: "Premium",
+    price: "Rp149rb/bulan",
+    perks: ["Sertifikat tanpa batas", "Download massal ZIP", "Dukungan prioritas"],
+    highlight: true,
+  },
+];
+
 const posts = [
   {
     href: "/blog/10-font-terbaik-untuk-sertifikat",
+    tag: "Desain",
     title: "10 Font Terbaik dan Profesional untuk Desain Sertifikat Resmi",
     excerpt: "Memilih font yang tepat adalah kunci untuk desain sertifikat yang terlihat profesional.",
   },
   {
     href: "/blog/cara-membuat-sertifikat-webinar",
+    tag: "Panduan",
     title: "5 Langkah Mudah Membuat Sertifikat Webinar Profesional",
     excerpt: "Webinar Anda sukses besar? Saatnya memberikan apresiasi kepada peserta dengan sertifikat.",
   },
 ];
 
-function Icon({ children }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.75"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      {children}
-    </svg>
-  );
-}
+const socials = [
+  { icon: Instagram, label: "Instagram" },
+  { icon: Facebook, label: "Facebook" },
+  { icon: Linkedin, label: "LinkedIn" },
+];
 
 export default function LandingPage() {
   return (
     <div
-      className={`${fraunces.variable} ${publicSans.variable} flex flex-col min-h-screen bg-[#F2EAD3] text-[#1B2436]`}
+      className={`${fraunces.variable} ${publicSans.variable} bg-[#F2EAD3] text-[#17233D] w-full`}
       style={{ fontFamily: "var(--font-body)" }}
     >
       <script
@@ -190,153 +196,259 @@ export default function LandingPage() {
 
       <a
         href="#konten-utama"
-        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[60] focus:bg-[#17233D] focus:text-[#F2EAD3] focus:px-4 focus:py-2 focus:rounded-md"
+        className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 focus:z-[60] focus:bg-[#17233D] focus:text-[#F2EAD3] focus:px-4 focus:py-2 focus:rounded-full"
       >
         Lewati ke konten
       </a>
 
       {/* Header */}
-      <header className="w-full sticky top-0 bg-[#F2EAD3]/90 backdrop-blur-md border-b border-[#1B2436]/10 z-50">
-        <div className="max-w-6xl mx-auto flex justify-between items-center px-6 py-4">
-          <Link
-            href="/"
-            className="flex items-center gap-2 text-xl font-bold tracking-tight text-[#17233D]"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            <span className="flex items-center justify-center h-8 w-8 rounded-full border-2 border-[#A9822E] text-xs text-[#A9822E]">
+      <header className="sticky top-0 z-50 bg-[#F2EAD3]/90 backdrop-blur-md border-b border-[#17233D]/10">
+        <div className="max-w-[1140px] mx-auto px-6 md:px-12 py-4 flex justify-between items-center">
+          <Link href="/" className="flex items-center gap-2">
+            <span className="flex items-center justify-center w-9 h-9 rounded-full border-2 border-[#A9822E] text-[#A9822E] text-xs font-bold">
               SG
             </span>
-            SertiGen
+            <span
+              className="text-xl font-bold text-[#17233D] tracking-tight"
+              style={{ fontFamily: "var(--font-display)" }}
+            >
+              SertiGen
+            </span>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-[#1B2436]/80">
+          <nav className="hidden md:flex items-center gap-8 text-sm font-medium text-[#17233D]/80">
             <Link href="/#features" className="hover:text-[#8C2F39] transition-colors">
               Fitur
             </Link>
             <Link href="/#how-it-works" className="hover:text-[#8C2F39] transition-colors">
               Cara Kerja
             </Link>
+            <Link href="/#pricing" className="hover:text-[#8C2F39] transition-colors">
+              Harga
+            </Link>
             <Link href="/blog" className="hover:text-[#8C2F39] transition-colors">
               Blog
             </Link>
           </nav>
 
-          <Suspense
-            fallback={<div className="h-9 w-[168px]" aria-hidden="true" />}
-          >
+          <Suspense fallback={<div className="h-9 w-[168px]" aria-hidden="true" />}>
             <AuthNav />
           </Suspense>
         </div>
       </header>
 
-      <main id="konten-utama" className="flex-grow">
+      <main id="konten-utama">
         {/* Hero */}
-        <section className="pt-16 pb-20 md:pt-24 md:pb-28">
-          <div className="max-w-6xl mx-auto px-6 grid md:grid-cols-2 gap-14 items-center">
+        <section className="relative overflow-hidden bg-[radial-gradient(ellipse_at_top,_#FBF3DB,_#F2EAD3)] pt-16 pb-20 md:pt-20 md:pb-24">
+          <div
+            className="hidden md:block absolute right-16 top-16 w-24 h-24 rounded-full border-2 border-[#A9822E]/40"
+            aria-hidden="true"
+          />
+          <div
+            className="hidden md:block absolute left-1/4 top-24 w-40 h-40 rounded-full border border-dashed border-[#A9822E]/40"
+            aria-hidden="true"
+          />
+
+          <div className="relative max-w-[1140px] mx-auto px-6 md:px-12 grid md:grid-cols-2 gap-12 items-center">
             <div>
+              <div className="inline-flex items-center gap-2 rounded-full border border-[#A9822E]/50 bg-[#FCFAF2] px-4 py-1.5 text-xs font-semibold text-[#A9822E]">
+                ✦ Dipercaya 2.000+ penyelenggara acara
+              </div>
+
               <h1
-                className="text-4xl md:text-[3.4rem] leading-[1.08] font-bold text-[#17233D]"
+                className="mt-6 text-4xl md:text-[3.4rem] leading-[1.08] font-bold text-[#17233D]"
                 style={{ fontFamily: "var(--font-display)" }}
               >
-                Ratusan sertifikat, satu template, lima menit.
+                Ratusan sertifikat, <em className="italic text-[#8C2F39]">satu template</em>, lima menit.
               </h1>
-              <p className="mt-6 text-lg text-[#1B2436]/75 max-w-md">
+
+              <p className="mt-6 max-w-md text-lg leading-relaxed text-[#17233D]/70">
                 Ucapkan selamat tinggal pada input data manual. Unggah template
                 Anda, tempel daftar nama, dan biarkan SertiGen mencetak
                 sertifikat profesional secara otomatis.
               </p>
-              <div className="mt-9 flex items-center gap-5">
+
+              <div className="mt-8 flex flex-wrap items-center gap-4">
                 <Link
                   href="/register"
-                  className="px-7 py-3.5 font-semibold text-[#F2EAD3] bg-[#8C2F39] rounded-md hover:bg-[#742531] transition-colors"
+                  className="inline-flex items-center gap-2 rounded-full bg-[#8C2F39] px-7 py-3.5 text-base font-semibold text-[#F2EAD3] shadow-lg hover:bg-[#742531] transition-colors"
                 >
                   Mulai Membuat, Gratis
+                  <ArrowRight className="size-4" />
                 </Link>
                 <Link
                   href="/#how-it-works"
-                  className="text-sm font-semibold text-[#17233D] border-b border-[#17233D]/40 hover:border-[#17233D] transition-colors"
+                  className="rounded-full px-7 py-3.5 text-base font-semibold text-[#17233D] hover:bg-[#17233D]/[0.06] transition-colors"
                 >
-                  Lihat cara kerjanya
+                  Lihat Cara Kerja
                 </Link>
               </div>
-              <p className="mt-5 text-sm text-[#1B2436]/55">
-                Gratis untuk 50 sertifikat pertama. Tanpa kartu kredit.
-              </p>
+
+              <div className="mt-6 flex items-center gap-3">
+                <div className="flex -space-x-2" aria-hidden="true">
+                  <div className="w-7 h-7 rounded-full border-2 border-[#F2EAD3] bg-[#A9822E]/40" />
+                  <div className="w-7 h-7 rounded-full border-2 border-[#F2EAD3] bg-[#8C2F39]/40" />
+                  <div className="w-7 h-7 rounded-full border-2 border-[#F2EAD3] bg-[#17233D]/30" />
+                </div>
+                <span className="text-sm text-[#17233D]/60">
+                  Gratis untuk 50 sertifikat pertama · Tanpa kartu kredit
+                </span>
+              </div>
+
+              <dl className="mt-8 flex gap-10">
+                <div>
+                  <dt className="sr-only">Sertifikat dibuat</dt>
+                  <dd className="text-2xl font-bold text-[#17233D]">50.000+</dd>
+                  <dt className="text-xs uppercase tracking-wide text-[#17233D]/50">Sertifikat dibuat</dt>
+                </div>
+                <div>
+                  <dd className="text-2xl font-bold text-[#17233D]">2.000+</dd>
+                  <dt className="text-xs uppercase tracking-wide text-[#17233D]/50">Penyelenggara</dt>
+                </div>
+                <div>
+                  <dd className="text-2xl font-bold text-[#17233D]">4.9/5</dd>
+                  <dt className="text-xs uppercase tracking-wide text-[#17233D]/50">Rating pengguna</dt>
+                </div>
+              </dl>
             </div>
 
-            {/* Bingkai ala sertifikat, bukan kartu shadow generik */}
+            {/* Mockup sertifikat dekoratif */}
             <div className="relative">
-              <div className="border-[3px] border-double border-[#A9822E]/70 p-3 bg-[#FCFAF2]">
-                <Image
-                  src="/sertigen-demo.png"
-                  alt="Tampilan dashboard SertiGen menunjukkan template sertifikat dan daftar nama penerima"
-                  width={1200}
-                  height={675}
-                  priority
-                  className="w-full h-auto"
-                />
+              <div
+                className="hidden md:block absolute -right-8 -top-8 w-56 h-56 rounded-full bg-[#A9822E]/30 blur-3xl"
+                aria-hidden="true"
+              />
+              <div className="relative border-[3px] border-double border-[#A9822E]/70 bg-[#FCFAF2] p-10 shadow-2xl">
+                <span className="absolute -left-3 -top-3 h-7 w-7 border-t-2 border-l-2 border-[#A9822E]" aria-hidden="true" />
+                <span className="absolute -right-3 -bottom-3 h-7 w-7 border-b-2 border-r-2 border-[#A9822E]" aria-hidden="true" />
+                <div className="flex flex-col items-center gap-4 py-6 text-center">
+                  <div className="flex items-center justify-center w-16 h-16 rounded-full border border-[#A9822E]/50 bg-[#A9822E]/15">
+                    <Award className="size-8 text-[#A9822E]" />
+                  </div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.3em] text-[#A9822E]">
+                    Certificate of Completion
+                  </div>
+                  <div className="h-px w-24 bg-[#A9822E]/50" />
+                  <div className="h-4 w-40 rounded-sm bg-[#17233D]/15" />
+                  <div className="mt-6 h-px w-32 bg-[#17233D]/30" />
+                  <div className="text-[10px] uppercase tracking-widest text-[#17233D]/40">
+                    Tanda Tangan
+                  </div>
+                </div>
               </div>
-              <span className="absolute -top-3 -left-3 h-6 w-6 border-t-2 border-l-2 border-[#A9822E]" aria-hidden="true" />
-              <span className="absolute -bottom-3 -right-3 h-6 w-6 border-b-2 border-r-2 border-[#A9822E]" aria-hidden="true" />
             </div>
           </div>
         </section>
 
         {/* Fitur Unggulan */}
-        <section id="features" className="py-20 bg-[#FCFAF2] border-y border-[#1B2436]/10">
-          <div className="max-w-6xl mx-auto px-6">
+        <section id="features" className="border-y border-[#17233D]/10 bg-[#FCFAF2] py-20">
+          <div className="max-w-[1140px] mx-auto px-6 md:px-12">
             <div className="max-w-xl mb-14">
+              <div className="text-xs font-semibold uppercase tracking-[0.25em] text-[#A9822E]">
+                Keunggulan
+              </div>
               <h2
-                className="text-3xl md:text-4xl font-bold text-[#17233D]"
+                className="mt-3 text-3xl md:text-4xl font-bold text-[#17233D]"
                 style={{ fontFamily: "var(--font-display)" }}
               >
                 Kenapa memilih SertiGen?
               </h2>
-              <p className="mt-4 text-[#1B2436]/70">
+              <p className="mt-4 text-[#17233D]/70">
                 Alat yang Anda butuhkan untuk efisiensi kerja tanpa kompromi
                 pada kualitas.
               </p>
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-x-8 gap-y-12">
-              {features.map((item, i) => (
-                <div key={i} className="border-t-2 border-[#17233D] pt-5">
-                  <div className="flex items-center justify-center h-11 w-11 rounded-full border border-[#A9822E] text-[#A9822E]">
-                    <Icon>{item.icon}</Icon>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {features.map((item) => (
+                <div key={item.title} className="rounded-xl bg-white p-6 shadow-sm">
+                  <div className="flex items-center justify-center w-11 h-11 rounded-full border border-[#A9822E] text-[#A9822E]">
+                    <item.icon className="size-5" />
                   </div>
-                  <h3 className="mt-5 text-lg font-semibold text-[#17233D]">{item.title}</h3>
-                  <p className="mt-2 text-[#1B2436]/70 text-[15px]">{item.desc}</p>
+                  <h3 className="mt-4 text-lg font-semibold text-[#17233D]">{item.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-[#17233D]/70">{item.desc}</p>
                 </div>
               ))}
             </div>
           </div>
         </section>
 
-        {/* Bukti Sosial */}
+        {/* Quote Spotlight */}
+        <section className="py-20">
+          <div className="max-w-[1140px] mx-auto px-6 md:px-12 grid md:grid-cols-2 gap-12 items-center">
+            <div className="overflow-hidden rounded-2xl shadow-lg">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="https://images.unsplash.com/photo-1590012314607-cda9d9b699ae?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&q=80&w=800"
+                alt="Suasana upacara wisuda dan penyerahan sertifikat"
+                width={800}
+                height={600}
+                loading="lazy"
+                className="w-full h-full object-cover"
+              />
+            </div>
+            <div>
+              <Quote className="size-8 text-[#A9822E]" aria-hidden="true" />
+              <blockquote
+                className="mt-4 text-3xl font-bold leading-snug text-[#17233D]"
+                style={{ fontFamily: "var(--font-display)" }}
+              >
+                &ldquo;SertiGen menghemat 20+ jam kerja tim kami setiap bulan.&rdquo;
+              </blockquote>
+              <p className="mt-4 text-sm font-medium text-[#17233D]/70">
+                Tim Event, Kominfo Digital Talent
+              </p>
+              <div className="mt-8 flex gap-8">
+                <div>
+                  <div className="text-xl font-bold text-[#17233D]">20+</div>
+                  <div className="text-xs text-[#17233D]/50">jam dihemat/bulan</div>
+                </div>
+                <div>
+                  <div className="text-xl font-bold text-[#17233D]">99%</div>
+                  <div className="text-xs text-[#17233D]/50">akurasi nama</div>
+                </div>
+                <div>
+                  <div className="text-xl font-bold text-[#17233D]">&lt;5 menit</div>
+                  <div className="text-xs text-[#17233D]/50">proses</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Testimoni */}
         <section id="testimonials" className="py-20">
-          <div className="max-w-6xl mx-auto px-6">
+          <div className="max-w-[1140px] mx-auto px-6 md:px-12">
             <div className="max-w-xl mb-14">
+              <div className="text-xs font-semibold uppercase tracking-[0.25em] text-[#A9822E]">
+                Testimoni
+              </div>
               <h2
-                className="text-3xl md:text-4xl font-bold text-[#17233D]"
+                className="mt-3 text-3xl md:text-4xl font-bold text-[#17233D]"
                 style={{ fontFamily: "var(--font-display)" }}
               >
                 Dipercaya oleh penyelenggara acara
               </h2>
-              <p className="mt-4 text-[#1B2436]/70">
+              <p className="mt-4 text-[#17233D]/70">
                 Lihat apa kata mereka yang telah menghemat waktu dengan
                 SertiGen.
               </p>
             </div>
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {testimonials.map((t, i) => (
-                <figure key={i} className="bg-[#FCFAF2] border border-[#1B2436]/10 p-7">
-                  <blockquote className="text-[#1B2436]/85 text-[15px] leading-relaxed">
-                    &ldquo;{t.quote}&rdquo;
+              {testimonials.map((t) => (
+                <figure key={t.name} className="rounded-xl bg-white p-6 shadow-sm">
+                  <Quote className="size-6 text-[#A9822E]" aria-hidden="true" />
+                  <blockquote className="mt-4 text-sm leading-relaxed text-[#17233D]/85">
+                    {t.quote}
                   </blockquote>
                   <figcaption className="mt-6 flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-[#17233D]/10" aria-hidden="true" />
+                    <div className="flex items-center justify-center w-10 h-10 rounded-full bg-[#17233D]/10 text-xs font-semibold text-[#17233D]">
+                      {t.initials}
+                    </div>
                     <div>
-                      <p className="font-semibold text-[#17233D] text-sm">{t.name}</p>
-                      <p className="text-xs text-[#1B2436]/60">{t.role}</p>
+                      <p className="text-sm font-semibold text-[#17233D]">{t.name}</p>
+                      <p className="text-xs text-[#17233D]/60">{t.role}</p>
                     </div>
                   </figcaption>
                 </figure>
@@ -346,86 +458,188 @@ export default function LandingPage() {
         </section>
 
         {/* Cara Kerja */}
-        <section id="how-it-works" className="py-20 bg-[#FCFAF2] border-y border-[#1B2436]/10">
-          <div className="max-w-6xl mx-auto px-6">
+        <section id="how-it-works" className="border-y border-[#17233D]/10 bg-[#FCFAF2] py-20">
+          <div className="max-w-[1140px] mx-auto px-6 md:px-12">
             <div className="max-w-xl mb-14">
+              <div className="text-xs font-semibold uppercase tracking-[0.25em] text-[#A9822E]">
+                Alur Kerja
+              </div>
               <h2
-                className="text-3xl md:text-4xl font-bold text-[#17233D]"
+                className="mt-3 text-3xl md:text-4xl font-bold text-[#17233D]"
                 style={{ fontFamily: "var(--font-display)" }}
               >
                 Hanya 3 langkah mudah
               </h2>
-              <p className="mt-4 text-[#1B2436]/70">
+              <p className="mt-4 text-[#17233D]/70">
                 Mulai dari template hingga sertifikat jadi dalam sekejap.
               </p>
             </div>
-            <ol className="grid grid-cols-1 md:grid-cols-3 gap-12">
-              {steps.map((s, i) => (
-                <li key={i} className="flex gap-4">
+
+            <ol className="relative grid grid-cols-1 md:grid-cols-3 gap-12">
+              <div
+                className="hidden md:block absolute inset-x-[16%] top-8 h-px border-t border-dashed border-[#A9822E]/50"
+                aria-hidden="true"
+              />
+              {steps.map((s) => (
+                <li key={s.step} className="relative flex flex-col items-center text-center">
                   <span
-                    className="shrink-0 flex items-center justify-center h-11 w-11 rounded-full bg-[#17233D] text-[#F2EAD3] text-sm font-semibold"
+                    className="flex items-center justify-center w-16 h-16 rounded-full bg-[#17233D] text-lg font-bold text-[#F2EAD3] ring-2 ring-[#A9822E]"
                     style={{ fontFamily: "var(--font-display)" }}
                   >
                     {s.step}
                   </span>
-                  <div>
-                    <h3 className="font-semibold text-[#17233D]">{s.title}</h3>
-                    <p className="mt-1.5 text-[15px] text-[#1B2436]/70">{s.desc}</p>
-                  </div>
+                  <h3 className="mt-5 font-semibold text-[#17233D]">{s.title}</h3>
+                  <p className="mt-2 text-sm text-[#17233D]/70">{s.desc}</p>
                 </li>
               ))}
             </ol>
           </div>
         </section>
 
-        {/* FAQ */}
-        <section id="faq" className="py-20">
-          <div className="max-w-6xl mx-auto px-6">
+        {/* Harga */}
+        <section id="pricing" className="py-20">
+          <div className="max-w-[1140px] mx-auto px-6 md:px-12">
             <div className="max-w-xl mb-14">
+              <div className="text-xs font-semibold uppercase tracking-[0.25em] text-[#A9822E]">
+                Harga
+              </div>
               <h2
-                className="text-3xl md:text-4xl font-bold text-[#17233D]"
+                className="mt-3 text-3xl md:text-4xl font-bold text-[#17233D]"
+                style={{ fontFamily: "var(--font-display)" }}
+              >
+                Sederhana dan transparan
+              </h2>
+            </div>
+
+            <div className="grid max-w-3xl grid-cols-1 md:grid-cols-2 gap-8 items-center">
+              {plans.map((plan) => (
+                <div
+                  key={plan.name}
+                  className={
+                    plan.highlight
+                      ? "relative rounded-xl bg-[#8C2F39] p-8 text-[#F2EAD3] shadow-2xl md:scale-105"
+                      : "rounded-xl border border-[#17233D]/10 bg-white p-8 shadow-sm"
+                  }
+                >
+                  {plan.highlight && (
+                    <div className="absolute right-4 top-4 rounded-full bg-[#A9822E] px-3 py-1 text-[10px] font-bold uppercase text-[#17233D]">
+                      Populer
+                    </div>
+                  )}
+                  <div
+                    className={
+                      plan.highlight
+                        ? "text-sm font-semibold uppercase tracking-wide text-[#F2EAD3]/70"
+                        : "text-sm font-semibold uppercase tracking-wide text-[#17233D]/60"
+                    }
+                  >
+                    {plan.name}
+                  </div>
+                  <div className={plan.highlight ? "mt-2 text-4xl font-bold" : "mt-2 text-4xl font-bold text-[#17233D]"}>
+                    {plan.price}
+                  </div>
+                  <ul className="mt-6 flex flex-col gap-3">
+                    {plan.perks.map((perk) => (
+                      <li
+                        key={perk}
+                        className={
+                          plan.highlight
+                            ? "flex items-center gap-2 text-sm text-[#F2EAD3]/90"
+                            : "flex items-center gap-2 text-sm text-[#17233D]/80"
+                        }
+                      >
+                        <Check className="size-4 text-[#A9822E]" />
+                        {perk}
+                      </li>
+                    ))}
+                  </ul>
+                  <Link
+                    href="/register"
+                    className={
+                      plan.highlight
+                        ? "mt-6 inline-block w-full rounded-full bg-[#F2EAD3] px-5 py-2.5 text-center text-sm font-semibold text-[#8C2F39] hover:bg-white transition-colors"
+                        : "mt-6 inline-block w-full rounded-full border border-[#17233D]/20 px-5 py-2.5 text-center text-sm font-semibold text-[#17233D] hover:bg-[#17233D]/[0.04] transition-colors"
+                    }
+                  >
+                    {plan.highlight ? "Pilih Premium" : "Mulai Gratis"}
+                  </Link>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        {/* FAQ */}
+        <section id="faq" className="border-y border-[#17233D]/10 bg-[#FCFAF2] py-20">
+          <div className="max-w-[1140px] mx-auto px-6 md:px-12">
+            <div className="max-w-xl mb-14">
+              <div className="text-xs font-semibold uppercase tracking-[0.25em] text-[#A9822E]">
+                FAQ
+              </div>
+              <h2
+                className="mt-3 text-3xl md:text-4xl font-bold text-[#17233D]"
                 style={{ fontFamily: "var(--font-display)" }}
               >
                 Pertanyaan yang sering diajukan
               </h2>
-              <p className="mt-4 text-[#1B2436]/70">Punya pertanyaan lain? Kami siap membantu.</p>
+              <p className="mt-4 text-[#17233D]/70">Punya pertanyaan lain? Kami siap membantu.</p>
             </div>
-            <dl className="max-w-3xl grid grid-cols-1 md:grid-cols-2 gap-x-10 gap-y-10">
+
+            <dl className="grid max-w-4xl grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
               {faqs.map((item, i) => (
-                <div key={i}>
-                  <dt className="font-semibold text-[#17233D]">{item.q}</dt>
-                  <dd className="mt-2 text-[#1B2436]/70 text-[15px]">{item.a}</dd>
+                <div
+                  key={item.q}
+                  className={
+                    i < faqs.length - 2
+                      ? "flex items-start justify-between gap-4 border-b border-[#17233D]/10 pb-6"
+                      : "flex items-start justify-between gap-4 pb-6"
+                  }
+                >
+                  <div>
+                    <dt className="font-semibold text-[#17233D]">{item.q}</dt>
+                    <dd className="mt-2 text-sm leading-relaxed text-[#17233D]/70">{item.a}</dd>
+                  </div>
+                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#A9822E] text-[#A9822E]">
+                    <Plus className="size-4" />
+                  </div>
                 </div>
               ))}
             </dl>
           </div>
         </section>
 
-        {/* Dari Blog Kami */}
-        <section id="blog-preview" className="py-20 bg-[#FCFAF2] border-y border-[#1B2436]/10">
-          <div className="max-w-6xl mx-auto px-6">
+        {/* Blog */}
+        <section id="blog-preview" className="py-20">
+          <div className="max-w-[1140px] mx-auto px-6 md:px-12">
             <div className="max-w-xl mb-14">
+              <div className="text-xs font-semibold uppercase tracking-[0.25em] text-[#A9822E]">
+                Blog
+              </div>
               <h2
-                className="text-3xl md:text-4xl font-bold text-[#17233D]"
+                className="mt-3 text-3xl md:text-4xl font-bold text-[#17233D]"
                 style={{ fontFamily: "var(--font-display)" }}
               >
                 Dari blog kami
               </h2>
-              <p className="mt-4 text-[#1B2436]/70">
+              <p className="mt-4 text-[#17233D]/70">
                 Baca tips dan panduan terbaru seputar dunia sertifikat.
               </p>
             </div>
-            <div className="max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-8">
-              {posts.map((post, i) => (
+
+            <div className="grid max-w-4xl grid-cols-1 md:grid-cols-2 gap-8">
+              {posts.map((post) => (
                 <Link
-                  key={i}
+                  key={post.href}
                   href={post.href}
-                  className="block p-7 border border-[#1B2436]/10 bg-white hover:border-[#A9822E] transition-colors"
+                  className="rounded-xl border border-[#17233D]/10 bg-white p-7 shadow-sm hover:border-[#A9822E] transition-colors"
                 >
-                  <h3 className="font-semibold text-lg text-[#17233D]">{post.title}</h3>
-                  <p className="mt-2 text-[15px] text-[#1B2436]/70">{post.excerpt}</p>
-                  <span className="mt-4 inline-block text-sm font-semibold text-[#8C2F39]">
-                    Baca selengkapnya
+                  <div className="inline-flex w-fit rounded-full border border-[#A9822E]/40 bg-[#F2EAD3] px-3 py-1 text-xs font-semibold text-[#A9822E]">
+                    {post.tag}
+                  </div>
+                  <h3 className="mt-3 text-lg font-semibold text-[#17233D]">{post.title}</h3>
+                  <p className="mt-2 text-sm text-[#17233D]/70">{post.excerpt}</p>
+                  <span className="mt-4 inline-block text-sm font-bold text-[#8C2F39]">
+                    Baca selengkapnya →
                   </span>
                 </Link>
               ))}
@@ -434,34 +648,113 @@ export default function LandingPage() {
         </section>
 
         {/* Final CTA */}
-        <section className="bg-[#17233D] text-[#F2EAD3]">
-          <div className="max-w-6xl mx-auto text-center px-6 py-20">
+        <section className="relative overflow-hidden border-y-2 border-[#A9822E]/50 bg-[#17233D] py-20 text-[#F2EAD3]">
+          <div
+            className="absolute left-1/2 top-1/2 h-64 w-96 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#A9822E]/25 blur-3xl"
+            aria-hidden="true"
+          />
+          <div className="relative max-w-[1140px] mx-auto px-6 md:px-12 text-center">
             <h2
               className="text-3xl md:text-4xl font-bold"
               style={{ fontFamily: "var(--font-display)" }}
             >
               Siap mengubah cara Anda membuat sertifikat?
             </h2>
-            <p className="mt-4 text-[#F2EAD3]/70 max-w-xl mx-auto">
+            <p className="mx-auto mt-4 max-w-xl text-[#F2EAD3]/70">
               Daftar sekarang dan rasakan kemudahan manajemen sertifikat di
               ujung jari Anda. Gratis untuk memulai.
             </p>
-            <div className="mt-8">
-              <Link
-                href="/register"
-                className="inline-block px-7 py-3.5 font-semibold text-[#17233D] bg-[#F2EAD3] rounded-md hover:bg-white transition-colors"
-              >
-                Coba SertiGen Sekarang
-              </Link>
-            </div>
+            <Link
+              href="/register"
+              className="mt-8 inline-block rounded-full bg-[#F2EAD3] px-7 py-3.5 text-base font-bold text-[#17233D] shadow-lg hover:bg-white transition-colors"
+            >
+              Coba SertiGen Sekarang
+            </Link>
           </div>
         </section>
       </main>
 
       {/* Footer */}
-      <footer className="w-full bg-[#F2EAD3] border-t border-[#1B2436]/10">
-        <div className="max-w-6xl mx-auto px-6 py-8 text-center text-sm text-[#1B2436]/55">
-          © {new Date().getFullYear()} SertiGen. Hak cipta dilindungi.
+      <footer className="border-t border-[#17233D]/10 bg-[#F2EAD3]">
+        <div className="max-w-[1140px] mx-auto grid grid-cols-1 md:grid-cols-4 gap-8 px-6 md:px-12 py-12">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="flex items-center justify-center w-9 h-9 rounded-full border-2 border-[#A9822E] text-xs font-bold text-[#A9822E]">
+                SG
+              </span>
+              <span
+                className="text-xl font-bold text-[#17233D] tracking-tight"
+                style={{ fontFamily: "var(--font-display)" }}
+              >
+                SertiGen
+              </span>
+            </div>
+            <p className="mt-4 text-sm text-[#17233D]/60">
+              Generator sertifikat otomatis untuk webinar dan acara.
+            </p>
+          </div>
+
+          <div>
+            <div className="text-xs font-bold uppercase tracking-wide text-[#17233D]">Produk</div>
+            <ul className="mt-4 flex flex-col gap-2 text-sm text-[#17233D]/70">
+              <li><Link href="/#features" className="hover:text-[#8C2F39] transition-colors">Fitur</Link></li>
+              <li><Link href="/#pricing" className="hover:text-[#8C2F39] transition-colors">Harga</Link></li>
+              <li><Link href="/#how-it-works" className="hover:text-[#8C2F39] transition-colors">Cara Kerja</Link></li>
+            </ul>
+          </div>
+
+          <div>
+            <div className="text-xs font-bold uppercase tracking-wide text-[#17233D]">Perusahaan</div>
+            <ul className="mt-4 flex flex-col gap-2 text-sm text-[#17233D]/70">
+              <li><Link href="/blog" className="hover:text-[#8C2F39] transition-colors">Blog</Link></li>
+              <li><Link href="/tentang" className="hover:text-[#8C2F39] transition-colors">Tentang</Link></li>
+              <li><Link href="/kontak" className="hover:text-[#8C2F39] transition-colors">Kontak</Link></li>
+            </ul>
+          </div>
+
+          <div>
+            <div className="text-sm font-semibold text-[#17233D]">
+              Dapatkan tips seputar sertifikat
+            </div>
+            <form className="mt-4 flex gap-2">
+              <label htmlFor="newsletter-email" className="sr-only">
+                Alamat email
+              </label>
+              <input
+                id="newsletter-email"
+                type="email"
+                required
+                placeholder="Email Anda"
+                className="w-full rounded-md border border-[#17233D]/20 bg-white px-3 py-2 text-sm text-[#17233D] placeholder:text-[#17233D]/40 focus:outline-none focus:ring-2 focus:ring-[#A9822E]"
+              />
+              <button
+                type="submit"
+                className="shrink-0 rounded-md bg-[#8C2F39] px-4 py-2 text-sm font-semibold text-[#F2EAD3] hover:bg-[#742531] transition-colors"
+              >
+                Subscribe
+              </button>
+            </form>
+          </div>
+        </div>
+
+        <div className="border-t border-[#17233D]/10">
+          <div className="max-w-[1140px] mx-auto flex flex-col md:flex-row justify-between items-center gap-4 px-6 md:px-12 py-6">
+            <span className="text-sm text-[#17233D]/55">
+              © {new Date().getFullYear()} SertiGen. Hak cipta dilindungi.
+            </span>
+            <div className="flex items-center gap-3">
+              {socials.map((s) => (
+                <a
+                  key={s.label}
+                  href="#"
+                  aria-label={s.label}
+                  className="flex h-8 w-8 items-center justify-center rounded-full border border-[#A9822E] text-[#A9822E] hover:bg-[#A9822E]/10 transition-colors"
+                >
+                  <s.icon className="size-4" />
+                </a>
+              ))}
+            </div>
+          </div>
         </div>
       </footer>
     </div>
