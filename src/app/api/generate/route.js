@@ -7,6 +7,7 @@ import {
   doc
 } from "firebase/firestore";
 import sharp from "sharp";
+import { Resvg } from "@resvg/resvg-js";
 import { NextResponse } from "next/server";
 import admin from "../../../lib/firebaseAdmin";
 import { runWithConcurrencyLimit } from "../../../lib/concurrency";
@@ -16,37 +17,75 @@ import { runWithConcurrencyLimit } from "../../../lib/concurrency";
 const GENERATE_CONCURRENCY = 5;
 const UPLOAD_CONCURRENCY = 5;
 
-// Helper function untuk mengambil dan cache font (Tidak ada perubahan)
-const fontCache = new Map();
-async function getFontBase64(fontFamily) {
-  if (fontCache.has(fontFamily)) {
-    return fontCache.get(fontFamily);
+// ---------------------------------------------------------------------------
+// Font handling
+// ---------------------------------------------------------------------------
+// PENTING: resvg-js (berbasis Rust `fontdb`/`ttf-parser`) tidak mendukung
+// woff2 dengan baik, dan TIDAK membaca font lewat CSS @font-face di dalam
+// SVG sama sekali (berbeda dari librsvg yang dipakai sharp sebelumnya).
+// Font harus didaftarkan sebagai Buffer TTF/OTF mentah lewat opsi
+// `font.fontBuffers` saat membuat instance Resvg, dan SVG cukup mereferensi
+// nama font-family biasa tanpa @font-face.
+//
+// Karena itu di sini kita fetch varian **ttf** dari Google Fonts (bukan
+// woff2), dengan memaksa Google Fonts mengirim ttf lewat User-Agent lama
+// yang tidak mendukung woff/woff2.
+const fontBufferCache = new Map();
+
+const fontFamilyMap = {
+  Roboto: "Roboto",
+  Montserrat: "Montserrat",
+  "Playfair Display": "Playfair+Display",
+  Poppins: "Poppins",
+  Lora: "Lora",
+  Pacifico: "Pacifico",
+  Caveat: "Caveat"
+};
+
+// User-Agent lama (tanpa dukungan woff/woff2) membuat Google Fonts CSS API
+// mengembalikan url font dalam format .ttf, bukan .woff2.
+const LEGACY_UA =
+  "Mozilla/4.0 (compatible; MSIE 6.0; Windows NT 5.1)";
+
+async function getFontTtfBuffer(fontFamily) {
+  if (fontBufferCache.has(fontFamily)) {
+    return fontBufferCache.get(fontFamily);
   }
-  const fontUrlMap = {
-    Roboto:
-      "https://fonts.gstatic.com/s/roboto/v49/KFO5CnqEu92Fr1Mu53ZEC9_Vu3r1gIhOszmkC3kaWzU.woff2",
-    Montserrat:
-      "https://fonts.gstatic.com/s/montserrat/v31/JTUQjIg1_i6t8kCHKm459WxRxC7mw9c.woff2",
-    "Playfair Display":
-      "https://fonts.gstatic.com/s/playfairdisplay/v40/nuFkD-vYSZviVYUb_rj3ij__anPXDTnohkk72xU.woff2",
-    Poppins:
-      "https://fonts.gstatic.com/s/poppins/v24/pxiEyp8kv8JHgFVrJJbecmNE.woff2",
-    Lora: "https://fonts.gstatic.com/s/lora/v37/0QIhMX1D_JOuMw_LLPtLp_A.woff2",
-    Pacifico:
-      "https://fonts.gstatic.com/s/pacifico/v23/FwZY7-Qmy14u9lezJ-6K6MmTpA.woff2",
-    Caveat:
-      "https://fonts.gstatic.com/s/caveat/v23/Wnz6HAc5bAfYB2Q7azYYmg8.woff2"
-  };
-  const fontUrl = fontUrlMap[fontFamily] || fontUrlMap["Roboto"];
+
+  const googleFamily = fontFamilyMap[fontFamily] || fontFamilyMap["Roboto"];
+  const cssUrl = `https://fonts.googleapis.com/css?family=${googleFamily}:700&display=swap`;
+
   try {
-    const response = await fetch(fontUrl);
-    if (!response.ok) throw new Error(`Gagal mengambil font: ${fontFamily}`);
-    const buffer = await response.arrayBuffer();
-    const base64 = Buffer.from(buffer).toString("base64");
-    fontCache.set(fontFamily, base64);
-    return base64;
+    // 1. Ambil CSS dengan UA lama supaya Google mengirim link .ttf
+    const cssResponse = await fetch(cssUrl, {
+      headers: { "User-Agent": LEGACY_UA }
+    });
+    if (!cssResponse.ok) {
+      throw new Error(`Gagal mengambil CSS font: ${fontFamily}`);
+    }
+    const cssText = await cssResponse.text();
+
+    // 2. Ekstrak URL font (.ttf) dari CSS
+    const match = cssText.match(/url\((https:[^)]+\.ttf)\)/);
+    if (!match) {
+      throw new Error(
+        `Tidak menemukan URL .ttf untuk font ${fontFamily}. Google mungkin mengubah format respons.`
+      );
+    }
+    const ttfUrl = match[1];
+
+    // 3. Unduh file .ttf sebagai Buffer
+    const fontResponse = await fetch(ttfUrl);
+    if (!fontResponse.ok) {
+      throw new Error(`Gagal mengunduh file font: ${fontFamily}`);
+    }
+    const arrayBuffer = await fontResponse.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+
+    fontBufferCache.set(fontFamily, buffer);
+    return buffer;
   } catch (error) {
-    console.error("Error fetching font:", error);
+    console.error("Error fetching font ttf:", error);
     return null;
   }
 }
@@ -60,25 +99,11 @@ function sanitizeSvgText(text) {
     .replace(/'/g, "&#039;");
 }
 
-// Membuat SATU layer SVG yang berisi semua elemen teks untuk sebuah sertifikat,
-// alih-alih satu layer SVG terpisah per elemen teks. Ini menghindari:
-// - embedding base64 font berkali-kali (dulu: N kali per baris data, N = jumlah teks)
-// - N kali parsing/render SVG oleh sharp/librsvg per sertifikat (sekarang cukup 1 kali)
+// Membuat SATU layer SVG yang berisi semua elemen teks untuk sebuah sertifikat.
+// Tidak ada lagi @font-face di sini -- resvg-js mencocokkan `font-family`
+// pada elemen <text> langsung terhadap buffer font yang didaftarkan lewat
+// opsi `font.fontBuffers` saat instance Resvg dibuat.
 function generateCombinedSvgLayer({ items, imageWidth, imageHeight }) {
-  // Hanya sertakan @font-face untuk font yang benar-benar dipakai di sertifikat ini
-  const uniqueFonts = [...new Set(items.map((i) => i.fontFamily))];
-  const fontFaces = uniqueFonts
-    .map(
-      (fontFamily) => `
-        @font-face {
-          font-family: "${fontFamily}";
-          src: url(data:font/woff2;base64,${
-            items.find((i) => i.fontFamily === fontFamily).fontBase64
-          });
-        }`
-    )
-    .join("\n");
-
   const textNodes = items
     .map(
       ({ text, textColor, fontSize, fontFamily, positionX, positionY }) => `
@@ -91,10 +116,24 @@ function generateCombinedSvgLayer({ items, imageWidth, imageHeight }) {
 
   const svg = `
     <svg width="${imageWidth}" height="${imageHeight}" xmlns="http://www.w3.org/2000/svg">
-      <style>${fontFaces}</style>
       ${textNodes}
     </svg>`;
-  return Buffer.from(svg);
+  return svg;
+}
+
+// Merender SVG teks menjadi PNG buffer lewat resvg-js, dengan font yang
+// sudah diambil dari internet didaftarkan sebagai fontBuffers.
+function renderTextLayerToPng({ svg, imageWidth, imageHeight, fontBuffers }) {
+  const resvg = new Resvg(svg, {
+    fitTo: { mode: "width", value: imageWidth },
+    font: {
+      fontBuffers,
+      loadSystemFonts: false, // konsisten di semua environment/server
+      defaultFontFamily: "Roboto"
+    }
+  });
+  const pngData = resvg.render();
+  return pngData.asPng();
 }
 
 export async function POST(req) {
@@ -122,10 +161,6 @@ export async function POST(req) {
     const templateFile = formData.get("template");
     const previewWidth = parseInt(formData.get("previewWidth"), 10) || 500;
 
-    // Validasi field wajib SEBELUM mem-parsing JSON, agar pesan error yang
-    // dikembalikan jelas ("Data tidak lengkap") alih-alih generic parsing
-    // error ("Unexpected token ... in JSON") saat salah satu field lupa
-    // dikirim oleh client.
     const textElementsRaw = formData.get("textElements");
     const csvDataRaw = formData.get("csvData");
     const mappingRaw = formData.get("mapping");
@@ -140,7 +175,7 @@ export async function POST(req) {
     let textElements, csvData, mapping;
     try {
       textElements = JSON.parse(textElementsRaw);
-      csvData = JSON.parse(csvDataRaw); // Ini adalah `dataToSend` dari frontend
+      csvData = JSON.parse(csvDataRaw);
       mapping = JSON.parse(mappingRaw);
     } catch (parseError) {
       return NextResponse.json(
@@ -164,7 +199,7 @@ export async function POST(req) {
 
     const isManualMode = Object.keys(mapping).length === 0;
 
-    // 3. Persiapan Gambar Template dan Font
+    // 3. Persiapan Gambar Template
     let templateFileBuffer = Buffer.from(await templateFile.arrayBuffer());
     const maxSizeInBytes = 2 * 1024 * 1024;
     if (templateFileBuffer.length > maxSizeInBytes) {
@@ -174,31 +209,32 @@ export async function POST(req) {
         .toBuffer();
     }
 
-    // Satu instance sharp dipakai untuk membaca metadata sekaligus sebagai
-    // basis composite (sebelumnya sharp() dipanggil 2x untuk buffer yang sama).
     const baseImage = sharp(templateFileBuffer);
     const metadata = await baseImage.metadata();
     const imageWidth = metadata.width;
     const imageHeight = metadata.height;
     const scaleFactor = imageWidth / previewWidth;
 
-    // Cache semua font yang dibutuhkan secara paralel untuk efisiensi
+    // Ambil semua font unik sebagai Buffer TTF dari internet, paralel & di-cache.
     const uniqueFontFamilies = [
       ...new Set(textElements.map((el) => el.fontFamily))
     ];
-    await Promise.all(
-      uniqueFontFamilies.map((fontFamily) => getFontBase64(fontFamily))
+    const fontBufferEntries = await Promise.all(
+      uniqueFontFamilies.map(async (fontFamily) => [
+        fontFamily,
+        await getFontTtfBuffer(fontFamily)
+      ])
     );
+    // fontBuffers untuk resvg-js: cukup array Buffer, cocokkan berdasarkan
+    // nama family yang tersimpan di dalam file font itu sendiri.
+    const fontBuffers = fontBufferEntries
+      .map(([, buf]) => buf)
+      .filter(Boolean);
 
     // 4. Proses Generate Gambar secara Dinamis
-    // primaryIdentifierLabel konstan untuk semua baris CSV, jadi dihitung
-    // sekali di sini alih-alih diulang pada setiap iterasi row.
     const primaryIdentifierLabel =
       textElements.find((el) => el.isLocked)?.label || textElements[0].label;
 
-    // Dibatasi dengan concurrency limit (bukan Promise.all polos) agar CSV
-    // berisi ratusan/ribuan baris tidak memicu ratusan operasi sharp composite
-    // berjalan bersamaan (risiko OOM & timeout di serverless).
     const allGeneratedData = await runWithConcurrencyLimit(
       csvData,
       GENERATE_CONCURRENCY,
@@ -215,39 +251,31 @@ export async function POST(req) {
 
           if (!text) continue;
 
-          const fontBase64 = fontCache.get(element.fontFamily);
-          if (!fontBase64) {
-            console.error(
-              `ERROR: Font base64 for ${element.fontFamily} not found in cache. Skipping layer.`
-            );
-            continue;
-          }
-
           svgItems.push({
             text,
             textColor: element.textColor,
             fontSize: Math.round(element.fontSize * scaleFactor),
             fontFamily: element.fontFamily,
-            fontBase64,
             positionX: imageWidth * element.positionPercent.x,
             positionY: imageHeight * element.positionPercent.y
           });
         }
 
-        // Satu layer SVG gabungan per sertifikat, bukan satu layer per elemen teks.
-        const compositeLayers = svgItems.length
-          ? [
-              {
-                input: generateCombinedSvgLayer({
-                  items: svgItems,
-                  imageWidth,
-                  imageHeight
-                }),
-                top: 0,
-                left: 0
-              }
-            ]
-          : [];
+        const compositeLayers = [];
+        if (svgItems.length) {
+          const svg = generateCombinedSvgLayer({
+            items: svgItems,
+            imageWidth,
+            imageHeight
+          });
+          const pngBuffer = renderTextLayerToPng({
+            svg,
+            imageWidth,
+            imageHeight,
+            fontBuffers
+          });
+          compositeLayers.push({ input: pngBuffer, top: 0, left: 0 });
+        }
 
         const generatedCertBuffer = await baseImage
           .clone()
@@ -263,8 +291,7 @@ export async function POST(req) {
       }
     );
 
-    // 5. Upload ke Supabase, juga dibatasi concurrency-nya agar tidak
-    // membuka ratusan koneksi upload paralel sekaligus.
+    // 5. Upload ke Supabase
     const allUploadedCerts = await runWithConcurrencyLimit(
       allGeneratedData,
       UPLOAD_CONCURRENCY,
@@ -291,7 +318,7 @@ export async function POST(req) {
       }
     ).then((results) => results.filter(Boolean));
 
-    // 6. Simpan Metadata yang lebih terstruktur ke Firestore
+    // 6. Simpan Metadata ke Firestore
     const batch = writeBatch(db);
     allUploadedCerts.forEach((cert) => {
       const docRef = doc(collection(db, "sertifikat_terbuat"));
@@ -301,7 +328,7 @@ export async function POST(req) {
         urlSertifikat: cert.url,
         dibuatPada: serverTimestamp(),
         csvData: cert.rowData,
-        templateCustomization: textElements // Simpan seluruh konfigurasi elemen
+        templateCustomization: textElements
       });
     });
     await batch.commit();
