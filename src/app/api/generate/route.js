@@ -31,7 +31,7 @@ const GENERATE_CONCURRENCY = 5;
 const UPLOAD_CONCURRENCY = 5;
 
 // Helper function untuk mengambil dan cache font.
-// CATATAN: sebelumnya font di-encode ke base64 dan disisipkan lewat CSS
+// CATATAN #1: sebelumnya font di-encode ke base64 dan disisipkan lewat CSS
 // @font-face di dalam SVG, lalu SVG itu dirender langsung oleh sharp
 // (yang di baliknya memakai librsvg). librsvg TIDAK mendukung @font-face
 // dengan data URI - ia hanya mengenali font yang benar-benar terpasang di
@@ -39,33 +39,59 @@ const UPLOAD_CONCURRENCY = 5;
 // tidak punya font-font ini terpasang, hasilnya teks dirender sebagai
 // kotak "tofu" (glyph pengganti), bukan huruf sungguhan.
 //
-// Sekarang font disimpan sebagai Buffer mentah dan diserahkan langsung ke
-// resvg (lihat generateCombinedSvgLayer & pemanggilnya) lewat opsi
-// `font.fontBuffers`, sehingga tidak lagi bergantung pada font yang
-// terpasang di sistem sama sekali.
+// CATATAN #2: setelah pindah ke resvg (yang membaca font lewat
+// `font.fontBuffers`), ternyata teks malah hilang total, bukan tofu lagi.
+// Penyebabnya: font di atas diambil dalam format .woff2 (font terkompresi
+// Brotli), dan fontdb yang dipakai resvg tidak bisa mem-parsing .woff2.
+// Karena `loadSystemFonts: false` (lihat renderSvgToPngBuffer), tidak ada
+// fallback font sama sekali begitu font utama gagal dimuat - hasilnya teks
+// dirender kosong tanpa error.
+//
+// Fix: ambil font dalam format .ttf, bukan .woff2. Google Fonts API v1
+// (fonts.googleapis.com/css) mendeteksi User-Agent request - kalau kita
+// menyamar sebagai browser lama yang belum mendukung WOFF2, Google akan
+// mengembalikan CSS yang linknya mengarah ke file .ttf, bukan .woff2.
 const fontCache = new Map();
+const ttfUrlCache = new Map();
+
+async function resolveGoogleFontTtfUrl(fontFamily) {
+  if (ttfUrlCache.has(fontFamily)) return ttfUrlCache.get(fontFamily);
+
+  const familyParam = encodeURIComponent(fontFamily).replace(/%20/g, "+");
+  const cssUrl = `https://fonts.googleapis.com/css?family=${familyParam}`;
+
+  try {
+    const res = await fetch(cssUrl, {
+      headers: {
+        // User-Agent browser lama (tidak dukung WOFF2) supaya Google Fonts
+        // mengembalikan URL .ttf di dalam CSS-nya.
+        "User-Agent":
+          "Mozilla/5.0 (Windows NT 6.1; rv:2.0.1) Gecko/20100101 Firefox/4.0.1"
+      }
+    });
+    if (!res.ok) throw new Error(`Gagal resolve font ${fontFamily} (${res.status})`);
+    const css = await res.text();
+    const match = css.match(/url\((https:\/\/fonts\.gstatic\.com\/[^)]+\.ttf)\)/);
+    const ttfUrl = match ? match[1] : null;
+    if (!ttfUrl) {
+      throw new Error(`Tidak menemukan URL .ttf untuk font ${fontFamily}`);
+    }
+    ttfUrlCache.set(fontFamily, ttfUrl);
+    return ttfUrl;
+  } catch (error) {
+    console.error("Error resolving Google Font TTF URL:", error);
+    return null;
+  }
+}
+
 async function getFontBuffer(fontFamily) {
   if (fontCache.has(fontFamily)) {
     return fontCache.get(fontFamily);
   }
-  const fontUrlMap = {
-    Roboto:
-      "https://fonts.gstatic.com/s/roboto/v49/KFO5CnqEu92Fr1Mu53ZEC9_Vu3r1gIhOszmkC3kaWzU.woff2",
-    Montserrat:
-      "https://fonts.gstatic.com/s/montserrat/v31/JTUQjIg1_i6t8kCHKm459WxRxC7mw9c.woff2",
-    "Playfair Display":
-      "https://fonts.gstatic.com/s/playfairdisplay/v40/nuFkD-vYSZviVYUb_rj3ij__anPXDTnohkk72xU.woff2",
-    Poppins:
-      "https://fonts.gstatic.com/s/poppins/v24/pxiEyp8kv8JHgFVrJJbecmNE.woff2",
-    Lora: "https://fonts.gstatic.com/s/lora/v37/0QIhMX1D_JOuMw_LLPtLp_A.woff2",
-    Pacifico:
-      "https://fonts.gstatic.com/s/pacifico/v23/FwZY7-Qmy14u9lezJ-6K6MmTpA.woff2",
-    Caveat:
-      "https://fonts.gstatic.com/s/caveat/v23/Wnz6HAc5bAfYB2Q7azYYmg8.woff2"
-  };
-  const fontUrl = fontUrlMap[fontFamily] || fontUrlMap["Roboto"];
   try {
-    const response = await fetch(fontUrl);
+    const ttfUrl = await resolveGoogleFontTtfUrl(fontFamily);
+    if (!ttfUrl) return null;
+    const response = await fetch(ttfUrl);
     if (!response.ok) throw new Error(`Gagal mengambil font: ${fontFamily}`);
     const buffer = Buffer.from(await response.arrayBuffer());
     fontCache.set(fontFamily, buffer);
