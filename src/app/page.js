@@ -5,10 +5,10 @@ import {
   ArrowRight,
   Award,
   Check,
-  Facebook,
-  Instagram,
-  Linkedin,
+  Globe,
+  Mail,
   Medal,
+  MessageCircle,
   Plus,
   Printer,
   Quote,
@@ -177,10 +177,11 @@ const posts = [
   },
 ];
 
+// Ganti href="#" dengan tautan sosial asli, dan sesuaikan ikon/label sesuai platform yang dipakai.
 const socials = [
-  { icon: Instagram, label: "Instagram" },
-  { icon: Facebook, label: "Facebook" },
-  { icon: Linkedin, label: "Linkedin" },
+  { icon: Globe, label: "Website" },
+  { icon: Mail, label: "Email" },
+  { icon: MessageCircle, label: "WhatsApp" },
 ];
 
 export default function LandingPage() {
