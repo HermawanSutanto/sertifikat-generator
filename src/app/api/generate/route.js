@@ -89,7 +89,8 @@ function generateCombinedSvgLayer({ items, imageWidth, imageHeight }) {
     </svg>`;
 }
 function renderTextLayerToPng({ svg, imageWidth, fontBuffers }) {
-  console.log(`[DEBUG] Memuat ${fontBuffers.length} font buffer ke resvg.`);
+  // 1. Log SVG yang akan dirender untuk melihat font-family yang dipakai di teks
+  console.log("[DEBUG] SVG Input to Resvg:\n", svg);
 
   const resvg = new Resvg(svg, {
     fitTo: { mode: "width", value: imageWidth },
@@ -99,6 +100,15 @@ function renderTextLayerToPng({ svg, imageWidth, fontBuffers }) {
       defaultFontFamily: "Roboto"
     }
   });
+
+  // 2. Log daftar nama font internal yang berhasil dibaca oleh resvg dari fontBuffers
+  try {
+    const loadedFonts = resvg.listFonts();
+    console.log("[DEBUG] List font internal yang terdeteksi oleh Resvg:", loadedFonts);
+  } catch (err) {
+    console.log("[DEBUG] Method listFonts tidak tersedia atau error:", err.message);
+  }
+
   const pngData = resvg.render();
   return pngData.asPng();
 }
