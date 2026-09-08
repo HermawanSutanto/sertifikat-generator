@@ -19,20 +19,21 @@ const UPLOAD_CONCURRENCY = 5;
 const fontBufferCache = new Map();
 
 const fontUrlMap = {
+  // Direct link CDN jsDelivr dari repository Google Fonts
   Roboto:
-    "https://fonts.gstatic.com/s/roboto/v30/KFOmCnqEu92Fr1Mu4mxP.ttf",
+    "https://cdn.jsdelivr.net/fontsource/fonts/roboto@latest/latin-700-normal.ttf",
   Montserrat:
-    "https://fonts.gstatic.com/s/montserrat/v26/JTUHjIg1_i6t8kCHKm4532VJOt5-QNFgpCtr6Hw5aX8.ttf",
+    "https://cdn.jsdelivr.net/fontsource/fonts/montserrat@latest/latin-700-normal.ttf",
   "Playfair Display":
-    "https://fonts.gstatic.com/s/playfairdisplay/v30/nuFvD-vYSZviVYUb_rj3ij__anPXJzDwcbmjWBN2PKdFvXDXbtM.ttf",
+    "https://cdn.jsdelivr.net/fontsource/fonts/playfair-display@latest/latin-700-normal.ttf",
   Poppins:
-    "https://fonts.gstatic.com/s/poppins/v20/pxiByp8kv8JHgFVrLCz7Z1xlFQ.ttf",
+    "https://cdn.jsdelivr.net/fontsource/fonts/poppins@latest/latin-700-normal.ttf",
   Lora:
-    "https://fonts.gstatic.com/s/lora/v32/0QI6MX1D_JOu868d483648g.ttf",
+    "https://cdn.jsdelivr.net/fontsource/fonts/lora@latest/latin-700-normal.ttf",
   Pacifico:
-    "https://fonts.gstatic.com/s/pacifico/v22/FwZY7-Qmy14u9lezJ-6H6MmBP0u-.ttf",
+    "https://cdn.jsdelivr.net/fontsource/fonts/pacifico@latest/latin-400-normal.ttf",
   Caveat:
-    "https://fonts.gstatic.com/s/caveat/v18/WnzmHAc5bAfYB2QRah785AC5Wjc.ttf"
+    "https://cdn.jsdelivr.net/fontsource/fonts/caveat@latest/latin-700-normal.ttf"
 };
 
 async function getFontTtfBuffer(fontFamily) {
@@ -76,7 +77,7 @@ function generateCombinedSvgLayer({ items, imageWidth, imageHeight }) {
     .map(
       ({ text, textColor, fontSize, fontFamily, positionX, positionY }) => `
       <text x="${positionX}" y="${positionY}" text-anchor="middle" dominant-baseline="middle"
-        style="fill:${textColor}; font-size:${fontSize}px; font-weight:bold; font-family:'${fontFamily}', sans-serif;">
+        style="fill:${textColor}; font-size:${fontSize}px; font-weight:bold; font-family:${fontFamily};">
         ${sanitizeSvgText(text)}
       </text>`
     )
