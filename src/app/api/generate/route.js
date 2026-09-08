@@ -53,13 +53,44 @@ async function getFontTtfBuffer(fontFamily) {
     const arrayBuffer = await fontResponse.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    console.log(`[DEBUG] Font ${fontFamily} berhasil diunduh (${buffer.length} bytes).`);
+    // DEBUG: cek magic bytes TTF/OTF (harus mulai dengan 00 01 00 00 atau 'OTTO'/'true')
+    const header = buffer.subarray(0, 4).toString("hex");
+    console.log(`[DEBUG] Font ${fontFamily} berhasil diunduh (${buffer.length} bytes), header: ${header}`);
+
+    if (buffer.length < 1000) {
+      console.warn(`[WARN] Font ${fontFamily} mencurigakan kecil (${buffer.length} bytes) — kemungkinan bukan font valid (misal HTML error page ter-cache sebagai buffer).`);
+    }
+
     fontBufferCache.set(fontFamily, buffer);
     return buffer;
   } catch (error) {
     console.error(`[ERROR] Gagal fetching font ttf (${fontFamily}):`, error.message);
     return null;
   }
+}
+
+function renderTextLayerToPng({ svg, imageWidth, fontBuffers }) {
+  console.log(`[DEBUG] Rendering text layer. fontBuffers count: ${fontBuffers.length}`);
+  fontBuffers.forEach((buf, i) => {
+    console.log(`[DEBUG] fontBuffers[${i}] size: ${buf.length} bytes`);
+  });
+
+  const resvg = new Resvg(svg, {
+    fitTo: { mode: "width", value: imageWidth },
+    font: {
+      fontBuffers,
+      loadSystemFonts: false,
+      defaultFontFamily: "Roboto"
+    },
+    logLevel: "debug" // <-- tambahkan ini, resvg-js akan print info matching font ke stderr
+  });
+
+  const pngData = resvg.render();
+  const pngBuffer = pngData.asPng();
+
+  console.log(`[DEBUG] Text layer PNG size: ${pngBuffer.length} bytes, dimensions: ${pngData.width}x${pngData.height}`);
+
+  return pngBuffer;
 }
 
 function sanitizeSvgText(text) {
