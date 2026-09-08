@@ -72,14 +72,15 @@ function sanitizeSvgText(text) {
 }
 
 // SVG polos TANPA @font-face (resvg akan mencocokkan font dari fontBuffers)
-function generateCombinedSvgLayer({ items, imageWidth, imageHeight, fontBuffers }) {
-  // Ubah font buffer pertama menjadi Base64 string
-  const fontBase64 = fontBuffers[0] ? fontBuffers[0].toString("base64") : "";
+function generateCombinedSvgLayer({ items, imageWidth, imageHeight, fontBuffers = [] }) {
+  // Gunakan optional chaining (?.) untuk mencegah error 'reading 0 of undefined'
+  const firstBuffer = fontBuffers && fontBuffers.length > 0 ? fontBuffers[0] : null;
+  const fontBase64 = firstBuffer ? firstBuffer.toString("base64") : "";
 
   const fontFaceStyle = fontBase64
     ? `<style>
         @font-face {
-          font-family: 'CustomRoboto';
+          font-family: 'CustomFont';
           src: url(data:font/ttf;charset=utf-8;base64,${fontBase64}) format('truetype');
         }
       </style>`
@@ -87,9 +88,9 @@ function generateCombinedSvgLayer({ items, imageWidth, imageHeight, fontBuffers 
 
   const textNodes = items
     .map(
-      ({ text, textColor, fontSize, positionX, positionY }) => `
+      ({ text, textColor, fontSize, fontFamily, positionX, positionY }) => `
       <text x="${positionX}" y="${positionY}" text-anchor="middle" dominant-baseline="middle"
-        style="fill:${textColor}; font-size:${fontSize}px; font-family:'CustomRoboto', sans-serif;">
+        style="fill:${textColor}; font-size:${fontSize}px; font-family:'CustomFont', '${fontFamily}', sans-serif;">
         ${sanitizeSvgText(text)}
       </text>`
     )
@@ -215,8 +216,8 @@ export async function POST(req) {
     console.log(`[DEBUG] Total font buffers yang berhasil disiapkan: ${fontBuffers.length}/${uniqueFontFamilies.length}`);
 
     // 4. Proses Generate Gambar secara Dinamis
-    const primaryIdentifierLabel =
-      textElements.find((el) => el.isLocked)?.label || textElements[0].label;
+   const primaryIdentifierLabel =
+   textElements.find((el) => el.isLocked)?.label || textElements[0]?.label || "nama";
 
     const allGeneratedData = await runWithConcurrencyLimit(
       csvData,
@@ -247,15 +248,15 @@ export async function POST(req) {
         const compositeLayers = [];
         if (svgItems.length) {
           const svg = generateCombinedSvgLayer({
-            items: svgItems,
-            imageWidth,
-            imageHeight
-          });
-          const pngTextBuffer = renderTextLayerToPng({
-            svg,
-            imageWidth,
-            fontBuffers
-          });
+  items: svgItems,
+  imageWidth,
+  imageHeight,
+  fontBuffers: fontBuffers || [] // Pastikan selalu array
+});const pngTextBuffer = renderTextLayerToPng({
+  svg,
+  imageWidth,
+  fontBuffers: fontBuffers || []
+});
           compositeLayers.push({ input: pngTextBuffer, top: 0, left: 0 });
         }
 
