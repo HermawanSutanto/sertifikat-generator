@@ -69,30 +69,6 @@ async function getFontTtfBuffer(fontFamily) {
   }
 }
 
-function renderTextLayerToPng({ svg, imageWidth, fontBuffers }) {
-  console.log(`[DEBUG] Rendering text layer. fontBuffers count: ${fontBuffers.length}`);
-  fontBuffers.forEach((buf, i) => {
-    console.log(`[DEBUG] fontBuffers[${i}] size: ${buf.length} bytes`);
-  });
-
-  const resvg = new Resvg(svg, {
-    fitTo: { mode: "width", value: imageWidth },
-    font: {
-      fontBuffers,
-      loadSystemFonts: false,
-      defaultFontFamily: "Roboto"
-    },
-    logLevel: "debug" // <-- tambahkan ini, resvg-js akan print info matching font ke stderr
-  });
-
-  const pngData = resvg.render();
-  const pngBuffer = pngData.asPng();
-
-  console.log(`[DEBUG] Text layer PNG size: ${pngBuffer.length} bytes, dimensions: ${pngData.width}x${pngData.height}`);
-
-  return pngBuffer;
-}
-
 function sanitizeSvgText(text) {
   return String(text)
     .replace(/&/g, "&amp;")
@@ -119,18 +95,31 @@ function generateCombinedSvgLayer({ items, imageWidth, imageHeight }) {
       ${textNodes}
     </svg>`;
 }
+
 function renderTextLayerToPng({ svg, imageWidth, fontBuffers }) {
+  console.log(`[DEBUG] Rendering text layer. fontBuffers count: ${fontBuffers.length}`);
+  fontBuffers.forEach((buf, i) => {
+    console.log(`[DEBUG] fontBuffers[${i}] size: ${buf.length} bytes`);
+  });
+
   const resvg = new Resvg(svg, {
     fitTo: { mode: "width", value: imageWidth },
     font: {
       fontBuffers,           // Menggunakan font TTF dari CDN jsDelivr
-      loadSystemFonts: false, // Mematikan font sistem Vercel/Linux[cite: 1]
-      defaultFontFamily: "Roboto" // Fallback jika font-family tidak terindikasi presisi[cite: 1]
-    }
+      loadSystemFonts: false, // Mematikan font sistem Vercel/Linux
+      defaultFontFamily: "Roboto" // Fallback jika font-family tidak terindikasi presisi
+    },
+    logLevel: "debug" // resvg-js akan print info matching font ke stderr
   });
+
   const pngData = resvg.render();
-  return pngData.asPng();
+  const pngBuffer = pngData.asPng();
+
+  console.log(`[DEBUG] Text layer PNG size: ${pngBuffer.length} bytes, dimensions: ${pngData.width}x${pngData.height}`);
+
+  return pngBuffer;
 }
+
 export async function POST(req) {
   try {
     // 1. Autentikasi
@@ -225,8 +214,8 @@ export async function POST(req) {
     console.log(`[DEBUG] Total font buffers yang berhasil disiapkan: ${fontBuffers.length}/${uniqueFontFamilies.length}`);
 
     // 4. Proses Generate Gambar secara Dinamis
-   const primaryIdentifierLabel =
-   textElements.find((el) => el.isLocked)?.label || textElements[0]?.label || "nama";
+    const primaryIdentifierLabel =
+      textElements.find((el) => el.isLocked)?.label || textElements[0]?.label || "nama";
 
     const allGeneratedData = await runWithConcurrencyLimit(
       csvData,
@@ -257,15 +246,17 @@ export async function POST(req) {
         const compositeLayers = [];
         if (svgItems.length) {
           const svg = generateCombinedSvgLayer({
-  items: svgItems,
-  imageWidth,
-  imageHeight,
-  fontBuffers: fontBuffers || [] // Pastikan selalu array
-});const pngTextBuffer = renderTextLayerToPng({
-  svg,
-  imageWidth,
-  fontBuffers: fontBuffers || []
-});
+            items: svgItems,
+            imageWidth,
+            imageHeight
+          });
+
+          const pngTextBuffer = renderTextLayerToPng({
+            svg,
+            imageWidth,
+            fontBuffers: fontBuffers || []
+          });
+
           compositeLayers.push({ input: pngTextBuffer, top: 0, left: 0 });
         }
 
