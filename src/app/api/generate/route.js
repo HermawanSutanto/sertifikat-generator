@@ -37,22 +37,26 @@ const fontUrlMap = {
 
 async function getFontTtfBuffer(fontFamily) {
   if (fontBufferCache.has(fontFamily)) {
+    console.log(`[DEBUG] Font ${fontFamily} diambil dari cache.`);
     return fontBufferCache.get(fontFamily);
   }
 
   const ttfUrl = fontUrlMap[fontFamily] || fontUrlMap["Roboto"];
+  console.log(`[DEBUG] Mencoba mengunduh font: ${fontFamily} dari ${ttfUrl}`);
+
   try {
     const fontResponse = await fetch(ttfUrl);
     if (!fontResponse.ok) {
-      throw new Error(`Gagal mengunduh file font TTF: ${fontFamily}`);
+      throw new Error(`HTTP ${fontResponse.status}: Gagal mengunduh file font TTF (${fontFamily})`);
     }
     const arrayBuffer = await fontResponse.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
+    console.log(`[DEBUG] Font ${fontFamily} berhasil diunduh (${buffer.length} bytes).`);
     fontBufferCache.set(fontFamily, buffer);
     return buffer;
   } catch (error) {
-    console.error("Error fetching font ttf:", error);
+    console.error(`[ERROR] Gagal fetching font ttf (${fontFamily}):`, error.message);
     return null;
   }
 }
@@ -85,11 +89,13 @@ function generateCombinedSvgLayer({ items, imageWidth, imageHeight }) {
 }
 
 function renderTextLayerToPng({ svg, imageWidth, fontBuffers }) {
+  console.log(`[DEBUG] Memuat ${fontBuffers.length} font buffer ke resvg.`);
+
   const resvg = new Resvg(svg, {
     fitTo: { mode: "width", value: imageWidth },
     font: {
       fontBuffers,
-      loadSystemFonts: false,
+      loadSystemFonts: true, // Diubah menjadi true
       defaultFontFamily: "Roboto"
     }
   });
@@ -180,11 +186,15 @@ export async function POST(req) {
     const uniqueFontFamilies = [
       ...new Set(textElements.map((el) => el.fontFamily))
     ];
+    console.log(`[DEBUG] Font unik yang dibutuhkan:`, uniqueFontFamilies);
+
     const fontBuffers = (
       await Promise.all(
         uniqueFontFamilies.map((family) => getFontTtfBuffer(family))
       )
     ).filter(Boolean);
+
+    console.log(`[DEBUG] Total font buffers yang berhasil disiapkan: ${fontBuffers.length}/${uniqueFontFamilies.length}`);
 
     // 4. Proses Generate Gambar secara Dinamis
     const primaryIdentifierLabel =
