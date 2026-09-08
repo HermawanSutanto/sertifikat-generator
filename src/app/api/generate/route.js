@@ -77,7 +77,7 @@ function generateCombinedSvgLayer({ items, imageWidth, imageHeight }) {
     .map(
       ({ text, textColor, fontSize, fontFamily, positionX, positionY }) => `
       <text x="${positionX}" y="${positionY}" text-anchor="middle" dominant-baseline="middle"
-        style="fill:${textColor}; font-size:${fontSize}px; font-weight:bold; font-family:${fontFamily};">
+        style="fill:${textColor}; font-size:${fontSize}px; font-family:'${fontFamily}';">
         ${sanitizeSvgText(text)}
       </text>`
     )
@@ -88,7 +88,6 @@ function generateCombinedSvgLayer({ items, imageWidth, imageHeight }) {
       ${textNodes}
     </svg>`;
 }
-
 function renderTextLayerToPng({ svg, imageWidth, fontBuffers }) {
   console.log(`[DEBUG] Memuat ${fontBuffers.length} font buffer ke resvg.`);
 
@@ -96,7 +95,7 @@ function renderTextLayerToPng({ svg, imageWidth, fontBuffers }) {
     fitTo: { mode: "width", value: imageWidth },
     font: {
       fontBuffers,
-      loadSystemFonts: true, // Diubah menjadi true
+      loadSystemFonts: false,
       defaultFontFamily: "Roboto"
     }
   });
