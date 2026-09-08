@@ -79,15 +79,23 @@ function sanitizeSvgText(text) {
 }
 
 // SVG polos TANPA @font-face (resvg akan mencocokkan font dari fontBuffers)
+// CATATAN: dominant-baseline="middle" dihapus karena dukungan resvg/usvg untuk
+// properti ini tidak konsisten dan bisa menyebabkan teks tidak ter-render sama
+// sekali atau posisinya meleset jauh dari viewBox. Diganti offset manual.
 function generateCombinedSvgLayer({ items, imageWidth, imageHeight }) {
   const textNodes = items
-    .map(
-      ({ text, textColor, fontSize, fontFamily, positionX, positionY }) => `
-      <text x="${positionX}" y="${positionY}" text-anchor="middle" dominant-baseline="middle"
+    .map(({ text, textColor, fontSize, fontFamily, positionX, positionY }) => {
+      // Offset manual pengganti dominant-baseline="middle"
+      // (perkiraan umum: turunkan baseline ~35% dari font-size agar teks
+      // secara visual center terhadap positionY)
+      const adjustedY = positionY + fontSize * 0.35;
+
+      return `
+      <text x="${positionX}" y="${adjustedY}" text-anchor="middle"
         style="fill:${textColor}; font-size:${fontSize}px; font-family:'${fontFamily}';">
         ${sanitizeSvgText(text)}
-      </text>`
-    )
+      </text>`;
+    })
     .join("\n");
 
   return `
@@ -101,6 +109,8 @@ function renderTextLayerToPng({ svg, imageWidth, fontBuffers }) {
   fontBuffers.forEach((buf, i) => {
     console.log(`[DEBUG] fontBuffers[${i}] size: ${buf.length} bytes`);
   });
+  // DEBUG: cetak SVG mentah untuk memastikan teks, posisi, dan struktur valid
+  console.log(`[DEBUG] SVG string:`, svg);
 
   const resvg = new Resvg(svg, {
     fitTo: { mode: "width", value: imageWidth },
@@ -256,6 +266,19 @@ export async function POST(req) {
             imageWidth,
             fontBuffers: fontBuffers || []
           });
+
+          // DEBUG: upload layer teks mentah (sebelum di-composite) supaya bisa
+          // dilihat langsung apakah teksnya benar-benar ada/kosong/salah posisi.
+          // Aktifkan dengan set env var DEBUG_TEXT_LAYER=true di Vercel.
+          if (process.env.DEBUG_TEXT_LAYER === "true") {
+            supabase.storage
+              .from("generated-certificates")
+              .upload(`debug-textlayer-${Date.now()}.png`, pngTextBuffer, {
+                contentType: "image/png"
+              })
+              .then(() => console.log("[DEBUG] Debug text layer PNG diupload."))
+              .catch((e) => console.error("[DEBUG] Gagal upload debug text layer:", e.message));
+          }
 
           compositeLayers.push({ input: pngTextBuffer, top: 0, left: 0 });
         }
