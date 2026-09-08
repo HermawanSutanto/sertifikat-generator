@@ -72,12 +72,24 @@ function sanitizeSvgText(text) {
 }
 
 // SVG polos TANPA @font-face (resvg akan mencocokkan font dari fontBuffers)
-function generateCombinedSvgLayer({ items, imageWidth, imageHeight }) {
+function generateCombinedSvgLayer({ items, imageWidth, imageHeight, fontBuffers }) {
+  // Ubah font buffer pertama menjadi Base64 string
+  const fontBase64 = fontBuffers[0] ? fontBuffers[0].toString("base64") : "";
+
+  const fontFaceStyle = fontBase64
+    ? `<style>
+        @font-face {
+          font-family: 'CustomRoboto';
+          src: url(data:font/ttf;charset=utf-8;base64,${fontBase64}) format('truetype');
+        }
+      </style>`
+    : "";
+
   const textNodes = items
     .map(
-      ({ text, textColor, fontSize, fontFamily, positionX, positionY }) => `
+      ({ text, textColor, fontSize, positionX, positionY }) => `
       <text x="${positionX}" y="${positionY}" text-anchor="middle" dominant-baseline="middle"
-        style="fill:${textColor}; font-size:${fontSize}px; font-family:'${fontFamily}';">
+        style="fill:${textColor}; font-size:${fontSize}px; font-family:'CustomRoboto', sans-serif;">
         ${sanitizeSvgText(text)}
       </text>`
     )
@@ -85,11 +97,13 @@ function generateCombinedSvgLayer({ items, imageWidth, imageHeight }) {
 
   return `
     <svg width="${imageWidth}" height="${imageHeight}" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        ${fontFaceStyle}
+      </defs>
       ${textNodes}
     </svg>`;
 }
 function renderTextLayerToPng({ svg, imageWidth, fontBuffers }) {
-  // 1. Log SVG yang akan dirender untuk melihat font-family yang dipakai di teks
   console.log("[DEBUG] SVG Input to Resvg:\n", svg);
 
   const resvg = new Resvg(svg, {
@@ -101,18 +115,12 @@ function renderTextLayerToPng({ svg, imageWidth, fontBuffers }) {
     }
   });
 
-  // 2. Log daftar nama font internal yang berhasil dibaca oleh resvg dari fontBuffers
-  try {
-    const loadedFonts = resvg.listFonts();
-    console.log("[DEBUG] List font internal yang terdeteksi oleh Resvg:", loadedFonts);
-  } catch (err) {
-    console.log("[DEBUG] Method listFonts tidak tersedia atau error:", err.message);
-  }
+  // Log visual render info
+  console.log(`[DEBUG] Render Size: ${resvg.width}x${resvg.height}`);
 
   const pngData = resvg.render();
   return pngData.asPng();
 }
-
 export async function POST(req) {
   try {
     // 1. Autentikasi
