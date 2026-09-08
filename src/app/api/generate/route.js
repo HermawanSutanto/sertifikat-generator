@@ -20,21 +20,42 @@ const fontBufferCache = new Map();
 
 const fontUrlMap = {
   // Direct link CDN jsDelivr dari repository Google Fonts
-  Roboto:
-    "https://cdn.jsdelivr.net/fontsource/fonts/roboto@latest/latin-700-normal.ttf",
-  Montserrat:
-    "https://cdn.jsdelivr.net/fontsource/fonts/montserrat@latest/latin-700-normal.ttf",
-  "Playfair Display":
-    "https://cdn.jsdelivr.net/fontsource/fonts/playfair-display@latest/latin-700-normal.ttf",
-  Poppins:
-    "https://cdn.jsdelivr.net/fontsource/fonts/poppins@latest/latin-700-normal.ttf",
-  Lora:
-    "https://cdn.jsdelivr.net/fontsource/fonts/lora@latest/latin-700-normal.ttf",
-  Pacifico:
-    "https://cdn.jsdelivr.net/fontsource/fonts/pacifico@latest/latin-400-normal.ttf",
-  Caveat:
-    "https://cdn.jsdelivr.net/fontsource/fonts/caveat@latest/latin-700-normal.ttf"
+  // PENTING: fontWeight harus SAMA PERSIS dengan weight file TTF yang di-fetch.
+  // Kalau tidak cocok, resvg gagal mencocokkan font (loadSystemFonts:false
+  // membuatnya tanpa fallback) dan teks tidak akan ter-render sama sekali.
+  Roboto: {
+    url: "https://cdn.jsdelivr.net/fontsource/fonts/roboto@latest/latin-700-normal.ttf",
+    weight: 700
+  },
+  Montserrat: {
+    url: "https://cdn.jsdelivr.net/fontsource/fonts/montserrat@latest/latin-700-normal.ttf",
+    weight: 700
+  },
+  "Playfair Display": {
+    url: "https://cdn.jsdelivr.net/fontsource/fonts/playfair-display@latest/latin-700-normal.ttf",
+    weight: 700
+  },
+  Poppins: {
+    url: "https://cdn.jsdelivr.net/fontsource/fonts/poppins@latest/latin-700-normal.ttf",
+    weight: 700
+  },
+  Lora: {
+    url: "https://cdn.jsdelivr.net/fontsource/fonts/lora@latest/latin-700-normal.ttf",
+    weight: 700
+  },
+  Pacifico: {
+    url: "https://cdn.jsdelivr.net/fontsource/fonts/pacifico@latest/latin-400-normal.ttf",
+    weight: 400
+  },
+  Caveat: {
+    url: "https://cdn.jsdelivr.net/fontsource/fonts/caveat@latest/latin-700-normal.ttf",
+    weight: 700
+  }
 };
+
+function getFontWeight(fontFamily) {
+  return (fontUrlMap[fontFamily] || fontUrlMap["Roboto"]).weight;
+}
 
 async function getFontTtfBuffer(fontFamily) {
   if (fontBufferCache.has(fontFamily)) {
@@ -42,7 +63,7 @@ async function getFontTtfBuffer(fontFamily) {
     return fontBufferCache.get(fontFamily);
   }
 
-  const ttfUrl = fontUrlMap[fontFamily] || fontUrlMap["Roboto"];
+  const ttfUrl = (fontUrlMap[fontFamily] || fontUrlMap["Roboto"]).url;
   console.log(`[DEBUG] Mencoba mengunduh font: ${fontFamily} dari ${ttfUrl}`);
 
   try {
@@ -84,7 +105,7 @@ function sanitizeSvgText(text) {
 // sekali atau posisinya meleset jauh dari viewBox. Diganti offset manual.
 function generateCombinedSvgLayer({ items, imageWidth, imageHeight }) {
   const textNodes = items
-    .map(({ text, textColor, fontSize, fontFamily, positionX, positionY }) => {
+    .map(({ text, textColor, fontSize, fontFamily, positionX, positionY, fontWeight }) => {
       // Offset manual pengganti dominant-baseline="middle"
       // (perkiraan umum: turunkan baseline ~35% dari font-size agar teks
       // secara visual center terhadap positionY)
@@ -92,7 +113,7 @@ function generateCombinedSvgLayer({ items, imageWidth, imageHeight }) {
 
       return `
       <text x="${positionX}" y="${adjustedY}" text-anchor="middle"
-        style="fill:${textColor}; font-size:${fontSize}px; font-family:'${fontFamily}';">
+        style="fill:${textColor}; font-size:${fontSize}px; font-family:'${fontFamily}'; font-weight:${fontWeight};">
         ${sanitizeSvgText(text)}
       </text>`;
     })
@@ -248,6 +269,7 @@ export async function POST(req) {
             textColor: element.textColor,
             fontSize: Math.round(element.fontSize * scaleFactor),
             fontFamily: element.fontFamily,
+            fontWeight: getFontWeight(element.fontFamily),
             positionX: imageWidth * element.positionPercent.x,
             positionY: imageHeight * element.positionPercent.y
           });
