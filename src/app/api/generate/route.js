@@ -72,25 +72,12 @@ function sanitizeSvgText(text) {
 }
 
 // SVG polos TANPA @font-face (resvg akan mencocokkan font dari fontBuffers)
-function generateCombinedSvgLayer({ items, imageWidth, imageHeight, fontBuffers = [] }) {
-  // Gunakan optional chaining (?.) untuk mencegah error 'reading 0 of undefined'
-  const firstBuffer = fontBuffers && fontBuffers.length > 0 ? fontBuffers[0] : null;
-  const fontBase64 = firstBuffer ? firstBuffer.toString("base64") : "";
-
-  const fontFaceStyle = fontBase64
-    ? `<style>
-        @font-face {
-          font-family: 'CustomFont';
-          src: url(data:font/ttf;charset=utf-8;base64,${fontBase64}) format('truetype');
-        }
-      </style>`
-    : "";
-
+function generateCombinedSvgLayer({ items, imageWidth, imageHeight }) {
   const textNodes = items
     .map(
       ({ text, textColor, fontSize, fontFamily, positionX, positionY }) => `
       <text x="${positionX}" y="${positionY}" text-anchor="middle" dominant-baseline="middle"
-        style="fill:${textColor}; font-size:${fontSize}px; font-family:'CustomFont', '${fontFamily}', sans-serif;">
+        style="fill:${textColor}; font-size:${fontSize}px; font-family:'${fontFamily}';">
         ${sanitizeSvgText(text)}
       </text>`
     )
@@ -98,27 +85,18 @@ function generateCombinedSvgLayer({ items, imageWidth, imageHeight, fontBuffers 
 
   return `
     <svg width="${imageWidth}" height="${imageHeight}" xmlns="http://www.w3.org/2000/svg">
-      <defs>
-        ${fontFaceStyle}
-      </defs>
       ${textNodes}
     </svg>`;
 }
 function renderTextLayerToPng({ svg, imageWidth, fontBuffers }) {
-  console.log("[DEBUG] SVG Input to Resvg:\n", svg);
-
   const resvg = new Resvg(svg, {
     fitTo: { mode: "width", value: imageWidth },
     font: {
-      fontBuffers,
-      loadSystemFonts: false,
-      defaultFontFamily: "Roboto"
+      fontBuffers,           // Menggunakan font TTF dari CDN jsDelivr
+      loadSystemFonts: false, // Mematikan font sistem Vercel/Linux[cite: 1]
+      defaultFontFamily: "Roboto" // Fallback jika font-family tidak terindikasi presisi[cite: 1]
     }
   });
-
-  // Log visual render info
-  console.log(`[DEBUG] Render Size: ${resvg.width}x${resvg.height}`);
-
   const pngData = resvg.render();
   return pngData.asPng();
 }
