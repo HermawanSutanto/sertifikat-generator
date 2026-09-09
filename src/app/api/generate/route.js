@@ -499,29 +499,45 @@ export async function POST(req) {
     }
 
     // 5. Upload ke Supabase via supabaseAdmin (Bypass RLS)
+    // PATCH: runWithConcurrencyLimit TIDAK isolasi error per-item — kalau
+    // worker throw (bukan cuma mengembalikan {error}), Promise.all internalnya
+    // reject dan SELURUH batch upload gagal, termasuk item lain yang sudah
+    // berhasil di-upload sebelumnya dalam batch yang sama (lihat implementasi
+    // di lib/concurrency.js). Sebelumnya kode ini hanya menangani `uploadError`
+    // sebagai return value, tidak membungkus kemungkinan exception (misal
+    // error jaringan) dengan try/catch. Sekarang dibungkus supaya satu
+    // kegagalan upload tidak menjatuhkan seluruh batch.
     const allUploadedCerts = await runWithConcurrencyLimit(
       allGeneratedData,
       UPLOAD_CONCURRENCY,
       async (data) => {
-        const certPath = `sertifikat-${String(data.name).replace(
-          /\s+/g,
-          "-"
-        )}-${Date.now()}.jpeg`;
-        const { error: uploadError } = await supabase.storage
-          .from("generated-certificates")
-          .upload(certPath, data.buffer, { contentType: "image/jpeg" });
+        try {
+          const certPath = `sertifikat-${String(data.name).replace(
+            /\s+/g,
+            "-"
+          )}-${Date.now()}.jpeg`;
+          const { error: uploadError } = await supabase.storage
+            .from("generated-certificates")
+            .upload(certPath, data.buffer, { contentType: "image/jpeg" });
 
-        if (uploadError) {
-          console.error(`Gagal upload sertifikat ${data.name}:`, uploadError);
+          if (uploadError) {
+            console.error(`Gagal upload sertifikat ${data.name}:`, uploadError);
+            return null;
+          }
+
+          const {
+            data: { publicUrl }
+          } = supabase.storage
+            .from("generated-certificates")
+            .getPublicUrl(certPath);
+          return { name: data.name, url: publicUrl, rowData: data.rowData };
+        } catch (uploadException) {
+          console.error(
+            `[ERROR] Exception saat upload sertifikat ${data.name}:`,
+            uploadException.message
+          );
           return null;
         }
-
-        const {
-          data: { publicUrl }
-        } = supabase.storage
-          .from("generated-certificates")
-          .getPublicUrl(certPath);
-        return { name: data.name, url: publicUrl, rowData: data.rowData };
       }
     ).then((results) => results.filter(Boolean));
 
