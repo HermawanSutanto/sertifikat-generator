@@ -206,7 +206,7 @@ export default function LandingPage() {
       <header className="sticky top-0 z-50 bg-[#F2EAD3]/90 backdrop-blur-md border-b border-[#17233D]/10">
         <div className="max-w-[1140px] mx-auto px-6 md:px-12 py-4 flex justify-between items-center">
           <Link href="/" className="flex items-center gap-2">
-            <img src="/logo.svg" alt="Logo Certify" className="site-logo" />
+            <img src="/logo.svg" alt="Logo Certify" style="max-width:40pt;" className="site-logo" />
             <span
               className="text-xl font-bold text-[#17233D] tracking-tight"
               style={{ fontFamily: "var(--font-display)" }}
