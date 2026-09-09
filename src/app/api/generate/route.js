@@ -24,8 +24,11 @@ import os from "os";
 // alih-alih memproses semua baris CSV secara sinkron dalam satu request.
 export const maxDuration = 300;
 
+// PATCH: generate & upload sekarang digabung jadi satu pipeline per baris
+// (lihat komentar di POST handler), jadi cukup satu angka konkurensi yang
+// mengatur berapa banyak baris CSV diproses (generate+upload) bersamaan.
+// UPLOAD_CONCURRENCY terpisah sudah tidak diperlukan lagi.
 const GENERATE_CONCURRENCY = 5;
-const UPLOAD_CONCURRENCY = 5;
 
 // PATCH: batas jumlah baris CSV per request. Tanpa ini, request dengan CSV
 // sangat besar berisiko timeout function, boros biaya Supabase/Firestore,
@@ -344,10 +347,30 @@ export async function POST(req) {
     }
 
     const baseImage = sharp(templateFileBuffer);
-    const metadata = await baseImage.metadata();
+
+    // PATCH: baca metadata gambar template DAN fetch font TTF secara PARALEL.
+    // Sebelumnya dua operasi ini dijalankan berurutan padahal saling
+    // independen (metadata tidak butuh font, font tidak butuh metadata) —
+    // menjalankannya via Promise.all memangkas latensi total request,
+    // terutama saat font belum ada di cache (cold start).
+    // fontFamily di-sanitasi lewat whitelist sebelum dipakai untuk fetch,
+    // supaya konsisten dengan yang dipakai saat render SVG nanti.
+    const uniqueFontFamilies = [
+      ...new Set(textElements.map((el) => sanitizeFontFamily(el.fontFamily)))
+    ];
+    debugLog(`[DEBUG] Font unik yang dibutuhkan:`, uniqueFontFamilies);
+
+    const [metadata, fontFilePathsRaw] = await Promise.all([
+      baseImage.metadata(),
+      Promise.all(uniqueFontFamilies.map((family) => getFontTtfFilePath(family)))
+    ]);
+    const fontFilePaths = fontFilePathsRaw.filter(Boolean);
+
     const imageWidth = metadata.width;
     const imageHeight = metadata.height;
     const scaleFactor = imageWidth / previewWidth;
+
+    debugLog(`[DEBUG] Total font file paths yang berhasil disiapkan: ${fontFilePaths.length}/${uniqueFontFamilies.length}`);
 
     // PATCH: cap juga DIMENSI gambar template, bukan hanya ukuran file.
     // Gambar dengan kompresi tinggi tapi resolusi sangat besar bisa lolos
@@ -362,22 +385,6 @@ export async function POST(req) {
         { status: 400 }
       );
     }
-
-    // Fetch font TTF mentah untuk dimasukkan ke resvg-js
-    // PATCH: sanitasi fontFamily lewat whitelist sebelum dipakai untuk fetch,
-    // supaya konsisten dengan yang dipakai saat render SVG.
-    const uniqueFontFamilies = [
-      ...new Set(textElements.map((el) => sanitizeFontFamily(el.fontFamily)))
-    ];
-    debugLog(`[DEBUG] Font unik yang dibutuhkan:`, uniqueFontFamilies);
-
-    const fontFilePaths = (
-      await Promise.all(
-        uniqueFontFamilies.map((family) => getFontTtfFilePath(family))
-      )
-    ).filter(Boolean);
-
-    debugLog(`[DEBUG] Total font file paths yang berhasil disiapkan: ${fontFilePaths.length}/${uniqueFontFamilies.length}`);
 
     // PATCH: kalau SEMUA font gagal di-fetch, sebelumnya kode tetap lanjut
     // dengan fontFilePaths kosong — resvg (loadSystemFonts:false) tidak
@@ -395,19 +402,32 @@ export async function POST(req) {
       );
     }
 
-    // 4. Proses Generate Gambar secara Dinamis
+    // 4 & 5. Generate + Upload per baris DALAM SATU PIPELINE
+    // PATCH (optimasi memori & waktu): sebelumnya kode ini punya dua fase
+    // terpisah — generate SEMUA baris dulu (menyimpan seluruh buffer JPEG
+    // hasilnya di memori), baru upload SEMUA buffer itu setelahnya. Untuk
+    // CSV besar (mendekati MAX_CSV_ROWS), ini berarti ratusan buffer JPEG
+    // tertampung sekaligus di memori sebelum upload pertama sempat dimulai —
+    // boros memori dan rawan mepet limit function di Vercel.
+    // Sekarang digabung: tiap baris di-generate LALU LANGSUNG diupload dalam
+    // worker yang sama, sebelum lanjut ke baris berikutnya. Efeknya memori
+    // puncak turun signifikan (cuma ~GENERATE_CONCURRENCY buffer yang hidup
+    // bersamaan, bukan seluruh CSV), dan upload baris yang satu (I/O-bound)
+    // bisa berjalan bersamaan dengan generate baris lain (CPU-bound) di lane
+    // konkuren yang berbeda.
     const primaryIdentifierLabel =
       textElements.find((el) => el.isLocked)?.label || textElements[0]?.label || "nama";
 
-    const allGeneratedData = (
+    const allUploadedCerts = (
       await runWithConcurrencyLimit(
         csvData,
         GENERATE_CONCURRENCY,
         async (row, index) => {
-          // PATCH: isolasi error per-baris. Sebelumnya kalau satu baris
-          // gagal (misal sharp/resvg throw untuk data yang tidak terduga),
-          // tergantung implementasi runWithConcurrencyLimit ini bisa
-          // menggagalkan seluruh proses generate, padahal baris lain valid.
+          // PATCH: isolasi error per-baris untuk KEDUA tahap (generate &
+          // upload). runWithConcurrencyLimit tidak isolasi error sendiri —
+          // worker yang throw akan menjatuhkan seluruh batch (lihat
+          // lib/concurrency.js) — jadi try/catch di sini wajib membungkus
+          // seluruh alur, bukan cuma sebagian.
           try {
             // PATCH: fallback nama file juga ditambahkan untuk mode manual,
             // sebelumnya fallback `sertifikat-${Date.now()}` hanya ada di
@@ -469,20 +489,42 @@ export async function POST(req) {
               compositeLayers.push({ input: pngTextBuffer, top: 0, left: 0 });
             }
 
+            // PATCH: tambahkan mozjpeg untuk kompresi lebih baik di kualitas
+            // visual yang sama -> file lebih kecil, upload lebih cepat, lebih
+            // hemat storage. Butuh sharp yang dikompilasi dengan dukungan
+            // mozjpeg (default di kebanyakan versi modern); kalau versi sharp
+            // di project ini tidak mendukungnya, hapus opsi ini.
             const generatedCertBuffer = await baseImage
               .clone()
               .composite(compositeLayers)
-              .jpeg({ quality: 85 })
+              .jpeg({ quality: 85, mozjpeg: true })
               .toBuffer();
 
-            return {
-              name: primaryIdentifier,
-              buffer: generatedCertBuffer,
-              rowData: row
-            };
+            // Langsung upload begitu buffer siap — tidak menunggu baris lain
+            // selesai di-generate terlebih dahulu.
+            const certPath = `sertifikat-${String(primaryIdentifier).replace(
+              /\s+/g,
+              "-"
+            )}-${Date.now()}.jpeg`;
+            const { error: uploadError } = await supabase.storage
+              .from("generated-certificates")
+              .upload(certPath, generatedCertBuffer, { contentType: "image/jpeg" });
+
+            if (uploadError) {
+              console.error(`Gagal upload sertifikat ${primaryIdentifier}:`, uploadError);
+              return null;
+            }
+
+            const {
+              data: { publicUrl }
+            } = supabase.storage
+              .from("generated-certificates")
+              .getPublicUrl(certPath);
+
+            return { name: primaryIdentifier, url: publicUrl, rowData: row };
           } catch (rowError) {
             console.error(
-              `[ERROR] Gagal generate sertifikat untuk baris ke-${index}:`,
+              `[ERROR] Gagal memproses (generate/upload) baris ke-${index}:`,
               rowError.message
             );
             return null;
@@ -491,60 +533,13 @@ export async function POST(req) {
       )
     ).filter(Boolean);
 
-    if (allGeneratedData.length === 0) {
-      return NextResponse.json(
-        { message: "Semua baris data gagal diproses. Periksa kembali data CSV dan template Anda." },
-        { status: 422 }
-      );
-    }
-
-    // 5. Upload ke Supabase via supabaseAdmin (Bypass RLS)
-    // PATCH: runWithConcurrencyLimit TIDAK isolasi error per-item — kalau
-    // worker throw (bukan cuma mengembalikan {error}), Promise.all internalnya
-    // reject dan SELURUH batch upload gagal, termasuk item lain yang sudah
-    // berhasil di-upload sebelumnya dalam batch yang sama (lihat implementasi
-    // di lib/concurrency.js). Sebelumnya kode ini hanya menangani `uploadError`
-    // sebagai return value, tidak membungkus kemungkinan exception (misal
-    // error jaringan) dengan try/catch. Sekarang dibungkus supaya satu
-    // kegagalan upload tidak menjatuhkan seluruh batch.
-    const allUploadedCerts = await runWithConcurrencyLimit(
-      allGeneratedData,
-      UPLOAD_CONCURRENCY,
-      async (data) => {
-        try {
-          const certPath = `sertifikat-${String(data.name).replace(
-            /\s+/g,
-            "-"
-          )}-${Date.now()}.jpeg`;
-          const { error: uploadError } = await supabase.storage
-            .from("generated-certificates")
-            .upload(certPath, data.buffer, { contentType: "image/jpeg" });
-
-          if (uploadError) {
-            console.error(`Gagal upload sertifikat ${data.name}:`, uploadError);
-            return null;
-          }
-
-          const {
-            data: { publicUrl }
-          } = supabase.storage
-            .from("generated-certificates")
-            .getPublicUrl(certPath);
-          return { name: data.name, url: publicUrl, rowData: data.rowData };
-        } catch (uploadException) {
-          console.error(
-            `[ERROR] Exception saat upload sertifikat ${data.name}:`,
-            uploadException.message
-          );
-          return null;
-        }
-      }
-    ).then((results) => results.filter(Boolean));
-
     if (allUploadedCerts.length === 0) {
       return NextResponse.json(
-        { message: "Semua sertifikat gagal diupload ke storage. Silakan coba lagi." },
-        { status: 502 }
+        {
+          message:
+            "Semua baris data gagal diproses atau diupload. Periksa kembali data CSV dan template Anda."
+        },
+        { status: 422 }
       );
     }
 
