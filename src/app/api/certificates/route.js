@@ -7,42 +7,73 @@ import {
   orderBy,
   limit,
   startAfter,
+  writeBatch,
   Timestamp
 } from "firebase/firestore";
 import { NextResponse } from "next/server";
 import admin from "../../../lib/firebaseAdmin";
+import { supabaseAdmin as supabase } from "../../../lib/supabaseAdmin";
 
-const PAGE_SIZE = 10; // Jumlah sertifikat yang akan diambil per halaman
+const PAGE_SIZE = 10; // Jumlah sertifikat yang akan diambil per halaman (GET)
+
+// PATCH: batas jumlah sertifikat yang dihapus per SATU request DELETE.
+// Kalau user punya ribuan sertifikat, menghapus semuanya dalam satu request
+// berisiko timeout function di Vercel. Jadi endpoint ini hanya memproses
+// satu "halaman" penghapusan per panggilan (di bawah limit writeBatch
+// Firestore 500 operasi), dan mengembalikan `hasMore: true` kalau masih ada
+// sisa — client (dashboard) yang memanggil endpoint ini berulang kali
+// sampai `hasMore` bernilai false. Angka ini SENGAJA sama dengan pola query
+// (where userId + orderBy dibuatPada) yang dipakai GET di bawah, supaya
+// memakai index Firestore yang sama (tidak perlu index composite baru).
+const DELETE_BATCH_SIZE = 400;
+
+// Batas jumlah path yang dihapus dalam satu panggilan
+// supabase.storage.remove(). Dibatasi supaya payload request tidak
+// terlalu besar untuk sekali panggil, bukan karena ada limit resmi
+// yang didokumentasikan Supabase.
+const STORAGE_REMOVE_CHUNK_SIZE = 100;
+
+const CERTIFICATE_BUCKET = "generated-certificates";
+
+// Ekstrak path file relatif terhadap bucket dari sebuah Supabase Storage
+// public URL. Sama seperti helper yang dipakai di api/zip-certificates,
+// menangani pola "/object/public/<bucket>/<path>" maupun
+// "/object/sign/<bucket>/<path>".
+function extractStoragePath(publicUrl, bucketName) {
+  try {
+    const url = new URL(publicUrl);
+    const marker = `/${bucketName}/`;
+    const markerIndex = url.pathname.indexOf(marker);
+    if (markerIndex === -1) return null;
+    const rawPath = url.pathname.slice(markerIndex + marker.length);
+    return rawPath ? decodeURIComponent(rawPath) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function verifyAuth(req) {
+  const authorization = req.headers.get("Authorization");
+  if (!authorization?.startsWith("Bearer ")) {
+    return { error: NextResponse.json({ message: "Token tidak ditemukan atau format salah" }, { status: 401 }) };
+  }
+  const idToken = authorization.split("Bearer ")[1];
+  try {
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    if (!decodedToken.uid) {
+      return { error: NextResponse.json({ message: "UID tidak ditemukan di dalam token" }, { status: 403 }) };
+    }
+    return { uid: decodedToken.uid };
+  } catch (error) {
+    return { error: NextResponse.json({ message: "Sesi tidak valid atau kadaluwarsa" }, { status: 403 }) };
+  }
+}
 
 export async function GET(req) {
   try {
-    // 1. Verifikasi Token Otentikasi (tidak berubah)
-    const authorization = req.headers.get("Authorization");
-    if (!authorization?.startsWith("Bearer ")) {
-      return NextResponse.json(
-        { message: "Token tidak ditemukan atau format salah" },
-        { status: 401 }
-      );
-    }
-    const idToken = authorization.split("Bearer ")[1];
-
-    let decodedToken;
-    try {
-      decodedToken = await admin.auth().verifyIdToken(idToken);
-    } catch (error) {
-      return NextResponse.json(
-        { message: "Sesi tidak valid atau kadaluwarsa" },
-        { status: 403 }
-      );
-    }
-
-    const uid = decodedToken.uid;
-    if (!uid) {
-      return NextResponse.json(
-        { message: "UID tidak ditemukan di dalam token" },
-        { status: 403 }
-      );
-    }
+    // 1. Verifikasi Token Otentikasi
+    const { uid, error: authError } = await verifyAuth(req);
+    if (authError) return authError;
 
     // --- LOGIKA PAGINATION DIMULAI DI SINI ---
 
@@ -96,6 +127,91 @@ export async function GET(req) {
     console.error("Error fetching certificates:", error);
     return NextResponse.json(
       { message: "Gagal mengambil data sertifikat", error: error.message },
+      { status: 500 }
+    );
+  }
+}
+
+// Hapus SEMUA sertifikat milik user yang sedang login: satu "halaman"
+// (maks DELETE_BATCH_SIZE dokumen) per panggilan — file di Supabase Storage
+// DAN dokumen metadata di Firestore. Client memanggil endpoint ini berulang
+// kali selama response mengembalikan hasMore: true.
+export async function DELETE(req) {
+  try {
+    const { uid, error: authError } = await verifyAuth(req);
+    if (authError) return authError;
+
+    // 1. Ambil satu halaman dokumen milik user ini. Query memakai bentuk
+    // (where userId + orderBy dibuatPada) yang SAMA dengan GET di atas agar
+    // memanfaatkan index composite yang sama, tidak perlu index baru.
+    const certificatesRef = collection(db, "sertifikat_terbuat");
+    const q = query(
+      certificatesRef,
+      where("userId", "==", uid),
+      orderBy("dibuatPada", "desc"),
+      limit(DELETE_BATCH_SIZE)
+    );
+    const querySnapshot = await getDocs(q);
+
+    if (querySnapshot.empty) {
+      return NextResponse.json({
+        deletedCount: 0,
+        hasMore: false,
+        message: "Tidak ada sertifikat untuk dihapus."
+      });
+    }
+
+    const docs = querySnapshot.docs;
+    const storagePaths = [];
+
+    docs.forEach((docSnap) => {
+      const data = docSnap.data();
+      const filePath = extractStoragePath(data.urlSertifikat, CERTIFICATE_BUCKET);
+      if (filePath) {
+        storagePaths.push(filePath);
+      } else {
+        console.warn(
+          `[WARN] Tidak bisa mengekstrak path storage dari URL, dilewati saat hapus file (metadata tetap dihapus): ${data.urlSertifikat}`
+        );
+      }
+    });
+
+    // 2. Hapus file dari Supabase Storage, di-chunk supaya tidak satu
+    // panggilan raksasa. Kegagalan hapus file TIDAK menghentikan proses —
+    // metadata Firestore tetap dihapus supaya sertifikat hilang dari
+    // tampilan user (file yang gagal terhapus dicatat di log untuk
+    // ditindaklanjuti manual, bukan jadi alasan menahan penghapusan
+    // metadata yang memang diminta user).
+    let storageDeleteErrors = 0;
+    for (let i = 0; i < storagePaths.length; i += STORAGE_REMOVE_CHUNK_SIZE) {
+      const chunk = storagePaths.slice(i, i + STORAGE_REMOVE_CHUNK_SIZE);
+      const { error } = await supabase.storage
+        .from(CERTIFICATE_BUCKET)
+        .remove(chunk);
+      if (error) {
+        storageDeleteErrors += chunk.length;
+        console.error(
+          `[ERROR] Gagal menghapus ${chunk.length} file dari Supabase Storage:`,
+          error.message
+        );
+      }
+    }
+
+    // 3. Hapus dokumen metadata dari Firestore. docs.length sudah dijamin
+    // <= DELETE_BATCH_SIZE (400), jadi aman di bawah limit writeBatch (500).
+    const batch = writeBatch(db);
+    docs.forEach((docSnap) => batch.delete(docSnap.ref));
+    await batch.commit();
+
+    return NextResponse.json({
+      deletedCount: docs.length,
+      hasMore: docs.length === DELETE_BATCH_SIZE,
+      storageDeleteErrors: storageDeleteErrors > 0 ? storageDeleteErrors : undefined
+    });
+  } catch (error) {
+    console.error("Error deleting certificates:", error);
+    return NextResponse.json(
+      { message: "Gagal menghapus sertifikat", error: error.message },
       { status: 500 }
     );
   }

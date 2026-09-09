@@ -116,6 +116,8 @@ export default function Dashboard() {
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isZipping, setIsZipping] = useState(false);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
+  const [deleteProgress, setDeleteProgress] = useState(null);
 
   // State untuk Batch Processing
   const [progress, setProgress] = useState(null);
@@ -463,6 +465,83 @@ export default function Dashboard() {
       setIsZipping(false);
     }
   };
+
+  const handleDeleteAllCertificates = async () => {
+    if (!user) {
+      setNotification({
+        show: true,
+        message: "Sesi tidak valid.",
+        type: "error"
+      });
+      return;
+    }
+
+    // Konfirmasi ganda karena aksi ini DESTRUKTIF & TIDAK BISA DIBATALKAN —
+    // menghapus SEMUA riwayat sertifikat milik user, bukan cuma yang
+    // sedang tampil di halaman saat ini.
+    const confirmed = window.confirm(
+      "Yakin ingin menghapus SEMUA sertifikat? Tindakan ini akan menghapus seluruh riwayat sertifikat Anda secara permanen dan tidak bisa dibatalkan."
+    );
+    if (!confirmed) return;
+
+    setIsDeletingAll(true);
+    setDeleteProgress({ deleted: 0 });
+
+    try {
+      const token = await user.getIdToken();
+      let totalDeleted = 0;
+      let hasMore = true;
+      let anyStorageErrors = false;
+
+      // Endpoint DELETE hanya memproses satu "halaman" (maks 400 dokumen)
+      // per panggilan agar tidak timeout untuk akun dengan riwayat sangat
+      // banyak. Panggil berulang selama server bilang masih ada sisa.
+      while (hasMore) {
+        const response = await fetch("/api/certificates", {
+          method: "DELETE",
+          headers: { Authorization: `Bearer ${token}` }
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.message || "Gagal menghapus sertifikat.");
+        }
+
+        totalDeleted += result.deletedCount || 0;
+        hasMore = Boolean(result.hasMore);
+        if (result.storageDeleteErrors) anyStorageErrors = true;
+
+        setDeleteProgress({ deleted: totalDeleted });
+      }
+
+      setNotification({
+        show: true,
+        message: anyStorageErrors
+          ? `${totalDeleted} sertifikat dihapus dari riwayat, namun sebagian file gagal terhapus dari storage. Hubungi admin jika diperlukan.`
+          : `${totalDeleted} sertifikat berhasil dihapus.`,
+        type: anyStorageErrors ? "error" : "success"
+      });
+    } catch (error) {
+      console.error("Delete all error:", error);
+      setNotification({
+        show: true,
+        message: `Gagal menghapus semua sertifikat: ${error.message}`,
+        type: "error"
+      });
+    } finally {
+      setIsDeletingAll(false);
+      setDeleteProgress(null);
+      // Refresh daftar & state pagination dari awal, terlepas dari berhasil
+      // penuh atau sebagian, supaya UI selalu mencerminkan kondisi server
+      // yang sebenarnya (bukan optimistically dikosongkan begitu saja).
+      setLastDocId(null);
+      setLastVisibleTimestamp(null);
+      setHasMore(true);
+      await fetchInitialCertificates();
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -900,14 +979,26 @@ export default function Dashboard() {
               <h2 className="text-2xl font-bold text-[#17233D]">
                 Hasil Generate Terbaru
               </h2>
-              <button
-                onClick={handleDownloadAll}
-                disabled={isZipping || certificates.length === 0}
-                className="px-4 py-2 flex items-center gap-2 text-sm font-semibold text-white bg-green-600 rounded-md hover:bg-green-700 disabled:bg-[#17233D]/40 disabled:cursor-not-allowed"
-              >
-                {isZipping ? <Spinner className="w-4 h-4" /> : null}
-                {isZipping ? "Zipping..." : "Download Semua"}
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleDownloadAll}
+                  disabled={isZipping || isDeletingAll || certificates.length === 0}
+                  className="px-4 py-2 flex items-center gap-2 text-sm font-semibold text-white bg-green-600 rounded-md hover:bg-green-700 disabled:bg-[#17233D]/40 disabled:cursor-not-allowed"
+                >
+                  {isZipping ? <Spinner className="w-4 h-4" /> : null}
+                  {isZipping ? "Zipping..." : "Download Semua"}
+                </button>
+                <button
+                  onClick={handleDeleteAllCertificates}
+                  disabled={isZipping || isDeletingAll || certificates.length === 0}
+                  className="px-4 py-2 flex items-center gap-2 text-sm font-semibold text-white bg-red-700 rounded-md hover:bg-red-800 disabled:bg-[#17233D]/40 disabled:cursor-not-allowed"
+                >
+                  {isDeletingAll ? <Spinner className="w-4 h-4" /> : null}
+                  {isDeletingAll
+                    ? `Menghapus${deleteProgress ? ` (${deleteProgress.deleted})` : "..."}`
+                    : "Hapus Semua"}
+                </button>
+              </div>
             </div>
             {certificates.length > 0 ? (
               <div className="space-y-4">
