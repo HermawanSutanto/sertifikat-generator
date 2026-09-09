@@ -11,12 +11,19 @@ import { Resvg } from "@resvg/resvg-js";
 import { NextResponse } from "next/server";
 import admin from "../../../lib/firebaseAdmin";
 import { runWithConcurrencyLimit } from "../../../lib/concurrency";
+import fs from "fs/promises";
+import path from "path";
+import os from "os";
 
 const GENERATE_CONCURRENCY = 5;
 const UPLOAD_CONCURRENCY = 5;
 
-// Cache buffer font TTF mentah untuk resvg-js
-const fontBufferCache = new Map();
+// Cache PATH FILE font (bukan buffer) — resvg-js v2.6.2 hanya menerima
+// `fontFiles: string[]` (path lokal), TIDAK ADA opsi `fontBuffers`.
+// Font di-download sekali lalu ditulis ke /tmp (satu-satunya folder writable
+// di Vercel serverless functions), path-nya di-cache untuk request berikutnya
+// dalam siklus hidup instance yang sama (warm start).
+const fontFilePathCache = new Map();
 
 const fontUrlMap = {
   // Direct link CDN jsDelivr dari repository Google Fonts
@@ -57,10 +64,10 @@ function getFontWeight(fontFamily) {
   return (fontUrlMap[fontFamily] || fontUrlMap["Roboto"]).weight;
 }
 
-async function getFontTtfBuffer(fontFamily) {
-  if (fontBufferCache.has(fontFamily)) {
-    console.log(`[DEBUG] Font ${fontFamily} diambil dari cache.`);
-    return fontBufferCache.get(fontFamily);
+async function getFontTtfFilePath(fontFamily) {
+  if (fontFilePathCache.has(fontFamily)) {
+    console.log(`[DEBUG] Font ${fontFamily} diambil dari cache (path: ${fontFilePathCache.get(fontFamily)}).`);
+    return fontFilePathCache.get(fontFamily);
   }
 
   const ttfUrl = (fontUrlMap[fontFamily] || fontUrlMap["Roboto"]).url;
@@ -82,10 +89,16 @@ async function getFontTtfBuffer(fontFamily) {
       console.warn(`[WARN] Font ${fontFamily} mencurigakan kecil (${buffer.length} bytes) — kemungkinan bukan font valid (misal HTML error page ter-cache sebagai buffer).`);
     }
 
-    fontBufferCache.set(fontFamily, buffer);
-    return buffer;
+    // Tulis ke /tmp karena resvg-js butuh PATH FILE, bukan buffer in-memory
+    const safeFileName = fontFamily.replace(/[^a-zA-Z0-9]/g, "-");
+    const filePath = path.join(os.tmpdir(), `font-${safeFileName}.ttf`);
+    await fs.writeFile(filePath, buffer);
+    console.log(`[DEBUG] Font ${fontFamily} ditulis ke ${filePath}`);
+
+    fontFilePathCache.set(fontFamily, filePath);
+    return filePath;
   } catch (error) {
-    console.error(`[ERROR] Gagal fetching font ttf (${fontFamily}):`, error.message);
+    console.error(`[ERROR] Gagal fetching/menulis font ttf (${fontFamily}):`, error.message);
     return null;
   }
 }
@@ -99,7 +112,7 @@ function sanitizeSvgText(text) {
     .replace(/'/g, "&#039;");
 }
 
-// SVG polos TANPA @font-face (resvg akan mencocokkan font dari fontBuffers)
+// SVG polos TANPA @font-face (resvg akan mencocokkan font dari fontFiles)
 // CATATAN: dominant-baseline="middle" dihapus karena dukungan resvg/usvg untuk
 // properti ini tidak konsisten dan bisa menyebabkan teks tidak ter-render sama
 // sekali atau posisinya meleset jauh dari viewBox. Diganti offset manual.
@@ -125,19 +138,16 @@ function generateCombinedSvgLayer({ items, imageWidth, imageHeight }) {
     </svg>`;
 }
 
-function renderTextLayerToPng({ svg, imageWidth, fontBuffers }) {
-  console.log(`[DEBUG] Rendering text layer. fontBuffers count: ${fontBuffers.length}`);
-  fontBuffers.forEach((buf, i) => {
-    console.log(`[DEBUG] fontBuffers[${i}] size: ${buf.length} bytes`);
-  });
+function renderTextLayerToPng({ svg, imageWidth, fontFilePaths }) {
+  console.log(`[DEBUG] Rendering text layer. fontFilePaths:`, fontFilePaths);
   // DEBUG: cetak SVG mentah untuk memastikan teks, posisi, dan struktur valid
   console.log(`[DEBUG] SVG string:`, svg);
 
   const resvg = new Resvg(svg, {
     fitTo: { mode: "width", value: imageWidth },
     font: {
-      fontBuffers,           // Menggunakan font TTF dari CDN jsDelivr
-      loadSystemFonts: false, // Mematikan font sistem Vercel/Linux
+      fontFiles: fontFilePaths,   // API resvg-js v2.x: path file lokal, BUKAN buffer
+      loadSystemFonts: false,     // Mematikan font sistem Vercel/Linux
       defaultFontFamily: "Roboto" // Fallback jika font-family tidak terindikasi presisi
     },
     logLevel: "debug" // resvg-js akan print info matching font ke stderr
@@ -236,13 +246,13 @@ export async function POST(req) {
     ];
     console.log(`[DEBUG] Font unik yang dibutuhkan:`, uniqueFontFamilies);
 
-    const fontBuffers = (
+    const fontFilePaths = (
       await Promise.all(
-        uniqueFontFamilies.map((family) => getFontTtfBuffer(family))
+        uniqueFontFamilies.map((family) => getFontTtfFilePath(family))
       )
     ).filter(Boolean);
 
-    console.log(`[DEBUG] Total font buffers yang berhasil disiapkan: ${fontBuffers.length}/${uniqueFontFamilies.length}`);
+    console.log(`[DEBUG] Total font file paths yang berhasil disiapkan: ${fontFilePaths.length}/${uniqueFontFamilies.length}`);
 
     // 4. Proses Generate Gambar secara Dinamis
     const primaryIdentifierLabel =
@@ -286,7 +296,7 @@ export async function POST(req) {
           const pngTextBuffer = renderTextLayerToPng({
             svg,
             imageWidth,
-            fontBuffers: fontBuffers || []
+            fontFilePaths: fontFilePaths || []
           });
 
           // DEBUG: upload layer teks mentah (sebelum di-composite) supaya bisa
@@ -372,4 +382,3 @@ export async function POST(req) {
     return NextResponse.json({ message: errorMessage }, { status: 500 });
   }
 }
-console.log("🔥 ROUTE FILE LOADED — MARKER: fw-fix-v2 — " + new Date().toISOString());
