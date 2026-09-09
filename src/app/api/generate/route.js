@@ -372,3 +372,4 @@ export async function POST(req) {
     return NextResponse.json({ message: errorMessage }, { status: 500 });
   }
 }
+console.log("🔥 ROUTE FILE LOADED — MARKER: fw-fix-v2 — " + new Date().toISOString());
