@@ -71,6 +71,14 @@ export default function Dashboard() {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [previewSize, setPreviewSize] = useState({ width: 0, height: 0 });
+  // Rasio asli gambar template (width/height dalam piksel). Dipakai supaya
+  // kotak preview mengikuti rasio ASLI template, bukan rasio tetap 16:9 —
+  // kalau tidak, objectFit:"contain" akan menyisakan ruang kosong
+  // (letterbox) di preview untuk template yang bukan 16:9, dan
+  // positionPercent hasil drag jadi dihitung dari ukuran KOTAK, bukan
+  // ukuran gambar yang benar-benar tampil -> posisi teks meleset saat
+  // dirender di backend (yang menghitung dari imageWidth/imageHeight asli).
+  const [templateNaturalSize, setTemplateNaturalSize] = useState(null);
   const [notification, setNotification] = useState({
     show: false,
     message: "",
@@ -720,7 +728,20 @@ export default function Dashboard() {
     if (file) {
       setTemplateFile(file);
       if (previewUrl) URL.revokeObjectURL(previewUrl);
-      setPreviewUrl(URL.createObjectURL(file));
+      const objectUrl = URL.createObjectURL(file);
+      setPreviewUrl(objectUrl);
+
+      // Baca dimensi asli gambar template supaya kotak preview bisa
+      // mengikuti rasio aslinya (lihat komentar di state templateNaturalSize).
+      setTemplateNaturalSize(null);
+      const img = new window.Image();
+      img.onload = () => {
+        setTemplateNaturalSize({
+          width: img.naturalWidth,
+          height: img.naturalHeight
+        });
+      };
+      img.src = objectUrl;
     }
   };
 
@@ -735,7 +756,10 @@ export default function Dashboard() {
     updatePreviewSize();
     window.addEventListener("resize", updatePreviewSize);
     return () => window.removeEventListener("resize", updatePreviewSize);
-  }, [previewUrl]);
+    // templateNaturalSize ikut jadi dependency karena baru datang secara
+    // async setelah previewUrl (lewat img.onload) — begitu rasio diketahui,
+    // tinggi container berubah (aspectRatio CSS), jadi perlu diukur ulang.
+  }, [previewUrl, templateNaturalSize]);
 
   if (loading || !user) {
     return (
@@ -1079,7 +1103,22 @@ export default function Dashboard() {
             {previewUrl ? (
               <div
                 ref={previewContainerRef}
-                className="relative w-full max-w-[500px] aspect-video overflow-hidden border rounded-lg"
+                className="relative w-full max-w-[500px] overflow-hidden border rounded-lg"
+                style={{
+                  // PATCH: rasio kotak preview mengikuti rasio ASLI gambar
+                  // template (bukan 16:9 tetap). Kalau rasio tetap dipaksa
+                  // 16:9 sementara template-nya beda rasio, objectFit:"contain"
+                  // menyisakan area kosong (letterbox) -> positionPercent yang
+                  // dihitung dari ukuran KOTAK preview jadi tidak sama dengan
+                  // posisi di gambar yang benar-benar tampil, sehingga posisi
+                  // teks meleset saat dirender ulang di backend (yang
+                  // menghitung dari imageWidth/imageHeight ASLI, tanpa
+                  // letterbox). Selama dimensi asli belum diketahui,
+                  // fallback ke 16:9 supaya tidak ada layout shift aneh.
+                  aspectRatio: templateNaturalSize
+                    ? `${templateNaturalSize.width} / ${templateNaturalSize.height}`
+                    : "16 / 9"
+                }}
               >
                 <Image
                   src={previewUrl}
