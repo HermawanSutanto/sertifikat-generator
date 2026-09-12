@@ -497,7 +497,7 @@ export async function POST(req) {
             const generatedCertBuffer = await baseImage
               .clone()
               .composite(compositeLayers)
-              .jpeg({ quality: 85, mozjpeg: true })
+              .jpeg({ quality: 95, mozjpeg: true })
               .toBuffer();
 
             // Langsung upload begitu buffer siap — tidak menunggu baris lain
