@@ -9,7 +9,8 @@ import {
   where,
   orderBy,
   limit,
-  getDocs
+  getDocs,
+  documentId
 } from "firebase/firestore";
 import { supabaseAdmin as supabase } from "../../../lib/supabaseAdmin";
 import JSZip from "jszip";
@@ -20,6 +21,10 @@ import { runWithConcurrencyLimit } from "../../../lib/concurrency";
 // pengguna sudah memiliki ratusan/ribuan sertifikat.
 const DOWNLOAD_CONCURRENCY = 5;
 const MAX_CERTIFICATES_PER_ZIP = 300;
+
+// Firestore "in" query hanya mendukung maksimum 30 nilai per query,
+// jadi permintaan ZIP untuk sertifikat terpilih (ids) di-chunk per 30 id.
+const FIRESTORE_IN_CHUNK_SIZE = 30;
 
 export async function POST(req) {
   try {
@@ -42,24 +47,74 @@ export async function POST(req) {
       );
     }
 
-    // 2. Ambil Data Sertifikat Pengguna dari Firestore (dibatasi jumlahnya)
-    const certificatesRef = collection(db, "sertifikat_terbuat");
-    const q = query(
-      certificatesRef,
-      where("userId", "==", uid),
-      orderBy("dibuatPada", "desc"),
-      limit(MAX_CERTIFICATES_PER_ZIP)
-    );
-    const querySnapshot = await getDocs(q);
+    // 2. Ambil Data Sertifikat Pengguna dari Firestore
+    // PATCH: dashboard sekarang bisa mengirim daftar `ids` (hasil checklist
+    // pilih-sertifikat) di body JSON untuk mengompres HANYA sertifikat yang
+    // dipilih user, bukan selalu 300 sertifikat terbaru. Kalau body kosong /
+    // tidak ada `ids`, perilaku lama dipertahankan (ambil paling banyak
+    // MAX_CERTIFICATES_PER_ZIP sertifikat terbaru).
+    let requestedIds = [];
+    try {
+      const body = await req.json();
+      if (Array.isArray(body?.ids)) requestedIds = body.ids;
+    } catch {
+      // Body kosong/bukan JSON valid -> anggap tidak ada seleksi, pakai default.
+    }
 
-    if (querySnapshot.empty) {
+    if (requestedIds.length > MAX_CERTIFICATES_PER_ZIP) {
       return NextResponse.json(
-        { message: "Tidak ada sertifikat untuk di-ZIP" },
-        { status: 404 }
+        {
+          message: `Maksimum ${MAX_CERTIFICATES_PER_ZIP} sertifikat per proses kompres. Anda memilih ${requestedIds.length}. Silakan kompres secara bertahap.`
+        },
+        { status: 400 }
       );
     }
 
-    const certificateData = querySnapshot.docs.map((doc) => doc.data());
+    const certificatesRef = collection(db, "sertifikat_terbuat");
+    let certificateData = [];
+
+    if (requestedIds.length > 0) {
+      // Ambil hanya dokumen yang diminta, di-chunk per 30 id (limit query "in"
+      // Firestore), lalu difilter ulang berdasarkan userId sebagai lapisan
+      // keamanan tambahan supaya user tidak bisa mengompres sertifikat
+      // milik user lain hanya dengan menebak/mengirim id orang lain.
+      for (let i = 0; i < requestedIds.length; i += FIRESTORE_IN_CHUNK_SIZE) {
+        const chunkIds = requestedIds.slice(i, i + FIRESTORE_IN_CHUNK_SIZE);
+        const chunkQuery = query(
+          certificatesRef,
+          where(documentId(), "in", chunkIds)
+        );
+        const chunkSnapshot = await getDocs(chunkQuery);
+        chunkSnapshot.forEach((docSnap) => {
+          const data = docSnap.data();
+          if (data.userId === uid) certificateData.push(data);
+        });
+      }
+
+      if (certificateData.length === 0) {
+        return NextResponse.json(
+          { message: "Sertifikat yang dipilih tidak ditemukan." },
+          { status: 404 }
+        );
+      }
+    } else {
+      const q = query(
+        certificatesRef,
+        where("userId", "==", uid),
+        orderBy("dibuatPada", "desc"),
+        limit(MAX_CERTIFICATES_PER_ZIP)
+      );
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        return NextResponse.json(
+          { message: "Tidak ada sertifikat untuk di-ZIP" },
+          { status: 404 }
+        );
+      }
+
+      certificateData = querySnapshot.docs.map((doc) => doc.data());
+    }
 
     // 3. Unduh File dari Supabase & Buat ZIP di Memori Server.
     // Download dibatasi concurrency-nya (bukan Promise.all polos) supaya
@@ -112,10 +167,12 @@ export async function POST(req) {
           return; // Lewati file yang gagal
         }
 
+        // PATCH: file yang digenerate di /api/generate adalah JPEG, bukan PNG
+        // — nama file di ZIP sebelumnya salah pakai ekstensi .png.
         const fileName = `sertifikat-${cert.namaPeserta.replace(
           /\s+/g,
           "-"
-        )}.png`;
+        )}.jpeg`;
         zip.file(fileName, await data.arrayBuffer());
       }
     );
@@ -151,8 +208,19 @@ export async function POST(req) {
 
     // 6. Kirim URL ZIP kembali ke Client, sertakan info jika ada sertifikat
     // yang terlewat agar pengguna tahu ZIP tidak lengkap (bukan gagal diam-diam).
+    // PATCH: beri tahu client kalau proses ini memakai mode default (bukan
+    // seleksi manual) DAN jumlah sertifikat user kemungkinan lebih banyak
+    // dari MAX_CERTIFICATES_PER_ZIP, supaya dashboard bisa menampilkan alert
+    // "hanya N terbaru yang ter-ZIP" alih-alih diam-diam memotong sisanya.
+    const possiblyTruncated =
+      requestedIds.length === 0 &&
+      certificateData.length === MAX_CERTIFICATES_PER_ZIP;
+
     return NextResponse.json({
       zipUrl: publicUrl,
+      zippedCount: certificateData.length,
+      maxPerZip: MAX_CERTIFICATES_PER_ZIP,
+      possiblyTruncated,
       skippedCount: skippedCertificates.length,
       skippedNames:
         skippedCertificates.length > 0 ? skippedCertificates : undefined
