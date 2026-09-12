@@ -56,6 +56,12 @@ const Notification = ({ message, type, show }) => {
   );
 };
 
+// Batas ini HARUS sama dengan yang dipakai backend:
+// MAX_CSV_ROWS di api/generate/route.js, dan
+// MAX_CERTIFICATES_PER_ZIP di api/zip-certificates/route.js.
+const MAX_GENERATE_ROWS = 500;
+const MAX_ZIP_CERTIFICATES = 300;
+
 export default function Dashboard() {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -118,6 +124,11 @@ export default function Dashboard() {
   const [isZipping, setIsZipping] = useState(false);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
   const [deleteProgress, setDeleteProgress] = useState(null);
+
+  // State untuk checklist pilih-sertifikat (hapus/kompres terpilih)
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [isDeletingSelected, setIsDeletingSelected] = useState(false);
+  const [isZippingSelected, setIsZippingSelected] = useState(false);
 
   // State untuk Batch Processing
   const [progress, setProgress] = useState(null);
@@ -331,6 +342,17 @@ export default function Dashboard() {
       return;
     }
 
+    // ALERT batas cetak/generate: backend membatasi maksimum
+    // MAX_GENERATE_ROWS baris per satu request generate.
+    if (dataToSend.length > MAX_GENERATE_ROWS) {
+      setNotification({
+        show: true,
+        message: `Jumlah data (${dataToSend.length}) melebihi batas maksimum ${MAX_GENERATE_ROWS} sertifikat per proses generate. Silakan bagi data menjadi beberapa bagian dan generate secara bertahap.`,
+        type: "error"
+      });
+      return;
+    }
+
     setIsLoading(true);
     setProgress({ current: 0, total: dataToSend.length });
 
@@ -390,7 +412,7 @@ export default function Dashboard() {
       });
       const response = await fetch(url);
       const blob = await response.blob();
-      saveAs(blob, `sertifikat-${name.replace(/\s+/g, "-")}.png`);
+      saveAs(blob, `sertifikat-${name.replace(/\s+/g, "-")}.jpeg`);
     } catch (error) {
       console.error("Download error:", error);
       setNotification({
@@ -444,6 +466,14 @@ export default function Dashboard() {
         setNotification({
           show: true,
           message: `Unduhan dimulai, tapi ${result.skippedCount} sertifikat gagal disertakan dalam ZIP (file mungkin sudah tidak ada).`,
+          type: "error"
+        });
+      } else if (result.possiblyTruncated) {
+        // ALERT batas kompres: "Download Semua" hanya memproses maksimum
+        // MAX_ZIP_CERTIFICATES sertifikat terbaru dalam satu kali proses.
+        setNotification({
+          show: true,
+          message: `ZIP hanya berisi ${result.zippedCount} sertifikat terbaru (batas maksimum ${result.maxPerZip} per proses). Gunakan checklist untuk memilih & mengompres sisanya secara bertahap.`,
           type: "error"
         });
       } else {
@@ -539,6 +569,138 @@ export default function Dashboard() {
       setLastVisibleTimestamp(null);
       setHasMore(true);
       await fetchInitialCertificates();
+    }
+  };
+
+  const toggleSelectCertificate = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAllVisible = () => {
+    setSelectedIds((prev) => {
+      const allVisibleSelected = certificates.every((c) => prev.has(c.id));
+      if (allVisibleSelected) {
+        // Semua yang tampil sudah terpilih -> batalkan seleksi untuk yang tampil
+        const next = new Set(prev);
+        certificates.forEach((c) => next.delete(c.id));
+        return next;
+      }
+      // Pilih semua yang sedang tampil di halaman ini
+      const next = new Set(prev);
+      certificates.forEach((c) => next.add(c.id));
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const handleDeleteSelected = async () => {
+    if (!user || selectedIds.size === 0) return;
+
+    const idsToDelete = Array.from(selectedIds);
+    const confirmed = window.confirm(
+      `Hapus ${idsToDelete.length} sertifikat terpilih? Tindakan ini tidak bisa dibatalkan.`
+    );
+    if (!confirmed) return;
+
+    setIsDeletingSelected(true);
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch("/api/certificates", {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ ids: idsToDelete })
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.message || "Gagal menghapus sertifikat terpilih.");
+      }
+
+      setNotification({
+        show: true,
+        message: result.storageDeleteErrors
+          ? `${result.deletedCount} sertifikat terpilih dihapus, namun sebagian file gagal terhapus dari storage.`
+          : `${result.deletedCount} sertifikat terpilih berhasil dihapus.`,
+        type: result.storageDeleteErrors ? "error" : "success"
+      });
+
+      clearSelection();
+      setLastDocId(null);
+      setLastVisibleTimestamp(null);
+      setHasMore(true);
+      await fetchInitialCertificates();
+    } catch (error) {
+      setNotification({
+        show: true,
+        message: `Gagal menghapus sertifikat terpilih: ${error.message}`,
+        type: "error"
+      });
+    } finally {
+      setIsDeletingSelected(false);
+    }
+  };
+
+  const handleDownloadSelectedZip = async () => {
+    if (!user || selectedIds.size === 0) return;
+
+    // ALERT batas kompres: backend membatasi maksimum
+    // MAX_ZIP_CERTIFICATES sertifikat per proses ZIP.
+    if (selectedIds.size > MAX_ZIP_CERTIFICATES) {
+      setNotification({
+        show: true,
+        message: `Anda memilih ${selectedIds.size} sertifikat, namun maksimum ${MAX_ZIP_CERTIFICATES} sertifikat per proses kompres. Silakan kurangi jumlah pilihan atau kompres secara bertahap.`,
+        type: "error"
+      });
+      return;
+    }
+
+    setIsZippingSelected(true);
+    setNotification({
+      show: true,
+      message: `Mengompres ${selectedIds.size} sertifikat terpilih...`,
+      type: "success"
+    });
+
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch("/api/zip-certificates", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ ids: Array.from(selectedIds) })
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.message || "Gagal membuat file ZIP.");
+      }
+
+      setNotification({
+        show: true,
+        message:
+          result.skippedCount > 0
+            ? `ZIP dibuat, tapi ${result.skippedCount} sertifikat gagal disertakan (file mungkin sudah tidak ada).`
+            : `${result.zippedCount} sertifikat terpilih berhasil dikompres!`,
+        type: result.skippedCount > 0 ? "error" : "success"
+      });
+      window.open(result.zipUrl, "_blank");
+    } catch (error) {
+      setNotification({
+        show: true,
+        message: `Gagal mengompres sertifikat terpilih: ${error.message}`,
+        type: "error"
+      });
+    } finally {
+      setIsZippingSelected(false);
     }
   };
 
@@ -1000,27 +1162,106 @@ export default function Dashboard() {
                 </button>
               </div>
             </div>
+
+            {certificates.length > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-4 p-3 rounded-lg bg-[#17233D]/5">
+                <label className="flex items-center gap-2 text-sm font-medium text-[#17233D] cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={
+                      certificates.length > 0 &&
+                      certificates.every((c) => selectedIds.has(c.id))
+                    }
+                    onChange={toggleSelectAllVisible}
+                    className="w-4 h-4"
+                  />
+                  Pilih semua di halaman ini
+                </label>
+
+                <div className="flex items-center gap-3">
+                  {selectedIds.size > 0 && (
+                    <>
+                      <span
+                        className={`text-sm font-medium ${
+                          selectedIds.size > MAX_ZIP_CERTIFICATES
+                            ? "text-red-700"
+                            : "text-[#17233D]"
+                        }`}
+                      >
+                        {selectedIds.size} terpilih
+                        {selectedIds.size > MAX_ZIP_CERTIFICATES &&
+                          ` (maks ${MAX_ZIP_CERTIFICATES} untuk kompres)`}
+                      </span>
+                      <button
+                        onClick={handleDownloadSelectedZip}
+                        disabled={
+                          isZippingSelected ||
+                          isDeletingSelected ||
+                          isZipping ||
+                          isDeletingAll
+                        }
+                        className="px-3 py-1.5 flex items-center gap-2 text-sm font-semibold text-white bg-green-600 rounded-md hover:bg-green-700 disabled:bg-[#17233D]/40 disabled:cursor-not-allowed"
+                      >
+                        {isZippingSelected ? <Spinner className="w-4 h-4" /> : null}
+                        {isZippingSelected ? "Mengompres..." : "Kompres Terpilih"}
+                      </button>
+                      <button
+                        onClick={handleDeleteSelected}
+                        disabled={
+                          isZippingSelected ||
+                          isDeletingSelected ||
+                          isZipping ||
+                          isDeletingAll
+                        }
+                        className="px-3 py-1.5 flex items-center gap-2 text-sm font-semibold text-white bg-red-700 rounded-md hover:bg-red-800 disabled:bg-[#17233D]/40 disabled:cursor-not-allowed"
+                      >
+                        {isDeletingSelected ? <Spinner className="w-4 h-4" /> : null}
+                        {isDeletingSelected ? "Menghapus..." : "Hapus Terpilih"}
+                      </button>
+                      <button
+                        onClick={clearSelection}
+                        disabled={isZippingSelected || isDeletingSelected}
+                        className="px-3 py-1.5 text-sm font-medium text-[#17233D] hover:underline disabled:opacity-50"
+                      >
+                        Batalkan pilihan
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
             {certificates.length > 0 ? (
               <div className="space-y-4">
                 {certificates.map((cert) => (
                   <div
                     key={cert.id}
-                    className="flex items-center justify-between p-4 rounded-lg bg-[#A9822E]/10"
+                    className={`flex items-center justify-between p-4 rounded-lg bg-[#A9822E]/10 ${
+                      selectedIds.has(cert.id) ? "ring-2 ring-[#8C2F39]" : ""
+                    }`}
                   >
-                    <div>
-                      <p className="font-semibold text-[#17233D]">
-                        {cert.namaPeserta}
-                      </p>
-                      <p className="text-sm text-[#17233D]">
-                        Dibuat pada:{" "}
-                        {new Date(
-                          cert.dibuatPada.seconds * 1000
-                        ).toLocaleDateString("id-ID", {
-                          day: "2-digit",
-                          month: "long",
-                          year: "numeric"
-                        })}
-                      </p>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(cert.id)}
+                        onChange={() => toggleSelectCertificate(cert.id)}
+                        className="w-4 h-4 flex-shrink-0"
+                      />
+                      <div>
+                        <p className="font-semibold text-[#17233D]">
+                          {cert.namaPeserta}
+                        </p>
+                        <p className="text-sm text-[#17233D]">
+                          Dibuat pada:{" "}
+                          {new Date(
+                            cert.dibuatPada.seconds * 1000
+                          ).toLocaleDateString("id-ID", {
+                            day: "2-digit",
+                            month: "long",
+                            year: "numeric"
+                          })}
+                        </p>
+                      </div>
                     </div>
                     <button
                       onClick={() =>
