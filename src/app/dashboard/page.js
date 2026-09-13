@@ -56,6 +56,51 @@ const Notification = ({ message, type, show }) => {
   );
 };
 
+// Modal pop-up (bukan toast) untuk peringatan batas kuota generate harian.
+// Dipakai khusus untuk kasus ini karena "kuota habis" adalah kejadian yang
+// sebaiknya benar-benar diperhatikan user (butuh klik "Mengerti" untuk
+// menutup), berbeda dari notifikasi biasa yang otomatis hilang sendiri.
+const QuotaLimitModal = ({ show, message, onClose }) => {
+  if (!show) return null;
+  return (
+    <div
+      className="fixed inset-0 flex items-center justify-center p-4"
+      style={{ zIndex: 1100, backgroundColor: "rgba(0,0,0,0.5)" }}
+    >
+      <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-6 w-6 text-red-600"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900">
+            Batas Generate Harian Tercapai
+          </h3>
+        </div>
+        <p className="text-gray-600 mb-6">{message}</p>
+        <button
+          onClick={onClose}
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+        >
+          Mengerti
+        </button>
+      </div>
+    </div>
+  );
+};
+
 // Batas ini HARUS sama dengan yang dipakai backend:
 // MAX_CSV_ROWS di api/generate/route.js, dan
 // MAX_CERTIFICATES_PER_ZIP di api/zip-certificates/route.js.
@@ -153,6 +198,15 @@ export default function Dashboard() {
   // State untuk Batch Processing
   const [progress, setProgress] = useState(null);
 
+  // State kuota generate harian (batas server: DAILY_GENERATE_LIMIT di
+  // api/generate/route.js, saat ini 50 sertifikat/hari/user). `quota` diisi
+  // dari response GET /api/generate (saat load) dan disinkronkan ulang
+  // setiap kali POST /api/generate berhasil/ditolak, supaya indikator di UI
+  // selalu mencerminkan angka terbaru dari server (sumber kebenaran ada di
+  // backend, bukan dihitung sendiri di client).
+  const [quota, setQuota] = useState(null); // { used, limit, remaining, resetAt } | null saat belum dimuat
+  const [quotaModal, setQuotaModal] = useState({ show: false, message: "" });
+
   const previewContainerRef = useRef(null);
 
   // Efek untuk notifikasi dan proteksi halaman
@@ -220,6 +274,28 @@ export default function Dashboard() {
       fetchInitialCertificates();
     }
   }, [user, fetchInitialCertificates]);
+
+  const fetchQuota = useCallback(async () => {
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch("/api/generate", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setQuota(data.quota);
+      }
+    } catch (error) {
+      console.error("Gagal mengambil status kuota harian:", error);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      fetchQuota();
+    }
+  }, [user, fetchQuota]);
 
   const handleCsvFileChange = (e) => {
     const file = e.target.files[0];
@@ -466,6 +542,23 @@ export default function Dashboard() {
       return;
     }
 
+    // POP-UP batas kuota harian: cek di sisi client DULU (pakai angka
+    // `quota` terakhir yang diketahui) supaya user langsung tahu tanpa
+    // perlu menunggu roundtrip ke server kalau memang sudah jelas kurang.
+    // Ini cuma "fast path" UX -- keputusan yang SAH tetap dilakukan server
+    // (lihat penanganan status 429 di bawah), karena angka `quota` di client
+    // bisa saja basi (mis. digenerate dari tab/perangkat lain).
+    if (quota && dataToSend.length > quota.remaining) {
+      setQuotaModal({
+        show: true,
+        message:
+          quota.remaining <= 0
+            ? `Kuota generate harian Anda (${quota.limit} sertifikat/hari) sudah habis. Silakan coba lagi besok setelah kuota reset.`
+            : `Anda mencoba membuat ${dataToSend.length} sertifikat, tapi sisa kuota harian Anda hanya ${quota.remaining} dari total ${quota.limit} sertifikat/hari. Kurangi jumlah data atau coba lagi besok.`
+      });
+      return;
+    }
+
     setIsLoading(true);
     setProgress({ current: 0, total: dataToSend.length });
 
@@ -499,15 +592,35 @@ export default function Dashboard() {
         body: formData
       });
 
+      const result = await response.json();
+
+      // Selalu sinkronkan angka kuota dari server (sumber kebenaran),
+      // baik saat request berhasil, gagal sebagian (422), maupun ditolak
+      // karena kuota habis (429) -- server selalu menyertakan `quota`
+      // terbaru di ketiga kasus itu (lihat api/generate/route.js).
+      if (result.quota) setQuota(result.quota);
+
       if (!response.ok) {
-        const result = await response.json();
+        if (response.status === 429 && result.code === "DAILY_QUOTA_EXCEEDED") {
+          // POP-UP: batas kuota harian tercapai (ditolak SERVER, sumber
+          // kebenaran yang sesungguhnya -- bukan cuma pengecekan client di
+          // atas). Ditampilkan sebagai modal, bukan toast biasa, supaya
+          // tidak terlewat.
+          setQuotaModal({
+            show: true,
+            message: result.message
+          });
+          return;
+        }
         throw new Error(result.message || "Gagal generate sertifikat");
       }
 
       setNotification({
         show: true,
-        message: "Sukses! Sertifikat sedang dibuat.",
-        type: "success"
+        message: result.warning
+          ? `Sukses (dengan catatan): ${result.warning}`
+          : "Sukses! Sertifikat sedang dibuat.",
+        type: result.warning ? "error" : "success"
       });
       await fetchInitialCertificates();
     } catch (error) {
@@ -883,6 +996,11 @@ export default function Dashboard() {
   return (
     <>
       <Notification {...notification} />
+      <QuotaLimitModal
+        show={quotaModal.show}
+        message={quotaModal.message}
+        onClose={() => setQuotaModal({ show: false, message: "" })}
+      />
       <header className="w-full bg-white shadow-sm border-b border-[#17233D]/10 sticky top-0 z-40">
         <div className="container mx-auto flex justify-between items-center px-6 py-3">
           <h1 className="text-xl font-bold text-[#17233D] tracking-tight">
@@ -1246,9 +1364,21 @@ export default function Dashboard() {
             </div>
 
             <div className="pt-4 border-t border-[#17233D]/10">
+              {quota && (
+                <p
+                  className={`text-xs text-center mb-2 ${
+                    quota.remaining <= 0
+                      ? "text-red-600 font-semibold"
+                      : "text-[#17233D]/60"
+                  }`}
+                >
+                  Kuota generate hari ini: {quota.used}/{quota.limit} sertifikat
+                  {quota.remaining <= 0 ? " — kuota habis, coba lagi besok" : ""}
+                </p>
+              )}
               <button
                 onClick={handleGenerate}
-                disabled={isLoading || !templateFile}
+                disabled={isLoading || !templateFile || quota?.remaining <= 0}
                 className="w-full flex justify-center p-3 font-semibold text-white bg-[#8C2F39] rounded-md hover:bg-[#742531] disabled:bg-[#A9822E]/50"
               >
                 {isLoading ? <Spinner /> : "Generate Sertifikat"}
