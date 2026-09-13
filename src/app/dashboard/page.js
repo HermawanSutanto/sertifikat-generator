@@ -1044,7 +1044,7 @@ export default function Dashboard() {
         </div>
       </header>
       <main className="flex flex-col items-center min-h-screen bg-[#F2EAD3] p-4 md:p-8 text-[#17233D]">
-        <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-8 items-start relative">
           <div className="w-full p-8 space-y-6 bg-[#FCFAF2] rounded-2xl shadow-lg border border-[#17233D]/10">
             <div className="flex items-center gap-3">
               <Link
@@ -1402,7 +1402,7 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="w-full p-4 bg-[#FCFAF2] rounded-2xl shadow-lg flex items-center justify-center border border-[#17233D]/10">
+          <div className="w-full p-4 bg-[#FCFAF2] rounded-2xl shadow-lg flex items-center justify-center border border-[#17233D]/10 lg:sticky lg:top-20">
             {previewUrl ? (
               <div
                 ref={previewContainerRef}
