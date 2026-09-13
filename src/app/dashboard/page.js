@@ -41,6 +41,29 @@ const Spinner = (props) => (
     </path>
   </svg>
 );
+// Skeleton placeholder ditampilkan selagi daftar sertifikat awal sedang
+// diambil dari server (bukan spinner tunggal di tengah), supaya bentuk
+// halaman tidak "lompat" begitu data asli datang menggantikannya.
+const CertificateListSkeleton = ({ rows = 4 }) => (
+  <div className="space-y-4 animate-pulse">
+    {Array.from({ length: rows }).map((_, i) => (
+      <div
+        key={i}
+        className="flex items-center justify-between p-4 rounded-lg bg-[#A9822E]/10"
+      >
+        <div className="flex items-center gap-3 flex-1">
+          <div className="w-4 h-4 rounded bg-[#17233D]/10 flex-shrink-0" />
+          <div className="flex-1 space-y-2">
+            <div className="h-4 w-1/3 rounded bg-[#17233D]/10" />
+            <div className="h-3 w-1/4 rounded bg-[#17233D]/10" />
+          </div>
+        </div>
+        <div className="h-9 w-24 rounded-md bg-[#17233D]/10" />
+      </div>
+    ))}
+  </div>
+);
+
 // Komponen Notifikasi
 const Notification = ({ message, type, show }) => {
   const bgColor = type === "success" ? "bg-green-600" : "bg-red-600";
@@ -186,6 +209,12 @@ export default function Dashboard() {
   const [lastVisibleTimestamp, setLastVisibleTimestamp] = useState(null);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  // Loading khusus untuk pengambilan data AWAL daftar sertifikat (bukan
+  // "load more"). Default `true` supaya spinner langsung tampil sejak
+  // render pertama, sebelum fetchInitialCertificates sempat berjalan —
+  // menghindari kedipan "Belum ada sertifikat" yang salah sesaat sebelum
+  // data asli datang dari server.
+  const [isLoadingCertificates, setIsLoadingCertificates] = useState(true);
   const [isZipping, setIsZipping] = useState(false);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
   const [deleteProgress, setDeleteProgress] = useState(null);
@@ -228,6 +257,7 @@ export default function Dashboard() {
 
   const fetchInitialCertificates = useCallback(async () => {
     if (!user) return;
+    setIsLoadingCertificates(true);
     try {
       const token = await user.getIdToken();
       const response = await fetch("/api/certificates", {
@@ -241,6 +271,9 @@ export default function Dashboard() {
       setHasMore(data.hasMore);
     } catch (error) {
       console.error("Gagal mengambil daftar sertifikat:", error);
+      setNotification({ show: true, message: error.message, type: "error" });
+    } finally {
+      setIsLoadingCertificates(false);
     }
   }, [user]);
 
@@ -1574,7 +1607,9 @@ export default function Dashboard() {
               </div>
             )}
 
-            {certificates.length > 0 ? (
+            {isLoadingCertificates ? (
+              <CertificateListSkeleton />
+            ) : certificates.length > 0 ? (
               <div className="space-y-4">
                 {certificates.map((cert) => (
                   <div
