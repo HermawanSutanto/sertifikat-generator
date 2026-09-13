@@ -337,12 +337,41 @@ export async function POST(req) {
     const isManualMode = Object.keys(mapping).length === 0;
 
     // 3. Persiapan Gambar Template
-    let templateFileBuffer = Buffer.from(await templateFile.arrayBuffer());
-    const maxSizeInBytes = 2 * 1024 * 1024;
-    if (templateFileBuffer.length > maxSizeInBytes) {
-      templateFileBuffer = await sharp(templateFileBuffer)
-        .resize({ width: 1920, withoutEnlargement: true })
-        .jpeg({ quality: 80 })
+    // PATCH (kualitas render): SEBELUMNYA template di-downscale + di-recompress
+    // paksa ke JPEG quality 80 hanya berdasarkan UKURAN FILE (>2MB), tanpa
+    // peduli resolusi piksel aslinya. Efeknya: template dengan foto latar
+    // beresolusi tinggi (sangat umum, gampang >2MB) langsung dikompres kasar
+    // di awal -- lalu di-composite dengan teks -- lalu di-kompres JPEG LAGI
+    // di akhir. Dua kali lossy compression inilah penyebab utama hasil akhir
+    // terlihat "jelek"/blocky, dan menaikkan quality di composite akhir saja
+    // tidak menolong karena sumbernya sudah rusak duluan.
+    // Sekarang gate-nya diganti ke DIMENSI PIKSEL, konsisten dengan
+    // MAX_TEMPLATE_DIMENSION di bawah: template HANYA di-downscale kalau
+    // sisi terpanjangnya benar-benar melebihi batas itu, dan kalau memang
+    // perlu di-downscale, dipakai kualitas re-encode yang jauh lebih tinggi
+    // (92 + mozjpeg, bukan 80) supaya detail tetap tajam. Template yang
+    // resolusinya sudah wajar (mayoritas kasus) sama sekali tidak disentuh --
+    // dipakai apa adanya, tanpa kompresi tambahan apapun.
+    const originalTemplateBuffer = Buffer.from(await templateFile.arrayBuffer());
+    const MAX_TEMPLATE_DIMENSION = 4000;
+
+    const originalMetadata = await sharp(originalTemplateBuffer).metadata();
+    const originalLongestSide = Math.max(
+      originalMetadata.width || 0,
+      originalMetadata.height || 0
+    );
+
+    let templateFileBuffer = originalTemplateBuffer;
+    if (originalLongestSide > MAX_TEMPLATE_DIMENSION) {
+      const isPortrait =
+        (originalMetadata.height || 0) > (originalMetadata.width || 0);
+      templateFileBuffer = await sharp(originalTemplateBuffer)
+        .resize(
+          isPortrait
+            ? { height: MAX_TEMPLATE_DIMENSION, withoutEnlargement: true }
+            : { width: MAX_TEMPLATE_DIMENSION, withoutEnlargement: true }
+        )
+        .jpeg({ quality: 92, mozjpeg: true })
         .toBuffer();
     }
 
@@ -372,19 +401,12 @@ export async function POST(req) {
 
     debugLog(`[DEBUG] Total font file paths yang berhasil disiapkan: ${fontFilePaths.length}/${uniqueFontFamilies.length}`);
 
-    // PATCH: cap juga DIMENSI gambar template, bukan hanya ukuran file.
-    // Gambar dengan kompresi tinggi tapi resolusi sangat besar bisa lolos
-    // cek ukuran file 2MB di atas, tapi tetap membuat proses render/composite
-    // per baris jadi berat dan lambat.
-    const MAX_TEMPLATE_DIMENSION = 4000;
-    if (imageWidth > MAX_TEMPLATE_DIMENSION || imageHeight > MAX_TEMPLATE_DIMENSION) {
-      return NextResponse.json(
-        {
-          message: `Resolusi gambar template terlalu besar (${imageWidth}x${imageHeight}). Maksimum ${MAX_TEMPLATE_DIMENSION}px pada sisi terpanjang.`
-        },
-        { status: 400 }
-      );
-    }
+    // PATCH: batas dimensi sekarang DIJAMIN oleh downscale otomatis di atas
+    // (bagian "3. Persiapan Gambar Template") -- template tidak pernah lagi
+    // melebihi MAX_TEMPLATE_DIMENSION di titik ini, jadi tidak perlu lagi
+    // menolak request dengan error 400 seperti sebelumnya. Ini sekaligus
+    // pengalaman yang lebih baik untuk user (template besar otomatis
+    // disesuaikan, bukan ditolak mentah-mentah).
 
     // PATCH: kalau SEMUA font gagal di-fetch, sebelumnya kode tetap lanjut
     // dengan fontFilePaths kosong — resvg (loadSystemFonts:false) tidak
