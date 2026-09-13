@@ -69,7 +69,7 @@ const Notification = ({ message, type, show }) => {
   const bgColor = type === "success" ? "bg-green-600" : "bg-red-600";
   return (
     <div
-      className={`fixed top-5 right-5 p-4 rounded-lg text-white shadow-lg transition-transform transform ${
+      className={`fixed top-5 right-0 p-4 rounded-lg text-white shadow-lg transition-transform transform ${
         show ? "translate-x-0" : "translate-x-full"
       } ${bgColor}`}
       style={{ zIndex: 1000 }}
