@@ -35,6 +35,9 @@ const publicSans = Public_Sans({
 export const metadata = {
   metadataBase: new URL("https://sertigen.example.com"),
   title: "SertiGen — Generator Sertifikat Otomatis untuk Webinar & Acara",
+  icons: {
+    icon: '/favicon.png', // Mengarah ke public/favicon.png
+    },
   description:
     "Buat ratusan sertifikat personal dalam hitungan menit. Unggah template, masukkan daftar nama, dan unduh sertifikat profesional siap cetak maupun digital. Gratis untuk 50 sertifikat pertama.",
   keywords: [
