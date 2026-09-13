@@ -17,7 +17,7 @@ export const metadata = {
   openGraph: {
     title: "SertiGen: Generator Sertifikat Online Cepat & Mudah",
     description: "Buat ribuan sertifikat personal secara otomatis dan cepat.",
-    url: "https://sertifikat-generator.vercel.app/", // Ganti dengan URL domain Anda
+    url: "https://cert.krovida.my.id/", // Ganti dengan URL domain Anda
     siteName: "SertiGen",
     images: [
       {

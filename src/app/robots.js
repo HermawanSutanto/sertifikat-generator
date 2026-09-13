@@ -9,6 +9,6 @@ export default function robots() {
       allow: "/", // Izinkan semua halaman di-crawl
       disallow: "/dashboard/", // JANGAN izinkan halaman dashboard di-crawl
     },
-    sitemap: "https://sertifikat-generator.vercel.app/sitemap.xml", // Ganti dengan URL domain Anda
+    sitemap: "https://cert.krovida.my.id/sitemap.xml", // Ganti dengan URL domain Anda
   };
 }
