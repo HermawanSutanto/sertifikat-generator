@@ -88,6 +88,12 @@ export default function Dashboard() {
   // State untuk mode input & data dinamis
   const [inputMode, setInputMode] = useState("manual"); // 'manual' atau 'csv'
   const [manualNames, setManualNames] = useState("Andi Budi, Candra Dwi");
+  // Dipakai untuk menampilkan indikator langsung di setiap atribut kalau
+  // jumlah nilai custom-nya belum cocok dengan jumlah nama.
+  const manualNamesCount = manualNames
+    .split(",")
+    .map((n) => n.trim())
+    .filter((n) => n).length;
   const [csvData, setCsvData] = useState([]);
   const [csvHeaders, setCsvHeaders] = useState([]);
   const [mapping, setMapping] = useState({});
@@ -111,7 +117,11 @@ export default function Dashboard() {
       positionPercent: { x: 0.5, y: 0.6 },
       fontSize: 24,
       fontFamily: "Roboto",
-      textColor: "#555555"
+      textColor: "#555555",
+      // PATCH: nilai custom per-sertifikat untuk mode manual (opsional).
+      // Kosong -> pakai textPreview sebagai teks statis yang sama untuk
+      // semua sertifikat (perilaku lama, tetap dipertahankan).
+      manualValues: ""
     }
   ]);
 
@@ -217,9 +227,31 @@ export default function Dashboard() {
         skipEmptyLines: true,
         complete: (results) => {
           if (results.data.length > 0 && results.meta.fields) {
-            setCsvHeaders(results.meta.fields);
+            const headers = results.meta.fields;
+            setCsvHeaders(headers);
             setCsvData(results.data);
-            setMapping({});
+
+            // PATCH: auto-mapping kolom CSV -> atribut berdasarkan URUTAN,
+            // kalau jumlah kolom CSV sama persis dengan jumlah atribut yang
+            // sudah ditambahkan (kolom ke-N dipetakan ke atribut ke-N).
+            // User tetap bisa mengoreksi lewat dropdown pemetaan yang sudah
+            // ada di bawah kalau urutannya ternyata tidak sesuai -- ini
+            // hanya tebakan awal untuk kasus paling umum (header CSV memang
+            // disusun sesuai urutan atribut).
+            if (headers.length === textElements.length) {
+              const autoMapping = {};
+              textElements.forEach((el, idx) => {
+                autoMapping[el.label] = headers[idx];
+              });
+              setMapping(autoMapping);
+              setNotification({
+                show: true,
+                message: `Kolom CSV otomatis dipetakan berdasarkan urutan (${headers.length} kolom = ${textElements.length} atribut). Periksa bagian "Petakan Kolom" di bawah, sesuaikan kalau urutannya tidak tepat.`,
+                type: "success"
+              });
+            } else {
+              setMapping({});
+            }
           } else {
             setNotification({
               show: true,
@@ -271,7 +303,10 @@ export default function Dashboard() {
       positionPercent: { x: 0.5, y: 0.7 },
       fontSize: 28,
       fontFamily: "Roboto",
-      textColor: "#333333"
+      textColor: "#333333",
+      // PATCH: sama seperti elemen JABATAN default -- opsional, kosong
+      // berarti pakai textPreview statis untuk semua sertifikat.
+      manualValues: ""
     };
     setTextElements((prevElements) => [...prevElements, newElement]);
   };
@@ -298,10 +333,13 @@ export default function Dashboard() {
     let finalMapping = {};
 
     if (inputMode === "manual") {
-      const namesFromManualInput = manualNames
-        .split(",")
-        .map((name) => name.trim())
-        .filter((name) => name);
+      const parseList = (str) =>
+        (str || "")
+          .split(",")
+          .map((v) => v.trim())
+          .filter((v) => v);
+
+      const namesFromManualInput = parseList(manualNames);
       if (namesFromManualInput.length === 0) {
         setNotification({
           show: true,
@@ -311,19 +349,55 @@ export default function Dashboard() {
         return;
       }
 
-      dataToSend = namesFromManualInput.map((name) => {
-        const dataObject = {};
-        // Assign name to the locked element's label
-        const lockedElement = textElements.find((el) => el.isLocked);
-        if (lockedElement) {
-          dataObject[lockedElement.label] = name;
+      const rowCount = namesFromManualInput.length;
+
+      // PATCH: sekarang SETIAP atribut (bukan cuma elemen "nama" yang
+      // isLocked) bisa punya daftar nilai custom per sertifikat lewat
+      // `element.manualValues` (dipisah koma, sama seperti input nama).
+      // Aturan: jumlah nilai suatu atribut HARUS sama dengan jumlah nama.
+      // Kalau elemen belum dikustomisasi (manualValues kosong) -> perilaku
+      // lama tetap berlaku: pakai textPreview sebagai teks statis yang sama
+      // untuk semua sertifikat. Kalau dikustomisasi TAPI jumlahnya beda ->
+      // hanya nilai PERTAMA yang dipakai untuk semua sertifikat pada
+      // atribut itu, dan user diberi tahu lewat konfirmasi sebelum lanjut.
+      const elementValues = {};
+      const mismatched = [];
+
+      textElements.forEach((el) => {
+        if (el.isLocked) {
+          elementValues[el.label] = namesFromManualInput;
+          return;
         }
 
-        // Assign static textPreview for other elements
+        const list = parseList(el.manualValues);
+        if (list.length === 0) {
+          elementValues[el.label] = new Array(rowCount).fill(el.textPreview);
+        } else if (list.length === rowCount) {
+          elementValues[el.label] = list;
+        } else {
+          mismatched.push({ label: el.label, count: list.length });
+          elementValues[el.label] = new Array(rowCount).fill(list[0]);
+        }
+      });
+
+      if (mismatched.length > 0) {
+        const detail = mismatched
+          .map((m) => `"${m.label}" (${m.count} nilai)`)
+          .join(", ");
+        // ALERT sebelum render: beri tahu jumlah yang tidak cocok, dan minta
+        // konfirmasi eksplisit sebelum melanjutkan generate.
+        const proceed = window.confirm(
+          `Jumlah nilai pada atribut ${detail} tidak sama dengan jumlah nama (${rowCount} nama).\n\n` +
+            `Untuk atribut yang jumlahnya tidak cocok, HANYA nilai PERTAMA yang akan dipakai untuk SEMUA ${rowCount} sertifikat.\n\n` +
+            `Lanjutkan generate dengan begitu?`
+        );
+        if (!proceed) return;
+      }
+
+      dataToSend = namesFromManualInput.map((_, idx) => {
+        const dataObject = {};
         textElements.forEach((el) => {
-          if (!el.isLocked) {
-            dataObject[el.label] = el.textPreview;
-          }
+          dataObject[el.label] = elementValues[el.label][idx];
         });
         return dataObject;
       });
@@ -372,7 +446,13 @@ export default function Dashboard() {
       formData.append("previewWidth", previewSize.width);
       formData.append(
         "textElements",
-        JSON.stringify(textElements.map(({ ref, ...rest }) => rest))
+        // PATCH: `manualValues` cuma dipakai di editor (untuk menyimpan
+        // daftar nilai per-atribut mode manual) -- sudah "dicairkan" jadi
+        // dataToSend per baris di atas, jadi tidak perlu ikut dikirim ke
+        // backend generate.
+        JSON.stringify(
+          textElements.map(({ ref, manualValues, ...rest }) => rest)
+        )
       );
       formData.append("csvData", JSON.stringify(dataToSend));
       formData.append(
@@ -1012,6 +1092,50 @@ export default function Dashboard() {
                         }
                         className="w-full text-sm p-1 mt-1 border rounded-md bg-white border-[#A9822E]/40"
                       />
+                    </div>
+                  )}
+
+                  {/* PATCH: nilai custom per-sertifikat untuk atribut ini,
+                      khusus mode Input Manual (di mode CSV, nilainya datang
+                      dari pemetaan kolom di atas). Opsional -- kalau
+                      dikosongkan, "Teks Contoh di Preview" dipakai sebagai
+                      teks statis yang sama untuk semua sertifikat (perilaku
+                      lama tetap jalan). */}
+                  {!element.isLocked && inputMode === "manual" && (
+                    <div>
+                      <label className="text-xs font-medium text-[#17233D]">
+                        Nilai per Sertifikat (pisahkan dengan koma) — opsional
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={element.manualValues || ""}
+                        onChange={(e) =>
+                          handleElementChange(
+                            element.id,
+                            "manualValues",
+                            e.target.value
+                          )
+                        }
+                        placeholder={`Contoh: Ketua Pelaksana, Sekretaris, Bendahara. Kosongkan untuk pakai "${element.textPreview}" di semua sertifikat.`}
+                        className="w-full text-sm p-1 mt-1 border rounded-md bg-white border-[#A9822E]/40"
+                      />
+                      {(() => {
+                        const valueCount = (element.manualValues || "")
+                          .split(",")
+                          .map((v) => v.trim())
+                          .filter((v) => v).length;
+                        if (valueCount > 0 && valueCount !== manualNamesCount) {
+                          return (
+                            <p className="text-xs text-red-600 mt-1">
+                              {valueCount} nilai — jumlah nama saat ini{" "}
+                              {manualNamesCount}. Kalau tidak disesuaikan,
+                              hanya nilai pertama yang dipakai untuk semua
+                              sertifikat pada atribut ini.
+                            </p>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                   )}
 
