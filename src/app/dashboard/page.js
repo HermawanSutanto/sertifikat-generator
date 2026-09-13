@@ -108,7 +108,8 @@ export default function Dashboard() {
       fontSize: 48,
       fontFamily: "Roboto",
       textColor: "#333333",
-      isLocked: true // Elemen ini tidak bisa dihapus
+      isLocked: true, // Elemen ini tidak bisa dihapus
+      centerHorizontal: false
     },
     {
       id: 2,
@@ -121,7 +122,8 @@ export default function Dashboard() {
       // PATCH: nilai custom per-sertifikat untuk mode manual (opsional).
       // Kosong -> pakai textPreview sebagai teks statis yang sama untuk
       // semua sertifikat (perilaku lama, tetap dipertahankan).
-      manualValues: ""
+      manualValues: "",
+      centerHorizontal: false
     }
   ]);
 
@@ -289,8 +291,15 @@ export default function Dashboard() {
     const newX = ui.x + textElementNode.offsetWidth / 2;
     const newY = ui.y + textElementNode.offsetHeight / 2;
 
+    // PATCH: kalau elemen ini sedang mode "Rata Tengah Horizontal", X tetap
+    // dikunci ke 0.5 apapun hasil drag-nya -- axis="y" di <Draggable> sudah
+    // mencegah pergerakan horizontal secara visual, ini lapisan jaga-jaga
+    // tambahan supaya data positionPercent.x juga tidak pernah bergeser.
+    const element = textElements.find((el) => el.id === id);
+    const isCentered = element?.centerHorizontal;
+
     handleElementChange(id, "positionPercent", {
-      x: newX / width,
+      x: isCentered ? 0.5 : newX / width,
       y: newY / height
     });
   };
@@ -306,9 +315,31 @@ export default function Dashboard() {
       textColor: "#333333",
       // PATCH: sama seperti elemen JABATAN default -- opsional, kosong
       // berarti pakai textPreview statis untuk semua sertifikat.
-      manualValues: ""
+      manualValues: "",
+      // PATCH: toggle rata-tengah horizontal (lihat toggleCenterHorizontal).
+      centerHorizontal: false
     };
     setTextElements((prevElements) => [...prevElements, newElement]);
+  };
+
+  // PATCH: toggle "Rata Tengah Horizontal" untuk suatu elemen. Saat
+  // diaktifkan, posisi X langsung di-snap ke tengah (0.5) dan drag
+  // horizontal dikunci (lihat axis di <Draggable> pada canvas) -- user
+  // tetap bebas mengatur posisi vertikal (Y) dengan drag seperti biasa.
+  const toggleCenterHorizontal = (id) => {
+    setTextElements((prev) =>
+      prev.map((el) => {
+        if (el.id !== id) return el;
+        const nextCentered = !el.centerHorizontal;
+        return {
+          ...el,
+          centerHorizontal: nextCentered,
+          positionPercent: nextCentered
+            ? { ...el.positionPercent, x: 0.5 }
+            : el.positionPercent
+        };
+      })
+    );
   };
 
   const handleRemoveTextElement = (idToRemove) => {
@@ -1075,6 +1106,24 @@ export default function Dashboard() {
                     )}
                   </div>
 
+                  {/* PATCH: toggle rata-tengah horizontal. Saat aktif, X
+                      dikunci ke tengah (0.5) dan drag hanya bisa vertikal --
+                      lihat toggleCenterHorizontal & axis di <Draggable>. */}
+                  <button
+                    type="button"
+                    onClick={() => toggleCenterHorizontal(element.id)}
+                    aria-pressed={!!element.centerHorizontal}
+                    className={`w-full text-sm font-medium px-3 py-1.5 rounded-md border transition-colors ${
+                      element.centerHorizontal
+                        ? "bg-[#8C2F39] text-white border-[#8C2F39]"
+                        : "bg-white text-[#17233D] border-[#A9822E]/40 hover:bg-[#A9822E]/10"
+                    }`}
+                  >
+                    {element.centerHorizontal
+                      ? "✓ Rata Tengah Horizontal (posisi Y tetap bisa diatur)"
+                      : "Rata Tengah Horizontal"}
+                  </button>
+
                   {!element.isLocked && (
                     <div>
                       <label className="text-xs font-medium text-[#17233D]">
@@ -1270,6 +1319,7 @@ export default function Dashboard() {
                       bounds="parent"
                       position={pixelPosition}
                       onStop={createDragHandler(element.id)}
+                      axis={element.centerHorizontal ? "y" : "both"}
                     >
                       <div
                         ref={nodeRef}
