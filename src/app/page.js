@@ -1,15 +1,15 @@
-import { Suspense } from "react";
+"use client";
+
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { Fraunces, Public_Sans } from "next/font/google";
 import {
   ArrowRight,
   Award,
   Check,
-  Globe,
   Mail,
   Medal,
   MessageCircle,
-  Plus,
   Printer,
   Quote,
   SlidersHorizontal,
@@ -30,43 +30,14 @@ const publicSans = Public_Sans({
   variable: "--font-body",
 });
 
-// SEO: halaman ini server component sehingga metadata bisa diekspor.
-// Ganti "https://sertigen.example.com" dengan domain asli sebelum deploy.
-export const metadata = {
-  metadataBase: new URL("https://sertigen.example.com"),
-  title: "SertiGen — Bikin Sertifikat Massal Otomatis, Gratis 50/Hari",
-  icons: {
-    icon: '/favicon.png', // Mengarah ke public/favicon.png
-    },
-  description:
-    "Bikin ratusan sertifikat personal cuma dalam hitungan menit — nggak perlu edit satu-satu. Upload template, tempel daftar nama, gas generate. Gratis 50 sertifikat per hari, reset otomatis tiap hari.",
-  keywords: [
-    "generator sertifikat",
-    "buat sertifikat online",
-    "sertifikat webinar",
-    "sertifikat otomatis",
-    "template sertifikat",
-    "cetak sertifikat massal",
-  ],
-  alternates: { canonical: "/" },
-  openGraph: {
-    title: "SertiGen — Bikin Sertifikat Massal Otomatis, Gratis 50/Hari",
-    description:
-      "Udahan input data manual satu-satu. Upload template, tempel daftar nama, biarin SertiGen yang cetakin sertifikat rapi otomatis.",
-    url: "/",
-    siteName: "SertiGen",
-    images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "SertiGen — Generator Sertifikat Otomatis" }],
-    locale: "id_ID",
-    type: "website",
-  },
-  twitter: {
-    card: "summary_large_image",
-    title: "SertiGen — Bikin Sertifikat Massal Otomatis, Gratis 50/Hari",
-    description: "Bikin ratusan sertifikat personal dalam hitungan menit, tanpa input manual satu per satu.",
-  },
-};
+// CATATAN: metadata (title/description/OG/dsb) tidak bisa lagi diekspor dari
+// file ini karena sekarang jadi Client Component (perlu useState untuk FAQ
+// accordion & form newsletter yang fungsional). Pindahkan blok `metadata`
+// yang sebelumnya ada di sini ke layout.tsx/layout.jsx terdekat, atau buat
+// page.jsx ini jadi server component pembungkus yang meng-import komponen
+// client terpisah (mis. `<LandingPageClient />`) supaya metadata tetap bisa
+// diekspor di level page/layout.
 
-// Ganti angka-angka di bawah (badge, stats) dengan data riil sebelum publish.
 const faqs = [
   {
     q: "Apakah SertiGen gratis?",
@@ -86,7 +57,10 @@ const faqs = [
   },
 ];
 
-// Structured data: memberi peluang FAQ rich-snippet di hasil pencarian Google.
+// Structured data untuk FAQ rich-snippet. Pindahkan <script> ini ke server
+// component (mis. layout) kalau page ini dijadikan client component, karena
+// dangerouslySetInnerHTML tetap boleh di client tapi idealnya JSON-LD statis
+// dirender dari server.
 const faqJsonLd = {
   "@context": "https://schema.org",
   "@type": "FAQPage",
@@ -120,14 +94,9 @@ const features = [
   },
 ];
 
-// PATCH: testimoni & angka statistik di versi sebelumnya (2.000+ pengguna,
-// 50.000+ sertifikat, rating 4.9/5, dsb) semuanya PLACEHOLDER/FIKTIF -- salah
-// satunya bahkan mencatut nama instansi pemerintah asli (Kominfo) di
-// testimoni yang tidak pernah benar-benar ada. Itu berisiko dianggap klaim
-// endorsement palsu, dan produk ini memang belum punya user/testimoni asli.
-// Diganti jadi framing jujur "produk baru" -- selain lebih aman, biasanya
-// justru lebih dipercaya audiens Gen Z yang sensitif sama social proof yang
-// kelihatan terlalu sempurna/dipoles.
+// Framing jujur "produk baru" karena belum ada user/testimoni asli.
+// Jangan tambahkan lagi avatar/angka/kutipan buatan di section manapun —
+// begitu ada user & testimoni asli, ganti section ini dengan yang riil.
 const earlyPerks = [
   {
     title: "Baru rilis, masih anget",
@@ -152,12 +121,8 @@ const steps = [
   { step: "03", title: "Generate & Unduh", desc: "Klik \u201cGenerate\u201d dan semua sertifikat siap diunduh." },
 ];
 
-// PATCH: sistem pembayaran/plan berbayar BELUM diimplementasikan di backend
-// (tidak ada payment gateway, tidak ada plan-gating di API manapun) -- jadi
-// section harga sebelumnya (kartu "Premium Rp149rb/bulan") mengiklankan
-// sesuatu yang belum bisa dipenuhi produknya. Diganti jadi satu kartu Gratis
-// (akurat sesuai kuota harian yang berlaku) + teaser "lagi disiapin" tanpa
-// menyebut harga/fitur spesifik, sesuai arahan: jangan pasang harga dulu.
+// Sistem pembayaran belum diimplementasikan di backend, jadi jangan pasang
+// harga/plan berbayar di sini sampai benar-benar siap.
 const freePerks = [
   "50 sertifikat gratis per hari",
   "Kuota reset otomatis tiap hari",
@@ -180,12 +145,54 @@ const posts = [
   },
 ];
 
-// Ganti href="#" dengan tautan sosial asli, dan sesuaikan ikon/label sesuai platform yang dipakai.
-const socials = [
-  { icon: Globe, label: "Website" },
-  { icon: Mail, label: "Email" },
-  { icon: MessageCircle, label: "WhatsApp" },
-];
+function NewsletterForm() {
+  // TODO: sambungkan ke endpoint/list provider (mis. Resend, Mailchimp, atau
+  // API internal) sebelum publish. Sampai itu ada, form ini jujur bilang
+  // belum aktif, bukan pura-pura submit ke mana-mana (R-26).
+  return (
+    <div className="mt-4">
+      <label htmlFor="newsletter-email" className="sr-only">
+        Alamat email
+      </label>
+      <div className="flex gap-2">
+        <input
+          id="newsletter-email"
+          type="email"
+          disabled
+          placeholder="email@kamu.com"
+          className="w-full cursor-not-allowed rounded-md border border-[#17233D]/20 bg-white px-3 py-2 text-sm text-[#17233D] placeholder:text-[#17233D]/40"
+        />
+        <button
+          type="button"
+          disabled
+          className="shrink-0 cursor-not-allowed rounded-md bg-[#8C2F39]/50 px-4 py-2 text-sm font-semibold text-[#F2EAD3]"
+        >
+          Segera hadir
+        </button>
+      </div>
+      <p className="mt-2 text-xs text-[#17233D]/50">
+        Newsletter belum aktif. Untuk sekarang, hubungi kami langsung lewat kontak di footer.
+      </p>
+    </div>
+  );
+}
+
+function FaqItem({ q, a }) {
+  return (
+    <details className="group border-b border-[#17233D]/10 pb-6 [&_summary::-webkit-details-marker]:hidden">
+      <summary className="flex cursor-pointer list-none items-start justify-between gap-4">
+        <span className="font-semibold text-[#17233D]">{q}</span>
+        <span
+          aria-hidden="true"
+          className="mt-0.5 shrink-0 text-lg font-bold text-[#A9822E] transition-transform group-open:rotate-45"
+        >
+          +
+        </span>
+      </summary>
+      <p className="mt-2 text-sm leading-relaxed text-[#17233D]/70">{a}</p>
+    </details>
+  );
+}
 
 export default function LandingPage() {
   return (
@@ -253,12 +260,8 @@ export default function LandingPage() {
 
           <div className="relative max-w-[1140px] mx-auto px-6 md:px-12 grid md:grid-cols-2 gap-12 items-center">
             <div>
-              <div className="inline-flex items-center gap-2 rounded-full border border-[#A9822E]/50 bg-[#FCFAF2] px-4 py-1.5 text-xs font-semibold text-[#A9822E]">
-                🚀 Baru rilis — gaskeun jadi early user
-              </div>
-
               <h1
-                className="mt-6 text-4xl md:text-[3.4rem] leading-[1.08] font-bold text-[#17233D]"
+                className="text-4xl md:text-[3.4rem] leading-[1.08] font-bold text-[#17233D]"
                 style={{ fontFamily: "var(--font-display)" }}
               >
                 Ratusan sertifikat, <em className="italic text-[#8C2F39]">satu template</em>, lima menit.
@@ -286,28 +289,9 @@ export default function LandingPage() {
                 </Link>
               </div>
 
-              <div className="mt-6 flex items-center gap-3">
-                <div className="flex -space-x-2" aria-hidden="true">
-                  <div className="w-7 h-7 rounded-full border-2 border-[#F2EAD3] bg-[#A9822E]/40" />
-                  <div className="w-7 h-7 rounded-full border-2 border-[#F2EAD3] bg-[#8C2F39]/40" />
-                  <div className="w-7 h-7 rounded-full border-2 border-[#F2EAD3] bg-[#17233D]/30" />
-                </div>
-                <span className="text-sm text-[#17233D]/60">
-                  Gratis 50 sertifikat/hari, reset otomatis tiap hari · Tanpa kartu kredit
-                </span>
-              </div>
-
-              <div className="mt-8 flex flex-wrap gap-3">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#17233D]/5 px-3.5 py-1.5 text-xs font-semibold text-[#17233D]/70">
-                  ✨ Baru diluncurkan
-                </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#17233D]/5 px-3.5 py-1.5 text-xs font-semibold text-[#17233D]/70">
-                  🔧 Aktif dikembangkan
-                </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#17233D]/5 px-3.5 py-1.5 text-xs font-semibold text-[#17233D]/70">
-                  💬 Feedback kamu didengar
-                </span>
-              </div>
+              <p className="mt-6 text-sm text-[#17233D]/60">
+                Baru rilis · Gratis 50 sertifikat/hari, reset otomatis tiap hari · Tanpa kartu kredit
+              </p>
             </div>
 
             {/* Mockup sertifikat dekoratif */}
@@ -357,16 +341,43 @@ export default function LandingPage() {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              {features.map((item) => (
-                <div key={item.title} className="rounded-xl bg-white p-6 shadow-sm">
-                  <div className="flex items-center justify-center w-11 h-11 rounded-full border border-[#A9822E] text-[#A9822E]">
-                    <item.icon className="size-5" />
+            <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+              {/* Fitur unggulan: satu blok besar, bukan kartu seragam */}
+              <div className="lg:col-span-2 rounded-2xl bg-[#17233D] p-8 text-[#F2EAD3] flex flex-col justify-between">
+                <div>
+                  <div className="flex items-center justify-center w-12 h-12 rounded-full border border-[#A9822E] text-[#A9822E]">
+                    <Target className="size-6" />
                   </div>
-                  <h3 className="mt-4 text-lg font-semibold text-[#17233D]">{item.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-[#17233D]/70">{item.desc}</p>
+                  <h3
+                    className="mt-6 text-2xl font-bold"
+                    style={{ fontFamily: "var(--font-display)" }}
+                  >
+                    {features[0].title}
+                  </h3>
+                  <p className="mt-3 text-sm leading-relaxed text-[#F2EAD3]/75">
+                    {features[0].desc}
+                  </p>
                 </div>
-              ))}
+                <div className="mt-8 h-px w-full bg-[#F2EAD3]/15" />
+                <p className="mt-4 text-xs uppercase tracking-[0.2em] text-[#A9822E]">
+                  Alasan utama orang pindah dari cara manual
+                </p>
+              </div>
+
+              {/* Fitur pendukung: list ringkas, bukan kartu terpisah */}
+              <div className="lg:col-span-3 divide-y divide-[#17233D]/10 rounded-2xl bg-white shadow-sm">
+                {features.slice(1).map((item) => (
+                  <div key={item.title} className="flex items-start gap-4 p-6">
+                    <div className="flex shrink-0 items-center justify-center w-10 h-10 rounded-full border border-[#A9822E] text-[#A9822E]">
+                      <item.icon className="size-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-semibold text-[#17233D]">{item.title}</h3>
+                      <p className="mt-1 text-sm leading-relaxed text-[#17233D]/70">{item.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </section>
@@ -426,14 +437,14 @@ export default function LandingPage() {
               </p>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="max-w-3xl divide-y divide-[#17233D]/10 border-y border-[#17233D]/10">
               {earlyPerks.map((item) => (
-                <div key={item.title} className="rounded-xl bg-white p-6 shadow-sm">
-                  <div className="flex items-center justify-center w-11 h-11 rounded-full border border-[#A9822E] text-[#A9822E]">
-                    <item.icon className="size-5" />
+                <div key={item.title} className="flex flex-col gap-2 py-6 sm:flex-row sm:items-start sm:gap-6">
+                  <div className="flex shrink-0 items-center gap-3 sm:w-56">
+                    <item.icon className="size-5 text-[#A9822E]" aria-hidden="true" />
+                    <h3 className="font-semibold text-[#17233D]">{item.title}</h3>
                   </div>
-                  <h3 className="mt-4 text-lg font-semibold text-[#17233D]">{item.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-[#17233D]/70">{item.desc}</p>
+                  <p className="text-sm leading-relaxed text-[#17233D]/70">{item.desc}</p>
                 </div>
               ))}
             </div>
@@ -458,21 +469,24 @@ export default function LandingPage() {
               </p>
             </div>
 
-            <ol className="relative grid grid-cols-1 md:grid-cols-3 gap-12">
-              <div
-                className="hidden md:block absolute inset-x-[16%] top-8 h-px border-t border-dashed border-[#A9822E]/50"
-                aria-hidden="true"
-              />
-              {steps.map((s) => (
-                <li key={s.step} className="relative flex flex-col items-center text-center">
+            <ol className="max-w-2xl">
+              {steps.map((s, i) => (
+                <li
+                  key={s.step}
+                  className={`flex items-baseline gap-6 border-b border-[#17233D]/10 py-8 last:border-b-0 ${
+                    i % 2 === 1 ? "flex-row-reverse text-right" : ""
+                  }`}
+                >
                   <span
-                    className="flex items-center justify-center w-16 h-16 rounded-full bg-[#17233D] text-lg font-bold text-[#F2EAD3] ring-2 ring-[#A9822E]"
+                    className="shrink-0 text-5xl font-bold text-[#A9822E]/40"
                     style={{ fontFamily: "var(--font-display)" }}
                   >
                     {s.step}
                   </span>
-                  <h3 className="mt-5 font-semibold text-[#17233D]">{s.title}</h3>
-                  <p className="mt-2 text-sm text-[#17233D]/70">{s.desc}</p>
+                  <div>
+                    <h3 className="text-lg font-semibold text-[#17233D]">{s.title}</h3>
+                    <p className="mt-2 text-sm text-[#17233D]/70">{s.desc}</p>
+                  </div>
                 </li>
               ))}
             </ol>
@@ -529,7 +543,7 @@ export default function LandingPage() {
                     Paket Lanjutan
                   </div>
                   <div className="mt-2 text-2xl font-bold text-[#17233D]">
-                    Lagi disiapin 👀
+                    Lagi disiapin
                   </div>
                   <p className="mt-4 text-sm leading-relaxed text-[#17233D]/70">
                     Kalau nanti ada kebutuhan kuota lebih gede atau fitur
@@ -549,7 +563,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* FAQ */}
+        {/* FAQ — accordion asli, bukan ikon plus dekoratif */}
         <section id="faq" className="border-y border-[#17233D]/10 bg-[#FCFAF2] py-20">
           <div className="max-w-[1140px] mx-auto px-6 md:px-12">
             <div className="max-w-xl mb-14">
@@ -565,26 +579,11 @@ export default function LandingPage() {
               <p className="mt-4 text-[#17233D]/70">Punya pertanyaan lain? Kami siap membantu.</p>
             </div>
 
-            <dl className="grid max-w-4xl grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
-              {faqs.map((item, i) => (
-                <div
-                  key={item.q}
-                  className={
-                    i < faqs.length - 2
-                      ? "flex items-start justify-between gap-4 border-b border-[#17233D]/10 pb-6"
-                      : "flex items-start justify-between gap-4 pb-6"
-                  }
-                >
-                  <div>
-                    <dt className="font-semibold text-[#17233D]">{item.q}</dt>
-                    <dd className="mt-2 text-sm leading-relaxed text-[#17233D]/70">{item.a}</dd>
-                  </div>
-                  <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-[#A9822E] text-[#A9822E]">
-                    <Plus className="size-4" />
-                  </div>
-                </div>
+            <div className="grid max-w-4xl grid-cols-1 md:grid-cols-2 gap-x-12 gap-y-6">
+              {faqs.map((item) => (
+                <FaqItem key={item.q} q={item.q} a={item.a} />
               ))}
-            </dl>
+            </div>
           </div>
         </section>
 
@@ -619,7 +618,7 @@ export default function LandingPage() {
                   <h3 className="mt-3 text-lg font-semibold text-[#17233D]">{post.title}</h3>
                   <p className="mt-2 text-sm text-[#17233D]/70">{post.excerpt}</p>
                   <span className="mt-4 inline-block text-sm font-bold text-[#8C2F39]">
-                    Baca selengkapnya →
+                    Baca selengkapnya
                   </span>
                 </Link>
               ))}
@@ -694,47 +693,19 @@ export default function LandingPage() {
           </div>
 
           <div>
-            <div className="text-sm font-semibold text-[#17233D]">
+            <div className="text-sm font-semibold text-[#17233D] flex items-center gap-2">
+              <Mail className="size-4 text-[#A9822E]" aria-hidden="true" />
               Dapatkan tips seputar sertifikat
             </div>
-            <form className="mt-4 flex gap-2">
-              <label htmlFor="newsletter-email" className="sr-only">
-                Alamat email
-              </label>
-              <input
-                id="newsletter-email"
-                type="email"
-                required
-                placeholder="Email Anda"
-                className="w-full rounded-md border border-[#17233D]/20 bg-white px-3 py-2 text-sm text-[#17233D] placeholder:text-[#17233D]/40 focus:outline-none focus:ring-2 focus:ring-[#A9822E]"
-              />
-              <button
-                type="submit"
-                className="shrink-0 rounded-md bg-[#8C2F39] px-4 py-2 text-sm font-semibold text-[#F2EAD3] hover:bg-[#742531] transition-colors"
-              >
-                Subscribe
-              </button>
-            </form>
+            <NewsletterForm />
           </div>
         </div>
 
         <div className="border-t border-[#17233D]/10">
-          <div className="max-w-[1140px] mx-auto flex flex-col md:flex-row justify-between items-center gap-4 px-6 md:px-12 py-6">
+          <div className="max-w-[1140px] mx-auto flex justify-center px-6 md:px-12 py-6">
             <span className="text-sm text-[#17233D]/55">
               © {new Date().getFullYear()} SertiGen. Hak cipta dilindungi.
             </span>
-            <div className="flex items-center gap-3">
-              {socials.map((s) => (
-                <a
-                  key={s.label}
-                  href="#"
-                  aria-label={s.label}
-                  className="flex h-8 w-8 items-center justify-center rounded-full border border-[#A9822E] text-[#A9822E] hover:bg-[#A9822E]/10 transition-colors"
-                >
-                  <s.icon className="size-4" />
-                </a>
-              ))}
-            </div>
           </div>
         </div>
       </footer>
