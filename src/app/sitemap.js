@@ -9,13 +9,13 @@ export default function sitemap() {
       priority: 1
     },
     {
-      url: "https://sertifikat-generator.vercel.app//login", // Ganti dengan URL domain Anda
+      url: "https://sertifikat-generator.vercel.app/login", // Ganti dengan URL domain Anda
       lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.8
     },
     {
-      url: "https://sertifikat-generator.vercel.app//register", // Ganti dengan URL domain Anda
+      url: "https://sertifikat-generator.vercel.app/register", // Ganti dengan URL domain Anda
       lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.8
