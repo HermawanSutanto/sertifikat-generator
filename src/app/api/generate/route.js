@@ -4,7 +4,9 @@ import {
   collection,
   serverTimestamp,
   writeBatch,
-  doc
+  doc,
+  runTransaction,
+  getDoc
 } from "firebase/firestore";
 import sharp from "sharp";
 import { Resvg } from "@resvg/resvg-js";
@@ -41,6 +43,125 @@ const MAX_CSV_ROWS = 500;
 // SEMUA write dalam batch tersebut gagal, walau file-nya sudah terlanjur
 // ter-upload ke Supabase Storage.
 const FIRESTORE_BATCH_LIMIT = 450; // beri margin dari limit keras 500
+
+// ==== KUOTA HARIAN PER USER ====
+// Batas jumlah sertifikat (baris data) yang boleh di-generate SATU user
+// dalam SATU hari (UTC), lintas berapa pun kali dia memanggil endpoint ini.
+// Disimpan di collection terpisah "generationQuota" (bukan dihitung dari
+// jumlah dokumen "sertifikat_terbuat") supaya:
+//  1. Pengecekan kuota MURAH (baca 1 dokumen counter, bukan query+count
+//     seluruh sertifikat user hari itu).
+//  2. Kuota tetap konsisten meski sebagian metadata sertifikat gagal
+//     tersimpan ke Firestore (lihat commitCertMetadataInChunks) — counter
+//     kuota di-reserve SEBELUM proses berat generate/upload dimulai, jadi
+//     user tidak bisa "membanjiri" dengan banyak request paralel sekaligus
+//     (race condition dicegah lewat Firestore transaction).
+//  3. Baris yang GAGAL diproses (row error) di-refund otomatis supaya user
+//     tidak dirugikan kuotanya oleh kegagalan sistem, bukan oleh dirinya.
+const DAILY_GENERATE_LIMIT = 50;
+
+function getUtcDateKey(date = new Date()) {
+  // Batas hari memakai UTC (bukan waktu lokal user) supaya konsisten &
+  // tidak bergantung timezone server/browser. Format: YYYY-MM-DD.
+  return date.toISOString().slice(0, 10);
+}
+
+function getUtcResetTimeMillis(date = new Date()) {
+  // Waktu (dalam ms epoch) saat kuota akan reset, yaitu tengah malam UTC
+  // berikutnya. Dikirim ke client supaya bisa ditampilkan "reset dalam X jam".
+  const next = new Date(
+    Date.UTC(
+      date.getUTCFullYear(),
+      date.getUTCMonth(),
+      date.getUTCDate() + 1,
+      0,
+      0,
+      0,
+      0
+    )
+  );
+  return next.getTime();
+}
+
+class QuotaExceededError extends Error {
+  constructor(used, limit) {
+    super(
+      `Batas generate harian (${limit} sertifikat/hari) sudah tercapai. Anda sudah membuat ${used} sertifikat hari ini. Coba lagi setelah kuota reset (tengah malam UTC).`
+    );
+    this.name = "QuotaExceededError";
+    this.used = used;
+    this.limit = limit;
+  }
+}
+
+function getQuotaDocRef(uid, dateKey) {
+  return doc(db, "generationQuota", `${uid}_${dateKey}`);
+}
+
+// Reservasi kuota SEBELUM proses generate/upload yang berat dimulai.
+// Menolak (throw QuotaExceededError) kalau requestedCount akan membuat
+// total penggunaan hari ini melebihi DAILY_GENERATE_LIMIT — permintaan
+// ditolak SELURUHNYA (bukan dipotong sebagian) supaya perilakunya jelas
+// dan mudah dipahami user: generate 1 batch = 1 keputusan lulus/tolak.
+// Pakai Firestore transaction supaya aman dari race condition kalau user
+// (atau tab lain) mengirim beberapa request generate bersamaan.
+async function reserveDailyQuota(uid, requestedCount) {
+  const dateKey = getUtcDateKey();
+  const quotaRef = getQuotaDocRef(uid, dateKey);
+
+  const newCount = await runTransaction(db, async (transaction) => {
+    const snap = await transaction.get(quotaRef);
+    const currentCount = snap.exists() ? snap.data().count || 0 : 0;
+
+    if (currentCount + requestedCount > DAILY_GENERATE_LIMIT) {
+      throw new QuotaExceededError(currentCount, DAILY_GENERATE_LIMIT);
+    }
+
+    const updatedCount = currentCount + requestedCount;
+    transaction.set(
+      quotaRef,
+      {
+        userId: uid,
+        dateKey,
+        count: updatedCount,
+        updatedAt: serverTimestamp()
+      },
+      { merge: true }
+    );
+    return updatedCount;
+  });
+
+  return { used: newCount, limit: DAILY_GENERATE_LIMIT };
+}
+
+// Kembalikan (refund) sebagian kuota yang sudah di-reserve tapi ternyata
+// tidak jadi terpakai karena baris tsb GAGAL diproses (bukan salah user).
+// Tidak pernah membuat count di bawah 0 walau ada anomali penghitungan.
+async function refundDailyQuota(uid, refundAmount) {
+  if (refundAmount <= 0) return;
+  const dateKey = getUtcDateKey();
+  const quotaRef = getQuotaDocRef(uid, dateKey);
+
+  try {
+    await runTransaction(db, async (transaction) => {
+      const snap = await transaction.get(quotaRef);
+      const currentCount = snap.exists() ? snap.data().count || 0 : 0;
+      const updatedCount = Math.max(0, currentCount - refundAmount);
+      transaction.set(
+        quotaRef,
+        { count: updatedCount, updatedAt: serverTimestamp() },
+        { merge: true }
+      );
+    });
+  } catch (error) {
+    // Refund gagal bukan alasan menggagalkan response ke user (sertifikat
+    // yang berhasil tetap sudah jadi) — cukup dicatat untuk ditindaklanjuti.
+    console.error(
+      `[ERROR] Gagal refund kuota harian untuk user ${uid}:`,
+      error.message
+    );
+  }
+}
 
 // PATCH: flag untuk debug logging verbose. Sebelumnya banyak console.log
 // (termasuk SVG mentah & data per-baris CSV) tercetak untuk SETIAP baris di
@@ -261,6 +382,50 @@ async function commitCertMetadataInChunks(uid, allUploadedCerts, textElements) {
   return { savedCerts, failedCerts };
 }
 
+// GET /api/generate — cek sisa kuota harian TANPA melakukan generate
+// apapun. Dipakai dashboard untuk menampilkan indikator "X/50 hari ini"
+// dan supaya modal peringatan bisa muncul SEBELUM user submit (bukan cuma
+// bereaksi terhadap error 429 dari POST).
+export async function GET(req) {
+  try {
+    const authorization = req.headers.get("Authorization");
+    if (!authorization?.startsWith("Bearer ")) {
+      return NextResponse.json(
+        { message: "Token tidak ditemukan" },
+        { status: 401 }
+      );
+    }
+    const idToken = authorization.split("Bearer ")[1];
+    const decodedToken = await admin.auth().verifyIdToken(idToken);
+    const uid = decodedToken.uid;
+    if (!uid) {
+      return NextResponse.json(
+        { message: "UID tidak ditemukan" },
+        { status: 403 }
+      );
+    }
+
+    const dateKey = getUtcDateKey();
+    const quotaSnap = await getDoc(getQuotaDocRef(uid, dateKey));
+    const used = quotaSnap.exists() ? quotaSnap.data().count || 0 : 0;
+
+    return NextResponse.json({
+      quota: {
+        used,
+        limit: DAILY_GENERATE_LIMIT,
+        remaining: Math.max(0, DAILY_GENERATE_LIMIT - used),
+        resetAt: getUtcResetTimeMillis()
+      }
+    });
+  } catch (error) {
+    console.error("[ERROR] Gagal mengambil status kuota harian:", error);
+    return NextResponse.json(
+      { message: "Gagal mengambil status kuota harian." },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(req) {
   try {
     // 1. Autentikasi
@@ -336,13 +501,72 @@ export async function POST(req) {
 
     const isManualMode = Object.keys(mapping).length === 0;
 
+    // 2.5. Cek & reservasi kuota harian SEBELUM proses berat (render/upload)
+    // dimulai. Ditempatkan sedini mungkin (setelah validasi payload dasar,
+    // sebelum baca/downscale gambar template & fetch font) supaya request
+    // yang memang akan ditolak tidak membebani CPU/bandwidth sama sekali.
+    let quotaInfo;
+    try {
+      quotaInfo = await reserveDailyQuota(uid, csvData.length);
+    } catch (quotaError) {
+      if (quotaError instanceof QuotaExceededError) {
+        return NextResponse.json(
+          {
+            message: quotaError.message,
+            code: "DAILY_QUOTA_EXCEEDED",
+            quota: {
+              used: quotaError.used,
+              limit: quotaError.limit,
+              remaining: Math.max(0, quotaError.limit - quotaError.used),
+              resetAt: getUtcResetTimeMillis()
+            }
+          },
+          { status: 429 }
+        );
+      }
+      console.error("[ERROR] Gagal memeriksa kuota harian:", quotaError);
+      return NextResponse.json(
+        { message: "Gagal memeriksa kuota harian. Silakan coba lagi." },
+        { status: 500 }
+      );
+    }
+
     // 3. Persiapan Gambar Template
-    let templateFileBuffer = Buffer.from(await templateFile.arrayBuffer());
-    const maxSizeInBytes = 2 * 1024 * 1024;
-    if (templateFileBuffer.length > maxSizeInBytes) {
-      templateFileBuffer = await sharp(templateFileBuffer)
-        .resize({ width: 1920, withoutEnlargement: true })
-        .jpeg({ quality: 80 })
+    // PATCH (kualitas render): SEBELUMNYA template di-downscale + di-recompress
+    // paksa ke JPEG quality 80 hanya berdasarkan UKURAN FILE (>2MB), tanpa
+    // peduli resolusi piksel aslinya. Efeknya: template dengan foto latar
+    // beresolusi tinggi (sangat umum, gampang >2MB) langsung dikompres kasar
+    // di awal -- lalu di-composite dengan teks -- lalu di-kompres JPEG LAGI
+    // di akhir. Dua kali lossy compression inilah penyebab utama hasil akhir
+    // terlihat "jelek"/blocky, dan menaikkan quality di composite akhir saja
+    // tidak menolong karena sumbernya sudah rusak duluan.
+    // Sekarang gate-nya diganti ke DIMENSI PIKSEL, konsisten dengan
+    // MAX_TEMPLATE_DIMENSION di bawah: template HANYA di-downscale kalau
+    // sisi terpanjangnya benar-benar melebihi batas itu, dan kalau memang
+    // perlu di-downscale, dipakai kualitas re-encode yang jauh lebih tinggi
+    // (92 + mozjpeg, bukan 80) supaya detail tetap tajam. Template yang
+    // resolusinya sudah wajar (mayoritas kasus) sama sekali tidak disentuh --
+    // dipakai apa adanya, tanpa kompresi tambahan apapun.
+    const originalTemplateBuffer = Buffer.from(await templateFile.arrayBuffer());
+    const MAX_TEMPLATE_DIMENSION = 4000;
+
+    const originalMetadata = await sharp(originalTemplateBuffer).metadata();
+    const originalLongestSide = Math.max(
+      originalMetadata.width || 0,
+      originalMetadata.height || 0
+    );
+
+    let templateFileBuffer = originalTemplateBuffer;
+    if (originalLongestSide > MAX_TEMPLATE_DIMENSION) {
+      const isPortrait =
+        (originalMetadata.height || 0) > (originalMetadata.width || 0);
+      templateFileBuffer = await sharp(originalTemplateBuffer)
+        .resize(
+          isPortrait
+            ? { height: MAX_TEMPLATE_DIMENSION, withoutEnlargement: true }
+            : { width: MAX_TEMPLATE_DIMENSION, withoutEnlargement: true }
+        )
+        .jpeg({ quality: 92, mozjpeg: true })
         .toBuffer();
     }
 
@@ -372,19 +596,12 @@ export async function POST(req) {
 
     debugLog(`[DEBUG] Total font file paths yang berhasil disiapkan: ${fontFilePaths.length}/${uniqueFontFamilies.length}`);
 
-    // PATCH: cap juga DIMENSI gambar template, bukan hanya ukuran file.
-    // Gambar dengan kompresi tinggi tapi resolusi sangat besar bisa lolos
-    // cek ukuran file 2MB di atas, tapi tetap membuat proses render/composite
-    // per baris jadi berat dan lambat.
-    const MAX_TEMPLATE_DIMENSION = 4000;
-    if (imageWidth > MAX_TEMPLATE_DIMENSION || imageHeight > MAX_TEMPLATE_DIMENSION) {
-      return NextResponse.json(
-        {
-          message: `Resolusi gambar template terlalu besar (${imageWidth}x${imageHeight}). Maksimum ${MAX_TEMPLATE_DIMENSION}px pada sisi terpanjang.`
-        },
-        { status: 400 }
-      );
-    }
+    // PATCH: batas dimensi sekarang DIJAMIN oleh downscale otomatis di atas
+    // (bagian "3. Persiapan Gambar Template") -- template tidak pernah lagi
+    // melebihi MAX_TEMPLATE_DIMENSION di titik ini, jadi tidak perlu lagi
+    // menolak request dengan error 400 seperti sebelumnya. Ini sekaligus
+    // pengalaman yang lebih baik untuk user (template besar otomatis
+    // disesuaikan, bukan ditolak mentah-mentah).
 
     // PATCH: kalau SEMUA font gagal di-fetch, sebelumnya kode tetap lanjut
     // dengan fontFilePaths kosong — resvg (loadSystemFonts:false) tidak
@@ -497,7 +714,7 @@ export async function POST(req) {
             const generatedCertBuffer = await baseImage
               .clone()
               .composite(compositeLayers)
-              .jpeg({ quality: 85, mozjpeg: true })
+              .jpeg({ quality: 95, mozjpeg: true })
               .toBuffer();
 
             // Langsung upload begitu buffer siap — tidak menunggu baris lain
@@ -533,11 +750,32 @@ export async function POST(req) {
       )
     ).filter(Boolean);
 
+    // PATCH: baris yang gagal diproses (row error / upload error, ditandai
+    // `null` di worker di atas) sudah TERLANJUR di-reserve di kuota harian
+    // (lihat reserveDailyQuota di awal handler, dipanggil dengan
+    // csvData.length -- bukan jumlah yang berhasil). Refund selisihnya
+    // supaya user tidak kehilangan kuota akibat kegagalan sistem/data,
+    // bukan akibat sengaja generate banyak.
+    const failedRowCount = csvData.length - allUploadedCerts.length;
+    if (failedRowCount > 0) {
+      await refundDailyQuota(uid, failedRowCount);
+      quotaInfo = {
+        ...quotaInfo,
+        used: Math.max(0, quotaInfo.used - failedRowCount)
+      };
+    }
+
     if (allUploadedCerts.length === 0) {
       return NextResponse.json(
         {
           message:
-            "Semua baris data gagal diproses atau diupload. Periksa kembali data CSV dan template Anda."
+            "Semua baris data gagal diproses atau diupload. Periksa kembali data CSV dan template Anda.",
+          quota: {
+            used: quotaInfo.used,
+            limit: quotaInfo.limit,
+            remaining: Math.max(0, quotaInfo.limit - quotaInfo.used),
+            resetAt: getUtcResetTimeMillis()
+          }
         },
         { status: 422 }
       );
@@ -567,6 +805,12 @@ export async function POST(req) {
     // hilang dari pandangan user maupun tim support.
     return NextResponse.json({
       certificateUrls: allUploadedCerts.map((cert) => cert.url),
+      quota: {
+        used: quotaInfo.used,
+        limit: quotaInfo.limit,
+        remaining: Math.max(0, quotaInfo.limit - quotaInfo.used),
+        resetAt: getUtcResetTimeMillis()
+      },
       ...(failedCerts.length > 0 && {
         warning: `${failedCerts.length} sertifikat berhasil dibuat namun gagal tercatat metadatanya. Silakan hubungi admin jika sertifikat tidak muncul di riwayat.`
       })

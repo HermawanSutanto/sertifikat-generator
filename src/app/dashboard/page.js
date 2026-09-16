@@ -41,12 +41,35 @@ const Spinner = (props) => (
     </path>
   </svg>
 );
+// Skeleton placeholder ditampilkan selagi daftar sertifikat awal sedang
+// diambil dari server (bukan spinner tunggal di tengah), supaya bentuk
+// halaman tidak "lompat" begitu data asli datang menggantikannya.
+const CertificateListSkeleton = ({ rows = 4 }) => (
+  <div className="space-y-4 animate-pulse">
+    {Array.from({ length: rows }).map((_, i) => (
+      <div
+        key={i}
+        className="flex items-center justify-between p-4 rounded-lg bg-[#A9822E]/10"
+      >
+        <div className="flex items-center gap-3 flex-1">
+          <div className="w-4 h-4 rounded bg-[#17233D]/10 flex-shrink-0" />
+          <div className="flex-1 space-y-2">
+            <div className="h-4 w-1/3 rounded bg-[#17233D]/10" />
+            <div className="h-3 w-1/4 rounded bg-[#17233D]/10" />
+          </div>
+        </div>
+        <div className="h-9 w-24 rounded-md bg-[#17233D]/10" />
+      </div>
+    ))}
+  </div>
+);
+
 // Komponen Notifikasi
 const Notification = ({ message, type, show }) => {
   const bgColor = type === "success" ? "bg-green-600" : "bg-red-600";
   return (
     <div
-      className={`fixed top-5 right-5 p-4 rounded-lg text-white shadow-lg transition-transform transform ${
+      className={`fixed top-5 right-0 p-4 rounded-lg text-white shadow-lg transition-transform transform ${
         show ? "translate-x-0" : "translate-x-full"
       } ${bgColor}`}
       style={{ zIndex: 1000 }}
@@ -55,6 +78,57 @@ const Notification = ({ message, type, show }) => {
     </div>
   );
 };
+
+// Modal pop-up (bukan toast) untuk peringatan batas kuota generate harian.
+// Dipakai khusus untuk kasus ini karena "kuota habis" adalah kejadian yang
+// sebaiknya benar-benar diperhatikan user (butuh klik "Mengerti" untuk
+// menutup), berbeda dari notifikasi biasa yang otomatis hilang sendiri.
+const QuotaLimitModal = ({ show, message, onClose }) => {
+  if (!show) return null;
+  return (
+    <div
+      className="fixed inset-0 flex items-center justify-center p-4"
+      style={{ zIndex: 1100, backgroundColor: "rgba(0,0,0,0.5)" }}
+    >
+      <div className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6">
+        <div className="flex items-center gap-3 mb-3">
+          <div className="flex-shrink-0 w-10 h-10 rounded-full bg-red-100 flex items-center justify-center">
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              className="h-6 w-6 text-red-600"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+              />
+            </svg>
+          </div>
+          <h3 className="text-lg font-semibold text-gray-900">
+            Batas Generate Harian Tercapai
+          </h3>
+        </div>
+        <p className="text-gray-600 mb-6">{message}</p>
+        <button
+          onClick={onClose}
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-lg transition-colors"
+        >
+          Mengerti
+        </button>
+      </div>
+    </div>
+  );
+};
+
+// Batas ini HARUS sama dengan yang dipakai backend:
+// MAX_CSV_ROWS di api/generate/route.js, dan
+// MAX_CERTIFICATES_PER_ZIP di api/zip-certificates/route.js.
+const MAX_GENERATE_ROWS = 500;
+const MAX_ZIP_CERTIFICATES = 300;
 
 export default function Dashboard() {
   const { user, loading } = useAuth();
@@ -65,6 +139,14 @@ export default function Dashboard() {
   const [previewUrl, setPreviewUrl] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [previewSize, setPreviewSize] = useState({ width: 0, height: 0 });
+  // Rasio asli gambar template (width/height dalam piksel). Dipakai supaya
+  // kotak preview mengikuti rasio ASLI template, bukan rasio tetap 16:9 —
+  // kalau tidak, objectFit:"contain" akan menyisakan ruang kosong
+  // (letterbox) di preview untuk template yang bukan 16:9, dan
+  // positionPercent hasil drag jadi dihitung dari ukuran KOTAK, bukan
+  // ukuran gambar yang benar-benar tampil -> posisi teks meleset saat
+  // dirender di backend (yang menghitung dari imageWidth/imageHeight asli).
+  const [templateNaturalSize, setTemplateNaturalSize] = useState(null);
   const [notification, setNotification] = useState({
     show: false,
     message: "",
@@ -74,6 +156,12 @@ export default function Dashboard() {
   // State untuk mode input & data dinamis
   const [inputMode, setInputMode] = useState("manual"); // 'manual' atau 'csv'
   const [manualNames, setManualNames] = useState("Andi Budi, Candra Dwi");
+  // Dipakai untuk menampilkan indikator langsung di setiap atribut kalau
+  // jumlah nilai custom-nya belum cocok dengan jumlah nama.
+  const manualNamesCount = manualNames
+    .split(",")
+    .map((n) => n.trim())
+    .filter((n) => n).length;
   const [csvData, setCsvData] = useState([]);
   const [csvHeaders, setCsvHeaders] = useState([]);
   const [mapping, setMapping] = useState({});
@@ -88,7 +176,8 @@ export default function Dashboard() {
       fontSize: 48,
       fontFamily: "Roboto",
       textColor: "#333333",
-      isLocked: true // Elemen ini tidak bisa dihapus
+      isLocked: true, // Elemen ini tidak bisa dihapus
+      centerHorizontal: false
     },
     {
       id: 2,
@@ -97,7 +186,12 @@ export default function Dashboard() {
       positionPercent: { x: 0.5, y: 0.6 },
       fontSize: 24,
       fontFamily: "Roboto",
-      textColor: "#555555"
+      textColor: "#555555",
+      // PATCH: nilai custom per-sertifikat untuk mode manual (opsional).
+      // Kosong -> pakai textPreview sebagai teks statis yang sama untuk
+      // semua sertifikat (perilaku lama, tetap dipertahankan).
+      manualValues: "",
+      centerHorizontal: false
     }
   ]);
 
@@ -115,12 +209,32 @@ export default function Dashboard() {
   const [lastVisibleTimestamp, setLastVisibleTimestamp] = useState(null);
   const [hasMore, setHasMore] = useState(true);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
+  // Loading khusus untuk pengambilan data AWAL daftar sertifikat (bukan
+  // "load more"). Default `true` supaya spinner langsung tampil sejak
+  // render pertama, sebelum fetchInitialCertificates sempat berjalan —
+  // menghindari kedipan "Belum ada sertifikat" yang salah sesaat sebelum
+  // data asli datang dari server.
+  const [isLoadingCertificates, setIsLoadingCertificates] = useState(true);
   const [isZipping, setIsZipping] = useState(false);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
   const [deleteProgress, setDeleteProgress] = useState(null);
 
+  // State untuk checklist pilih-sertifikat (hapus/kompres terpilih)
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [isDeletingSelected, setIsDeletingSelected] = useState(false);
+  const [isZippingSelected, setIsZippingSelected] = useState(false);
+
   // State untuk Batch Processing
   const [progress, setProgress] = useState(null);
+
+  // State kuota generate harian (batas server: DAILY_GENERATE_LIMIT di
+  // api/generate/route.js, saat ini 50 sertifikat/hari/user). `quota` diisi
+  // dari response GET /api/generate (saat load) dan disinkronkan ulang
+  // setiap kali POST /api/generate berhasil/ditolak, supaya indikator di UI
+  // selalu mencerminkan angka terbaru dari server (sumber kebenaran ada di
+  // backend, bukan dihitung sendiri di client).
+  const [quota, setQuota] = useState(null); // { used, limit, remaining, resetAt } | null saat belum dimuat
+  const [quotaModal, setQuotaModal] = useState({ show: false, message: "" });
 
   const previewContainerRef = useRef(null);
 
@@ -143,6 +257,7 @@ export default function Dashboard() {
 
   const fetchInitialCertificates = useCallback(async () => {
     if (!user) return;
+    setIsLoadingCertificates(true);
     try {
       const token = await user.getIdToken();
       const response = await fetch("/api/certificates", {
@@ -156,6 +271,9 @@ export default function Dashboard() {
       setHasMore(data.hasMore);
     } catch (error) {
       console.error("Gagal mengambil daftar sertifikat:", error);
+      setNotification({ show: true, message: error.message, type: "error" });
+    } finally {
+      setIsLoadingCertificates(false);
     }
   }, [user]);
 
@@ -190,6 +308,28 @@ export default function Dashboard() {
     }
   }, [user, fetchInitialCertificates]);
 
+  const fetchQuota = useCallback(async () => {
+    if (!user) return;
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch("/api/generate", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setQuota(data.quota);
+      }
+    } catch (error) {
+      console.error("Gagal mengambil status kuota harian:", error);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      fetchQuota();
+    }
+  }, [user, fetchQuota]);
+
   const handleCsvFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -198,9 +338,31 @@ export default function Dashboard() {
         skipEmptyLines: true,
         complete: (results) => {
           if (results.data.length > 0 && results.meta.fields) {
-            setCsvHeaders(results.meta.fields);
+            const headers = results.meta.fields;
+            setCsvHeaders(headers);
             setCsvData(results.data);
-            setMapping({});
+
+            // PATCH: auto-mapping kolom CSV -> atribut berdasarkan URUTAN,
+            // kalau jumlah kolom CSV sama persis dengan jumlah atribut yang
+            // sudah ditambahkan (kolom ke-N dipetakan ke atribut ke-N).
+            // User tetap bisa mengoreksi lewat dropdown pemetaan yang sudah
+            // ada di bawah kalau urutannya ternyata tidak sesuai -- ini
+            // hanya tebakan awal untuk kasus paling umum (header CSV memang
+            // disusun sesuai urutan atribut).
+            if (headers.length === textElements.length) {
+              const autoMapping = {};
+              textElements.forEach((el, idx) => {
+                autoMapping[el.label] = headers[idx];
+              });
+              setMapping(autoMapping);
+              setNotification({
+                show: true,
+                message: `Kolom CSV otomatis dipetakan berdasarkan urutan (${headers.length} kolom = ${textElements.length} atribut). Periksa bagian "Petakan Kolom" di bawah, sesuaikan kalau urutannya tidak tepat.`,
+                type: "success"
+              });
+            } else {
+              setMapping({});
+            }
           } else {
             setNotification({
               show: true,
@@ -238,8 +400,15 @@ export default function Dashboard() {
     const newX = ui.x + textElementNode.offsetWidth / 2;
     const newY = ui.y + textElementNode.offsetHeight / 2;
 
+    // PATCH: kalau elemen ini sedang mode "Rata Tengah Horizontal", X tetap
+    // dikunci ke 0.5 apapun hasil drag-nya -- axis="y" di <Draggable> sudah
+    // mencegah pergerakan horizontal secara visual, ini lapisan jaga-jaga
+    // tambahan supaya data positionPercent.x juga tidak pernah bergeser.
+    const element = textElements.find((el) => el.id === id);
+    const isCentered = element?.centerHorizontal;
+
     handleElementChange(id, "positionPercent", {
-      x: newX / width,
+      x: isCentered ? 0.5 : newX / width,
       y: newY / height
     });
   };
@@ -252,9 +421,34 @@ export default function Dashboard() {
       positionPercent: { x: 0.5, y: 0.7 },
       fontSize: 28,
       fontFamily: "Roboto",
-      textColor: "#333333"
+      textColor: "#333333",
+      // PATCH: sama seperti elemen JABATAN default -- opsional, kosong
+      // berarti pakai textPreview statis untuk semua sertifikat.
+      manualValues: "",
+      // PATCH: toggle rata-tengah horizontal (lihat toggleCenterHorizontal).
+      centerHorizontal: false
     };
     setTextElements((prevElements) => [...prevElements, newElement]);
+  };
+
+  // PATCH: toggle "Rata Tengah Horizontal" untuk suatu elemen. Saat
+  // diaktifkan, posisi X langsung di-snap ke tengah (0.5) dan drag
+  // horizontal dikunci (lihat axis di <Draggable> pada canvas) -- user
+  // tetap bebas mengatur posisi vertikal (Y) dengan drag seperti biasa.
+  const toggleCenterHorizontal = (id) => {
+    setTextElements((prev) =>
+      prev.map((el) => {
+        if (el.id !== id) return el;
+        const nextCentered = !el.centerHorizontal;
+        return {
+          ...el,
+          centerHorizontal: nextCentered,
+          positionPercent: nextCentered
+            ? { ...el.positionPercent, x: 0.5 }
+            : el.positionPercent
+        };
+      })
+    );
   };
 
   const handleRemoveTextElement = (idToRemove) => {
@@ -279,10 +473,13 @@ export default function Dashboard() {
     let finalMapping = {};
 
     if (inputMode === "manual") {
-      const namesFromManualInput = manualNames
-        .split(",")
-        .map((name) => name.trim())
-        .filter((name) => name);
+      const parseList = (str) =>
+        (str || "")
+          .split(",")
+          .map((v) => v.trim())
+          .filter((v) => v);
+
+      const namesFromManualInput = parseList(manualNames);
       if (namesFromManualInput.length === 0) {
         setNotification({
           show: true,
@@ -292,19 +489,55 @@ export default function Dashboard() {
         return;
       }
 
-      dataToSend = namesFromManualInput.map((name) => {
-        const dataObject = {};
-        // Assign name to the locked element's label
-        const lockedElement = textElements.find((el) => el.isLocked);
-        if (lockedElement) {
-          dataObject[lockedElement.label] = name;
+      const rowCount = namesFromManualInput.length;
+
+      // PATCH: sekarang SETIAP atribut (bukan cuma elemen "nama" yang
+      // isLocked) bisa punya daftar nilai custom per sertifikat lewat
+      // `element.manualValues` (dipisah koma, sama seperti input nama).
+      // Aturan: jumlah nilai suatu atribut HARUS sama dengan jumlah nama.
+      // Kalau elemen belum dikustomisasi (manualValues kosong) -> perilaku
+      // lama tetap berlaku: pakai textPreview sebagai teks statis yang sama
+      // untuk semua sertifikat. Kalau dikustomisasi TAPI jumlahnya beda ->
+      // hanya nilai PERTAMA yang dipakai untuk semua sertifikat pada
+      // atribut itu, dan user diberi tahu lewat konfirmasi sebelum lanjut.
+      const elementValues = {};
+      const mismatched = [];
+
+      textElements.forEach((el) => {
+        if (el.isLocked) {
+          elementValues[el.label] = namesFromManualInput;
+          return;
         }
 
-        // Assign static textPreview for other elements
+        const list = parseList(el.manualValues);
+        if (list.length === 0) {
+          elementValues[el.label] = new Array(rowCount).fill(el.textPreview);
+        } else if (list.length === rowCount) {
+          elementValues[el.label] = list;
+        } else {
+          mismatched.push({ label: el.label, count: list.length });
+          elementValues[el.label] = new Array(rowCount).fill(list[0]);
+        }
+      });
+
+      if (mismatched.length > 0) {
+        const detail = mismatched
+          .map((m) => `"${m.label}" (${m.count} nilai)`)
+          .join(", ");
+        // ALERT sebelum render: beri tahu jumlah yang tidak cocok, dan minta
+        // konfirmasi eksplisit sebelum melanjutkan generate.
+        const proceed = window.confirm(
+          `Jumlah nilai pada atribut ${detail} tidak sama dengan jumlah nama (${rowCount} nama).\n\n` +
+            `Untuk atribut yang jumlahnya tidak cocok, HANYA nilai PERTAMA yang akan dipakai untuk SEMUA ${rowCount} sertifikat.\n\n` +
+            `Lanjutkan generate dengan begitu?`
+        );
+        if (!proceed) return;
+      }
+
+      dataToSend = namesFromManualInput.map((_, idx) => {
+        const dataObject = {};
         textElements.forEach((el) => {
-          if (!el.isLocked) {
-            dataObject[el.label] = el.textPreview;
-          }
+          dataObject[el.label] = elementValues[el.label][idx];
         });
         return dataObject;
       });
@@ -331,6 +564,34 @@ export default function Dashboard() {
       return;
     }
 
+    // ALERT batas cetak/generate: backend membatasi maksimum
+    // MAX_GENERATE_ROWS baris per satu request generate.
+    if (dataToSend.length > MAX_GENERATE_ROWS) {
+      setNotification({
+        show: true,
+        message: `Jumlah data (${dataToSend.length}) melebihi batas maksimum ${MAX_GENERATE_ROWS} sertifikat per proses generate. Silakan bagi data menjadi beberapa bagian dan generate secara bertahap.`,
+        type: "error"
+      });
+      return;
+    }
+
+    // POP-UP batas kuota harian: cek di sisi client DULU (pakai angka
+    // `quota` terakhir yang diketahui) supaya user langsung tahu tanpa
+    // perlu menunggu roundtrip ke server kalau memang sudah jelas kurang.
+    // Ini cuma "fast path" UX -- keputusan yang SAH tetap dilakukan server
+    // (lihat penanganan status 429 di bawah), karena angka `quota` di client
+    // bisa saja basi (mis. digenerate dari tab/perangkat lain).
+    if (quota && dataToSend.length > quota.remaining) {
+      setQuotaModal({
+        show: true,
+        message:
+          quota.remaining <= 0
+            ? `Kuota generate harian Anda (${quota.limit} sertifikat/hari) sudah habis. Silakan coba lagi besok setelah kuota reset.`
+            : `Anda mencoba membuat ${dataToSend.length} sertifikat, tapi sisa kuota harian Anda hanya ${quota.remaining} dari total ${quota.limit} sertifikat/hari. Kurangi jumlah data atau coba lagi besok.`
+      });
+      return;
+    }
+
     setIsLoading(true);
     setProgress({ current: 0, total: dataToSend.length });
 
@@ -342,7 +603,13 @@ export default function Dashboard() {
       formData.append("previewWidth", previewSize.width);
       formData.append(
         "textElements",
-        JSON.stringify(textElements.map(({ ref, ...rest }) => rest))
+        // PATCH: `manualValues` cuma dipakai di editor (untuk menyimpan
+        // daftar nilai per-atribut mode manual) -- sudah "dicairkan" jadi
+        // dataToSend per baris di atas, jadi tidak perlu ikut dikirim ke
+        // backend generate.
+        JSON.stringify(
+          textElements.map(({ ref, manualValues, ...rest }) => rest)
+        )
       );
       formData.append("csvData", JSON.stringify(dataToSend));
       formData.append(
@@ -358,15 +625,35 @@ export default function Dashboard() {
         body: formData
       });
 
+      const result = await response.json();
+
+      // Selalu sinkronkan angka kuota dari server (sumber kebenaran),
+      // baik saat request berhasil, gagal sebagian (422), maupun ditolak
+      // karena kuota habis (429) -- server selalu menyertakan `quota`
+      // terbaru di ketiga kasus itu (lihat api/generate/route.js).
+      if (result.quota) setQuota(result.quota);
+
       if (!response.ok) {
-        const result = await response.json();
+        if (response.status === 429 && result.code === "DAILY_QUOTA_EXCEEDED") {
+          // POP-UP: batas kuota harian tercapai (ditolak SERVER, sumber
+          // kebenaran yang sesungguhnya -- bukan cuma pengecekan client di
+          // atas). Ditampilkan sebagai modal, bukan toast biasa, supaya
+          // tidak terlewat.
+          setQuotaModal({
+            show: true,
+            message: result.message
+          });
+          return;
+        }
         throw new Error(result.message || "Gagal generate sertifikat");
       }
 
       setNotification({
         show: true,
-        message: "Sukses! Sertifikat sedang dibuat.",
-        type: "success"
+        message: result.warning
+          ? `Sukses (dengan catatan): ${result.warning}`
+          : "Sukses! Sertifikat sedang dibuat.",
+        type: result.warning ? "error" : "success"
       });
       await fetchInitialCertificates();
     } catch (error) {
@@ -390,7 +677,7 @@ export default function Dashboard() {
       });
       const response = await fetch(url);
       const blob = await response.blob();
-      saveAs(blob, `sertifikat-${name.replace(/\s+/g, "-")}.png`);
+      saveAs(blob, `sertifikat-${name.replace(/\s+/g, "-")}.jpeg`);
     } catch (error) {
       console.error("Download error:", error);
       setNotification({
@@ -444,6 +731,14 @@ export default function Dashboard() {
         setNotification({
           show: true,
           message: `Unduhan dimulai, tapi ${result.skippedCount} sertifikat gagal disertakan dalam ZIP (file mungkin sudah tidak ada).`,
+          type: "error"
+        });
+      } else if (result.possiblyTruncated) {
+        // ALERT batas kompres: "Download Semua" hanya memproses maksimum
+        // MAX_ZIP_CERTIFICATES sertifikat terbaru dalam satu kali proses.
+        setNotification({
+          show: true,
+          message: `ZIP hanya berisi ${result.zippedCount} sertifikat terbaru (batas maksimum ${result.maxPerZip} per proses). Gunakan checklist untuk memilih & mengompres sisanya secara bertahap.`,
           type: "error"
         });
       } else {
@@ -542,6 +837,138 @@ export default function Dashboard() {
     }
   };
 
+  const toggleSelectCertificate = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAllVisible = () => {
+    setSelectedIds((prev) => {
+      const allVisibleSelected = certificates.every((c) => prev.has(c.id));
+      if (allVisibleSelected) {
+        // Semua yang tampil sudah terpilih -> batalkan seleksi untuk yang tampil
+        const next = new Set(prev);
+        certificates.forEach((c) => next.delete(c.id));
+        return next;
+      }
+      // Pilih semua yang sedang tampil di halaman ini
+      const next = new Set(prev);
+      certificates.forEach((c) => next.add(c.id));
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
+
+  const handleDeleteSelected = async () => {
+    if (!user || selectedIds.size === 0) return;
+
+    const idsToDelete = Array.from(selectedIds);
+    const confirmed = window.confirm(
+      `Hapus ${idsToDelete.length} sertifikat terpilih? Tindakan ini tidak bisa dibatalkan.`
+    );
+    if (!confirmed) return;
+
+    setIsDeletingSelected(true);
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch("/api/certificates", {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ ids: idsToDelete })
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.message || "Gagal menghapus sertifikat terpilih.");
+      }
+
+      setNotification({
+        show: true,
+        message: result.storageDeleteErrors
+          ? `${result.deletedCount} sertifikat terpilih dihapus, namun sebagian file gagal terhapus dari storage.`
+          : `${result.deletedCount} sertifikat terpilih berhasil dihapus.`,
+        type: result.storageDeleteErrors ? "error" : "success"
+      });
+
+      clearSelection();
+      setLastDocId(null);
+      setLastVisibleTimestamp(null);
+      setHasMore(true);
+      await fetchInitialCertificates();
+    } catch (error) {
+      setNotification({
+        show: true,
+        message: `Gagal menghapus sertifikat terpilih: ${error.message}`,
+        type: "error"
+      });
+    } finally {
+      setIsDeletingSelected(false);
+    }
+  };
+
+  const handleDownloadSelectedZip = async () => {
+    if (!user || selectedIds.size === 0) return;
+
+    // ALERT batas kompres: backend membatasi maksimum
+    // MAX_ZIP_CERTIFICATES sertifikat per proses ZIP.
+    if (selectedIds.size > MAX_ZIP_CERTIFICATES) {
+      setNotification({
+        show: true,
+        message: `Anda memilih ${selectedIds.size} sertifikat, namun maksimum ${MAX_ZIP_CERTIFICATES} sertifikat per proses kompres. Silakan kurangi jumlah pilihan atau kompres secara bertahap.`,
+        type: "error"
+      });
+      return;
+    }
+
+    setIsZippingSelected(true);
+    setNotification({
+      show: true,
+      message: `Mengompres ${selectedIds.size} sertifikat terpilih...`,
+      type: "success"
+    });
+
+    try {
+      const token = await user.getIdToken();
+      const response = await fetch("/api/zip-certificates", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ ids: Array.from(selectedIds) })
+      });
+      const result = await response.json();
+      if (!response.ok) {
+        throw new Error(result.message || "Gagal membuat file ZIP.");
+      }
+
+      setNotification({
+        show: true,
+        message:
+          result.skippedCount > 0
+            ? `ZIP dibuat, tapi ${result.skippedCount} sertifikat gagal disertakan (file mungkin sudah tidak ada).`
+            : `${result.zippedCount} sertifikat terpilih berhasil dikompres!`,
+        type: result.skippedCount > 0 ? "error" : "success"
+      });
+      window.open(result.zipUrl, "_blank");
+    } catch (error) {
+      setNotification({
+        show: true,
+        message: `Gagal mengompres sertifikat terpilih: ${error.message}`,
+        type: "error"
+      });
+    } finally {
+      setIsZippingSelected(false);
+    }
+  };
+
   const handleLogout = async () => {
     try {
       await signOut(auth);
@@ -558,7 +985,20 @@ export default function Dashboard() {
     if (file) {
       setTemplateFile(file);
       if (previewUrl) URL.revokeObjectURL(previewUrl);
-      setPreviewUrl(URL.createObjectURL(file));
+      const objectUrl = URL.createObjectURL(file);
+      setPreviewUrl(objectUrl);
+
+      // Baca dimensi asli gambar template supaya kotak preview bisa
+      // mengikuti rasio aslinya (lihat komentar di state templateNaturalSize).
+      setTemplateNaturalSize(null);
+      const img = new window.Image();
+      img.onload = () => {
+        setTemplateNaturalSize({
+          width: img.naturalWidth,
+          height: img.naturalHeight
+        });
+      };
+      img.src = objectUrl;
     }
   };
 
@@ -573,7 +1013,10 @@ export default function Dashboard() {
     updatePreviewSize();
     window.addEventListener("resize", updatePreviewSize);
     return () => window.removeEventListener("resize", updatePreviewSize);
-  }, [previewUrl]);
+    // templateNaturalSize ikut jadi dependency karena baru datang secara
+    // async setelah previewUrl (lewat img.onload) — begitu rasio diketahui,
+    // tinggi container berubah (aspectRatio CSS), jadi perlu diukur ulang.
+  }, [previewUrl, templateNaturalSize]);
 
   if (loading || !user) {
     return (
@@ -586,6 +1029,11 @@ export default function Dashboard() {
   return (
     <>
       <Notification {...notification} />
+      <QuotaLimitModal
+        show={quotaModal.show}
+        message={quotaModal.message}
+        onClose={() => setQuotaModal({ show: false, message: "" })}
+      />
       <header className="w-full bg-white shadow-sm border-b border-[#17233D]/10 sticky top-0 z-40">
         <div className="container mx-auto flex justify-between items-center px-6 py-3">
           <h1 className="text-xl font-bold text-[#17233D] tracking-tight">
@@ -629,7 +1077,7 @@ export default function Dashboard() {
         </div>
       </header>
       <main className="flex flex-col items-center min-h-screen bg-[#F2EAD3] p-4 md:p-8 text-[#17233D]">
-        <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="w-full max-w-6xl grid grid-cols-1 lg:grid-cols-2 gap-8 items-start relative">
           <div className="w-full p-8 space-y-6 bg-[#FCFAF2] rounded-2xl shadow-lg border border-[#17233D]/10">
             <div className="flex items-center gap-3">
               <Link
@@ -809,6 +1257,24 @@ export default function Dashboard() {
                     )}
                   </div>
 
+                  {/* PATCH: toggle rata-tengah horizontal. Saat aktif, X
+                      dikunci ke tengah (0.5) dan drag hanya bisa vertikal --
+                      lihat toggleCenterHorizontal & axis di <Draggable>. */}
+                  <button
+                    type="button"
+                    onClick={() => toggleCenterHorizontal(element.id)}
+                    aria-pressed={!!element.centerHorizontal}
+                    className={`w-full text-sm font-medium px-3 py-1.5 rounded-md border transition-colors ${
+                      element.centerHorizontal
+                        ? "bg-[#8C2F39] text-white border-[#8C2F39]"
+                        : "bg-white text-[#17233D] border-[#A9822E]/40 hover:bg-[#A9822E]/10"
+                    }`}
+                  >
+                    {element.centerHorizontal
+                      ? "✓ Rata Tengah Horizontal (posisi Y tetap bisa diatur)"
+                      : "Rata Tengah Horizontal"}
+                  </button>
+
                   {!element.isLocked && (
                     <div>
                       <label className="text-xs font-medium text-[#17233D]">
@@ -826,6 +1292,50 @@ export default function Dashboard() {
                         }
                         className="w-full text-sm p-1 mt-1 border rounded-md bg-white border-[#A9822E]/40"
                       />
+                    </div>
+                  )}
+
+                  {/* PATCH: nilai custom per-sertifikat untuk atribut ini,
+                      khusus mode Input Manual (di mode CSV, nilainya datang
+                      dari pemetaan kolom di atas). Opsional -- kalau
+                      dikosongkan, "Teks Contoh di Preview" dipakai sebagai
+                      teks statis yang sama untuk semua sertifikat (perilaku
+                      lama tetap jalan). */}
+                  {!element.isLocked && inputMode === "manual" && (
+                    <div>
+                      <label className="text-xs font-medium text-[#17233D]">
+                        Nilai per Sertifikat (pisahkan dengan koma) — opsional
+                      </label>
+                      <textarea
+                        rows={2}
+                        value={element.manualValues || ""}
+                        onChange={(e) =>
+                          handleElementChange(
+                            element.id,
+                            "manualValues",
+                            e.target.value
+                          )
+                        }
+                        placeholder={`Contoh: Ketua Pelaksana, Sekretaris, Bendahara. Kosongkan untuk pakai "${element.textPreview}" di semua sertifikat.`}
+                        className="w-full text-sm p-1 mt-1 border rounded-md bg-white border-[#A9822E]/40"
+                      />
+                      {(() => {
+                        const valueCount = (element.manualValues || "")
+                          .split(",")
+                          .map((v) => v.trim())
+                          .filter((v) => v).length;
+                        if (valueCount > 0 && valueCount !== manualNamesCount) {
+                          return (
+                            <p className="text-xs text-red-600 mt-1">
+                              {valueCount} nilai — jumlah nama saat ini{" "}
+                              {manualNamesCount}. Kalau tidak disesuaikan,
+                              hanya nilai pertama yang dipakai untuk semua
+                              sertifikat pada atribut ini.
+                            </p>
+                          );
+                        }
+                        return null;
+                      })()}
                     </div>
                   )}
 
@@ -887,9 +1397,21 @@ export default function Dashboard() {
             </div>
 
             <div className="pt-4 border-t border-[#17233D]/10">
+              {quota && (
+                <p
+                  className={`text-xs text-center mb-2 ${
+                    quota.remaining <= 0
+                      ? "text-red-600 font-semibold"
+                      : "text-[#17233D]/60"
+                  }`}
+                >
+                  Kuota generate hari ini: {quota.used}/{quota.limit} sertifikat
+                  {quota.remaining <= 0 ? " — kuota habis, coba lagi besok" : ""}
+                </p>
+              )}
               <button
                 onClick={handleGenerate}
-                disabled={isLoading || !templateFile}
+                disabled={isLoading || !templateFile || quota?.remaining <= 0}
                 className="w-full flex justify-center p-3 font-semibold text-white bg-[#8C2F39] rounded-md hover:bg-[#742531] disabled:bg-[#A9822E]/50"
               >
                 {isLoading ? <Spinner /> : "Generate Sertifikat"}
@@ -913,11 +1435,26 @@ export default function Dashboard() {
             </div>
           </div>
 
-          <div className="w-full p-4 bg-[#FCFAF2] rounded-2xl shadow-lg flex items-center justify-center border border-[#17233D]/10">
+          <div className="w-full p-4 bg-[#FCFAF2] rounded-2xl shadow-lg flex items-center justify-center border border-[#17233D]/10 lg:sticky lg:top-20">
             {previewUrl ? (
               <div
                 ref={previewContainerRef}
-                className="relative w-full max-w-[500px] aspect-video overflow-hidden border rounded-lg"
+                className="relative w-full max-w-[500px] overflow-hidden border rounded-lg"
+                style={{
+                  // PATCH: rasio kotak preview mengikuti rasio ASLI gambar
+                  // template (bukan 16:9 tetap). Kalau rasio tetap dipaksa
+                  // 16:9 sementara template-nya beda rasio, objectFit:"contain"
+                  // menyisakan area kosong (letterbox) -> positionPercent yang
+                  // dihitung dari ukuran KOTAK preview jadi tidak sama dengan
+                  // posisi di gambar yang benar-benar tampil, sehingga posisi
+                  // teks meleset saat dirender ulang di backend (yang
+                  // menghitung dari imageWidth/imageHeight ASLI, tanpa
+                  // letterbox). Selama dimensi asli belum diketahui,
+                  // fallback ke 16:9 supaya tidak ada layout shift aneh.
+                  aspectRatio: templateNaturalSize
+                    ? `${templateNaturalSize.width} / ${templateNaturalSize.height}`
+                    : "16 / 9"
+                }}
               >
                 <Image
                   src={previewUrl}
@@ -945,6 +1482,7 @@ export default function Dashboard() {
                       bounds="parent"
                       position={pixelPosition}
                       onStop={createDragHandler(element.id)}
+                      axis={element.centerHorizontal ? "y" : "both"}
                     >
                       <div
                         ref={nodeRef}
@@ -1000,27 +1538,108 @@ export default function Dashboard() {
                 </button>
               </div>
             </div>
-            {certificates.length > 0 ? (
+
+            {certificates.length > 0 && (
+              <div className="flex flex-wrap items-center justify-between gap-2 mb-4 p-3 rounded-lg bg-[#17233D]/5">
+                <label className="flex items-center gap-2 text-sm font-medium text-[#17233D] cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={
+                      certificates.length > 0 &&
+                      certificates.every((c) => selectedIds.has(c.id))
+                    }
+                    onChange={toggleSelectAllVisible}
+                    className="w-4 h-4"
+                  />
+                  Pilih semua di halaman ini
+                </label>
+
+                <div className="flex items-center gap-3">
+                  {selectedIds.size > 0 && (
+                    <>
+                      <span
+                        className={`text-sm font-medium ${
+                          selectedIds.size > MAX_ZIP_CERTIFICATES
+                            ? "text-red-700"
+                            : "text-[#17233D]"
+                        }`}
+                      >
+                        {selectedIds.size} terpilih
+                        {selectedIds.size > MAX_ZIP_CERTIFICATES &&
+                          ` (maks ${MAX_ZIP_CERTIFICATES} untuk kompres)`}
+                      </span>
+                      <button
+                        onClick={handleDownloadSelectedZip}
+                        disabled={
+                          isZippingSelected ||
+                          isDeletingSelected ||
+                          isZipping ||
+                          isDeletingAll
+                        }
+                        className="px-3 py-1.5 flex items-center gap-2 text-sm font-semibold text-white bg-green-600 rounded-md hover:bg-green-700 disabled:bg-[#17233D]/40 disabled:cursor-not-allowed"
+                      >
+                        {isZippingSelected ? <Spinner className="w-4 h-4" /> : null}
+                        {isZippingSelected ? "Mengompres..." : "Kompres Terpilih"}
+                      </button>
+                      <button
+                        onClick={handleDeleteSelected}
+                        disabled={
+                          isZippingSelected ||
+                          isDeletingSelected ||
+                          isZipping ||
+                          isDeletingAll
+                        }
+                        className="px-3 py-1.5 flex items-center gap-2 text-sm font-semibold text-white bg-red-700 rounded-md hover:bg-red-800 disabled:bg-[#17233D]/40 disabled:cursor-not-allowed"
+                      >
+                        {isDeletingSelected ? <Spinner className="w-4 h-4" /> : null}
+                        {isDeletingSelected ? "Menghapus..." : "Hapus Terpilih"}
+                      </button>
+                      <button
+                        onClick={clearSelection}
+                        disabled={isZippingSelected || isDeletingSelected}
+                        className="px-3 py-1.5 text-sm font-medium text-[#17233D] hover:underline disabled:opacity-50"
+                      >
+                        Batalkan pilihan
+                      </button>
+                    </>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {isLoadingCertificates ? (
+              <CertificateListSkeleton />
+            ) : certificates.length > 0 ? (
               <div className="space-y-4">
                 {certificates.map((cert) => (
                   <div
                     key={cert.id}
-                    className="flex items-center justify-between p-4 rounded-lg bg-[#A9822E]/10"
+                    className={`flex items-center justify-between p-4 rounded-lg bg-[#A9822E]/10 ${
+                      selectedIds.has(cert.id) ? "ring-2 ring-[#8C2F39]" : ""
+                    }`}
                   >
-                    <div>
-                      <p className="font-semibold text-[#17233D]">
-                        {cert.namaPeserta}
-                      </p>
-                      <p className="text-sm text-[#17233D]">
-                        Dibuat pada:{" "}
-                        {new Date(
-                          cert.dibuatPada.seconds * 1000
-                        ).toLocaleDateString("id-ID", {
-                          day: "2-digit",
-                          month: "long",
-                          year: "numeric"
-                        })}
-                      </p>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(cert.id)}
+                        onChange={() => toggleSelectCertificate(cert.id)}
+                        className="w-4 h-4 flex-shrink-0"
+                      />
+                      <div>
+                        <p className="font-semibold text-[#17233D]">
+                          {cert.namaPeserta}
+                        </p>
+                        <p className="text-sm text-[#17233D]">
+                          Dibuat pada:{" "}
+                          {new Date(
+                            cert.dibuatPada.seconds * 1000
+                          ).toLocaleDateString("id-ID", {
+                            day: "2-digit",
+                            month: "long",
+                            year: "numeric"
+                          })}
+                        </p>
+                      </div>
                     </div>
                     <button
                       onClick={() =>

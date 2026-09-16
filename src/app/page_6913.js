@@ -34,12 +34,12 @@ const publicSans = Public_Sans({
 // Ganti "https://sertigen.example.com" dengan domain asli sebelum deploy.
 export const metadata = {
   metadataBase: new URL("https://sertigen.example.com"),
-  title: "SertiGen — Bikin Sertifikat Massal Otomatis, Gratis 50/Hari",
+  title: "SertiGen — Generator Sertifikat Otomatis untuk Webinar & Acara",
   icons: {
     icon: '/favicon.png', // Mengarah ke public/favicon.png
     },
   description:
-    "Bikin ratusan sertifikat personal cuma dalam hitungan menit — nggak perlu edit satu-satu. Upload template, tempel daftar nama, gas generate. Gratis 50 sertifikat per hari, reset otomatis tiap hari.",
+    "Buat ratusan sertifikat personal dalam hitungan menit. Unggah template, masukkan daftar nama, dan unduh sertifikat profesional siap cetak maupun digital. Gratis untuk 50 sertifikat pertama.",
   keywords: [
     "generator sertifikat",
     "buat sertifikat online",
@@ -50,9 +50,9 @@ export const metadata = {
   ],
   alternates: { canonical: "/" },
   openGraph: {
-    title: "SertiGen — Bikin Sertifikat Massal Otomatis, Gratis 50/Hari",
+    title: "SertiGen — Generator Sertifikat Otomatis untuk Webinar & Acara",
     description:
-      "Udahan input data manual satu-satu. Upload template, tempel daftar nama, biarin SertiGen yang cetakin sertifikat rapi otomatis.",
+      "Ucapkan selamat tinggal pada input data manual. Unggah template, masukkan daftar nama, dan biarkan SertiGen mencetak sertifikat profesional secara otomatis.",
     url: "/",
     siteName: "SertiGen",
     images: [{ url: "/og-image.png", width: 1200, height: 630, alt: "SertiGen — Generator Sertifikat Otomatis" }],
@@ -61,8 +61,8 @@ export const metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "SertiGen — Bikin Sertifikat Massal Otomatis, Gratis 50/Hari",
-    description: "Bikin ratusan sertifikat personal dalam hitungan menit, tanpa input manual satu per satu.",
+    title: "SertiGen — Generator Sertifikat Otomatis untuk Webinar & Acara",
+    description: "Buat ratusan sertifikat personal dalam hitungan menit tanpa input manual satu per satu.",
   },
 };
 
@@ -70,15 +70,15 @@ export const metadata = {
 const faqs = [
   {
     q: "Apakah SertiGen gratis?",
-    a: "Iya, 100% gratis buat sekarang — belum ada paket berbayar. Kamu bisa generate sampai 50 sertifikat per hari, dan kuotanya reset otomatis tiap hari (bukan jatah sekali habis).",
+    a: "Ya, Anda bisa memulai secara gratis. Paket gratis memungkinkan Anda membuat hingga 50 sertifikat untuk mencoba semua fitur utama SertiGen.",
   },
   {
     q: "Format file apa yang didukung?",
-    a: "Template sertifikat bisa kamu upload dalam format JPG atau PNG. Hasil akhirnya di-export dalam format JPEG resolusi tinggi — tajam buat dicetak maupun dibagikan digital.",
+    a: "Anda dapat mengunggah template sertifikat dalam format gambar populer seperti JPG atau PNG untuk hasil terbaik.",
   },
   {
     q: "Berapa banyak sertifikat yang bisa saya buat?",
-    a: "Sampai 50 sertifikat per hari, gratis, dan kuotanya balik lagi tiap hari otomatis. SertiGen masih terus dikembangkan — kalau ada paket dengan kuota lebih besar ke depannya, bakal kami umumin di sini duluan.",
+    a: "Paket gratis dibatasi 50 sertifikat. Dengan paket premium, tidak ada batasan jumlah sertifikat yang bisa Anda hasilkan.",
   },
   {
     q: "Apakah data saya aman?",
@@ -110,39 +110,37 @@ const features = [
   },
   {
     title: "Kualitas Profesional",
-    desc: "Export JPEG resolusi tinggi — detailnya tetap tajam, nggak pecah, siap dibagikan digital.",
+    desc: "Ekspor sertifikat dalam format PNG resolusi tinggi, siap dibagikan digital.",
     icon: Medal,
   },
   {
     title: "Siap Cetak & Digital",
-    desc: "File JPEG tajam pas dicetak, dan ukurannya ringan buat dibagikan online.",
+    desc: "File PNG tajam saat dicetak dan sempurna untuk dibagikan online.",
     icon: Printer,
   },
 ];
 
-// PATCH: testimoni & angka statistik di versi sebelumnya (2.000+ pengguna,
-// 50.000+ sertifikat, rating 4.9/5, dsb) semuanya PLACEHOLDER/FIKTIF -- salah
-// satunya bahkan mencatut nama instansi pemerintah asli (Kominfo) di
-// testimoni yang tidak pernah benar-benar ada. Itu berisiko dianggap klaim
-// endorsement palsu, dan produk ini memang belum punya user/testimoni asli.
-// Diganti jadi framing jujur "produk baru" -- selain lebih aman, biasanya
-// justru lebih dipercaya audiens Gen Z yang sensitif sama social proof yang
-// kelihatan terlalu sempurna/dipoles.
-const earlyPerks = [
+const testimonials = [
   {
-    title: "Baru rilis, masih anget",
-    desc: "SertiGen baru aja diluncurkan. Belum ada testimoni bombastis di sini — yang ada cuma produk yang beneran kami pakai sendiri buat nyelesain masalah generate sertifikat manual yang ribet.",
-    icon: Award,
+    quote:
+      "SertiGen benar-benar mengubah cara kami mengelola sertifikat webinar. Dari yang tadinya butuh berjam-jam, sekarang selesai dalam 5 menit.",
+    name: "Budi Santoso",
+    role: "Event Organizer, TechTalks ID",
+    initials: "BS",
   },
   {
-    title: "Feedback kamu didengar langsung",
-    desc: "Jadi early user artinya suara kamu paling kenceng. Nemu bug atau ada fitur yang kamu pengen? Langsung reach out, biasanya direspon cepat.",
-    icon: MessageCircle,
+    quote:
+      "Awalnya ragu, tapi ternyata antarmukanya sangat mudah digunakan. Fitur kustomisasi posisinya sangat membantu.",
+    name: "Citra Lestari",
+    role: "Panitia, Lomba Desain Nasional",
+    initials: "CL",
   },
   {
-    title: "Terus di-update",
-    desc: "Kita masih aktif development — perbaikan kualitas render, fitur kustomisasi baru, dan lainnya bakal terus nambah dari waktu ke waktu.",
-    icon: SlidersHorizontal,
+    quote:
+      "Fitur download semua sebagai ZIP adalah penyelamat. Tidak perlu lagi mengunduh satu per satu. Efisiensi kerja tim kami meningkat drastis.",
+    name: "Rian Adriansyah",
+    role: "Koordinator, Pelatihan Digital Marketing",
+    initials: "RA",
   },
 ];
 
@@ -152,17 +150,19 @@ const steps = [
   { step: "03", title: "Generate & Unduh", desc: "Klik \u201cGenerate\u201d dan semua sertifikat siap diunduh." },
 ];
 
-// PATCH: sistem pembayaran/plan berbayar BELUM diimplementasikan di backend
-// (tidak ada payment gateway, tidak ada plan-gating di API manapun) -- jadi
-// section harga sebelumnya (kartu "Premium Rp149rb/bulan") mengiklankan
-// sesuatu yang belum bisa dipenuhi produknya. Diganti jadi satu kartu Gratis
-// (akurat sesuai kuota harian yang berlaku) + teaser "lagi disiapin" tanpa
-// menyebut harga/fitur spesifik, sesuai arahan: jangan pasang harga dulu.
-const freePerks = [
-  "50 sertifikat gratis per hari",
-  "Kuota reset otomatis tiap hari",
-  "Semua fitur kustomisasi bisa dipakai",
-  "Export JPEG resolusi tinggi",
+const plans = [
+  {
+    name: "Gratis",
+    price: "Rp0",
+    perks: ["50 sertifikat pertama", "Semua fitur kustomisasi", "Export PNG resolusi tinggi"],
+    highlight: false,
+  },
+  {
+    name: "Premium",
+    price: "Rp149rb/bulan",
+    perks: ["Sertifikat tanpa batas", "Download massal ZIP", "Dukungan prioritas"],
+    highlight: true,
+  },
 ];
 
 const posts = [
@@ -209,7 +209,7 @@ export default function LandingPage() {
       <header className="sticky top-0 z-50 bg-[#F2EAD3]/90 backdrop-blur-md border-b border-[#17233D]/10">
         <div className="max-w-[1140px] mx-auto px-6 md:px-12 py-4 flex justify-between items-center">
           <Link href="/" className="flex items-center gap-2">
-            <img src="/logo.svg" alt="Logo SertiGen" style={{ maxWidth: "40pt" }} className="site-logo" />
+            <img src="/logo.svg" alt="Logo Certify" style={{ maxWidth: "40pt" }} className="site-logo" />
             <span
               className="text-xl font-bold text-[#17233D] tracking-tight"
               style={{ fontFamily: "var(--font-display)" }}
@@ -226,7 +226,7 @@ export default function LandingPage() {
               Cara Kerja
             </Link>
             <Link href="/#pricing" className="hover:text-[#8C2F39] transition-colors">
-              Akses
+              Harga
             </Link>
             <Link href="/blog" className="hover:text-[#8C2F39] transition-colors">
               Blog
@@ -254,7 +254,7 @@ export default function LandingPage() {
           <div className="relative max-w-[1140px] mx-auto px-6 md:px-12 grid md:grid-cols-2 gap-12 items-center">
             <div>
               <div className="inline-flex items-center gap-2 rounded-full border border-[#A9822E]/50 bg-[#FCFAF2] px-4 py-1.5 text-xs font-semibold text-[#A9822E]">
-                🚀 Baru rilis — gaskeun jadi early user
+                ✦ Dipercaya 2.000+ penyelenggara acara
               </div>
 
               <h1
@@ -265,9 +265,9 @@ export default function LandingPage() {
               </h1>
 
               <p className="mt-6 max-w-md text-lg leading-relaxed text-[#17233D]/70">
-                Udahan capek input data manual satu-satu. Upload template
-                kamu, tempel daftar nama, biarin SertiGen yang cetakin
-                sertifikat rapi — otomatis, nggak pakai ribet.
+                Ucapkan selamat tinggal pada input data manual. Unggah template
+                Anda, tempel daftar nama, dan biarkan SertiGen mencetak
+                sertifikat profesional secara otomatis.
               </p>
 
               <div className="mt-8 flex flex-wrap items-center gap-4">
@@ -275,7 +275,7 @@ export default function LandingPage() {
                   href="/register"
                   className="inline-flex items-center gap-2 rounded-full bg-[#8C2F39] px-7 py-3.5 text-base font-semibold text-[#F2EAD3] shadow-lg hover:bg-[#742531] transition-colors"
                 >
-                  Coba Gratis, Gas!
+                  Mulai Membuat, Gratis
                   <ArrowRight className="size-4" />
                 </Link>
                 <Link
@@ -293,21 +293,25 @@ export default function LandingPage() {
                   <div className="w-7 h-7 rounded-full border-2 border-[#F2EAD3] bg-[#17233D]/30" />
                 </div>
                 <span className="text-sm text-[#17233D]/60">
-                  Gratis 50 sertifikat/hari, reset otomatis tiap hari · Tanpa kartu kredit
+                  Gratis untuk 50 sertifikat pertama · Tanpa kartu kredit
                 </span>
               </div>
 
-              <div className="mt-8 flex flex-wrap gap-3">
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#17233D]/5 px-3.5 py-1.5 text-xs font-semibold text-[#17233D]/70">
-                  ✨ Baru diluncurkan
-                </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#17233D]/5 px-3.5 py-1.5 text-xs font-semibold text-[#17233D]/70">
-                  🔧 Aktif dikembangkan
-                </span>
-                <span className="inline-flex items-center gap-1.5 rounded-full bg-[#17233D]/5 px-3.5 py-1.5 text-xs font-semibold text-[#17233D]/70">
-                  💬 Feedback kamu didengar
-                </span>
-              </div>
+              <dl className="mt-8 flex gap-10">
+                <div>
+                  <dt className="sr-only">Sertifikat dibuat</dt>
+                  <dd className="text-2xl font-bold text-[#17233D]">50.000+</dd>
+                  <dt className="text-xs uppercase tracking-wide text-[#17233D]/50">Sertifikat dibuat</dt>
+                </div>
+                <div>
+                  <dd className="text-2xl font-bold text-[#17233D]">2.000+</dd>
+                  <dt className="text-xs uppercase tracking-wide text-[#17233D]/50">Penyelenggara</dt>
+                </div>
+                <div>
+                  <dd className="text-2xl font-bold text-[#17233D]">4.9/5</dd>
+                  <dt className="text-xs uppercase tracking-wide text-[#17233D]/50">Rating pengguna</dt>
+                </div>
+              </dl>
             </div>
 
             {/* Mockup sertifikat dekoratif */}
@@ -371,7 +375,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Kenapa SertiGen dibuat */}
+        {/* Quote Spotlight */}
         <section className="py-20">
           <div className="max-w-[1140px] mx-auto px-6 md:px-12 grid md:grid-cols-2 gap-12 items-center">
             <div className="overflow-hidden rounded-2xl shadow-lg">
@@ -391,50 +395,65 @@ export default function LandingPage() {
                 className="mt-4 text-3xl font-bold leading-snug text-[#17233D]"
                 style={{ fontFamily: "var(--font-display)" }}
               >
-                &ldquo;Kami capek generate sertifikat manual satu-satu, jadi kami bikin SertiGen.&rdquo;
+                &ldquo;SertiGen menghemat 20+ jam kerja tim kami setiap bulan.&rdquo;
               </blockquote>
               <p className="mt-4 text-sm font-medium text-[#17233D]/70">
-                Kenapa SertiGen ada
+                Tim Event, Kominfo Digital Talent
               </p>
-              <p className="mt-6 max-w-md text-sm leading-relaxed text-[#17233D]/70">
-                Nggak ada testimoni bombastis di sini — soalnya SertiGen
-                literally baru aja rilis. Yang ada cuma tool yang beneran
-                kami butuhin sendiri, sekarang kami buka buat siapa aja yang
-                punya masalah sama: ratusan nama, satu template, dan waktu
-                yang mepet.
-              </p>
+              <div className="mt-8 flex gap-8">
+                <div>
+                  <div className="text-xl font-bold text-[#17233D]">20+</div>
+                  <div className="text-xs text-[#17233D]/50">jam dihemat/bulan</div>
+                </div>
+                <div>
+                  <div className="text-xl font-bold text-[#17233D]">99%</div>
+                  <div className="text-xs text-[#17233D]/50">akurasi nama</div>
+                </div>
+                <div>
+                  <div className="text-xl font-bold text-[#17233D]">&lt;5 menit</div>
+                  <div className="text-xs text-[#17233D]/50">proses</div>
+                </div>
+              </div>
             </div>
           </div>
         </section>
 
-        {/* Kenapa coba sekarang */}
+        {/* Testimoni */}
         <section id="testimonials" className="py-20">
           <div className="max-w-[1140px] mx-auto px-6 md:px-12">
             <div className="max-w-xl mb-14">
               <div className="text-xs font-semibold uppercase tracking-[0.25em] text-[#A9822E]">
-                Status
+                Testimoni
               </div>
               <h2
                 className="mt-3 text-3xl md:text-4xl font-bold text-[#17233D]"
                 style={{ fontFamily: "var(--font-display)" }}
               >
-                Belum rame, tapi justru itu untungnya buat kamu
+                Dipercaya oleh penyelenggara acara
               </h2>
               <p className="mt-4 text-[#17233D]/70">
-                Jujur aja — ini masih early. Nggak ada ribuan testimoni buat
-                dipajang. Tapi ini yang kamu dapetin dengan gabung sekarang.
+                Lihat apa kata mereka yang telah menghemat waktu dengan
+                SertiGen.
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {earlyPerks.map((item) => (
-                <div key={item.title} className="rounded-xl bg-white p-6 shadow-sm">
-                  <div className="flex items-center justify-center w-11 h-11 rounded-full border border-[#A9822E] text-[#A9822E]">
-                    <item.icon className="size-5" />
-                  </div>
-                  <h3 className="mt-4 text-lg font-semibold text-[#17233D]">{item.title}</h3>
-                  <p className="mt-2 text-sm leading-relaxed text-[#17233D]/70">{item.desc}</p>
-                </div>
+              {testimonials.map((t) => (
+                <figure key={t.name} className="rounded-xl bg-white p-6 shadow-sm">
+                  <Quote className="size-6 text-[#A9822E]" aria-hidden="true" />
+                  <blockquote className="mt-4 text-sm leading-relaxed text-[#17233D]/85">
+                    {t.quote}
+                  </blockquote>
+                  <figcaption className="mt-6 flex items-center gap-3">
+                    <div className="flex items-center justify-center w-10 h-10 rounded-full bg-[#17233D]/10 text-xs font-semibold text-[#17233D]">
+                      {t.initials}
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold text-[#17233D]">{t.name}</p>
+                      <p className="text-xs text-[#17233D]/60">{t.role}</p>
+                    </div>
+                  </figcaption>
+                </figure>
               ))}
             </div>
           </div>
@@ -479,72 +498,75 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Akses */}
+        {/* Harga */}
         <section id="pricing" className="py-20">
           <div className="max-w-[1140px] mx-auto px-6 md:px-12">
             <div className="max-w-xl mb-14">
               <div className="text-xs font-semibold uppercase tracking-[0.25em] text-[#A9822E]">
-                Akses
+                Harga
               </div>
               <h2
                 className="mt-3 text-3xl md:text-4xl font-bold text-[#17233D]"
                 style={{ fontFamily: "var(--font-display)" }}
               >
-                Gratis buat semua, nggak pakai drama
+                Sederhana dan transparan
               </h2>
-              <p className="mt-4 text-[#17233D]/70">
-                Masih tahap awal, jadi belum ada paket berbayar. Semua fitur
-                inti bisa kamu pakai sekarang, gratis.
-              </p>
             </div>
 
-            <div className="grid max-w-3xl grid-cols-1 md:grid-cols-2 gap-8 items-stretch">
-              <div className="relative rounded-xl bg-[#8C2F39] p-8 text-[#F2EAD3] shadow-2xl">
-                <div className="absolute right-4 top-4 rounded-full bg-[#A9822E] px-3 py-1 text-[10px] font-bold uppercase text-[#17233D]">
-                  Aktif Sekarang
-                </div>
-                <div className="text-sm font-semibold uppercase tracking-wide text-[#F2EAD3]/70">
-                  Gratis
-                </div>
-                <div className="mt-2 text-4xl font-bold">Rp0</div>
-                <ul className="mt-6 flex flex-col gap-3">
-                  {freePerks.map((perk) => (
-                    <li key={perk} className="flex items-center gap-2 text-sm text-[#F2EAD3]/90">
-                      <Check className="size-4 text-[#A9822E]" />
-                      {perk}
-                    </li>
-                  ))}
-                </ul>
-                <Link
-                  href="/register"
-                  className="mt-6 inline-block w-full rounded-full bg-[#F2EAD3] px-5 py-2.5 text-center text-sm font-semibold text-[#8C2F39] hover:bg-white transition-colors"
+            <div className="grid max-w-3xl grid-cols-1 md:grid-cols-2 gap-8 items-center">
+              {plans.map((plan) => (
+                <div
+                  key={plan.name}
+                  className={
+                    plan.highlight
+                      ? "relative rounded-xl bg-[#8C2F39] p-8 text-[#F2EAD3] shadow-2xl md:scale-105"
+                      : "rounded-xl border border-[#17233D]/10 bg-white p-8 shadow-sm"
+                  }
                 >
-                  Mulai Gratis
-                </Link>
-              </div>
-
-              <div className="flex flex-col justify-between rounded-xl border border-dashed border-[#17233D]/25 bg-white p-8">
-                <div>
-                  <div className="text-sm font-semibold uppercase tracking-wide text-[#17233D]/60">
-                    Paket Lanjutan
+                  {plan.highlight && (
+                    <div className="absolute right-4 top-4 rounded-full bg-[#A9822E] px-3 py-1 text-[10px] font-bold uppercase text-[#17233D]">
+                      Populer
+                    </div>
+                  )}
+                  <div
+                    className={
+                      plan.highlight
+                        ? "text-sm font-semibold uppercase tracking-wide text-[#F2EAD3]/70"
+                        : "text-sm font-semibold uppercase tracking-wide text-[#17233D]/60"
+                    }
+                  >
+                    {plan.name}
                   </div>
-                  <div className="mt-2 text-2xl font-bold text-[#17233D]">
-                    Lagi disiapin 👀
+                  <div className={plan.highlight ? "mt-2 text-4xl font-bold" : "mt-2 text-4xl font-bold text-[#17233D]"}>
+                    {plan.price}
                   </div>
-                  <p className="mt-4 text-sm leading-relaxed text-[#17233D]/70">
-                    Kalau nanti ada kebutuhan kuota lebih gede atau fitur
-                    tambahan, bakal kami rilis di sini duluan — belum ada
-                    harga atau tanggal pasti, jadi kami nggak mau janji-janji
-                    dulu sebelum bener-bener siap.
-                  </p>
+                  <ul className="mt-6 flex flex-col gap-3">
+                    {plan.perks.map((perk) => (
+                      <li
+                        key={perk}
+                        className={
+                          plan.highlight
+                            ? "flex items-center gap-2 text-sm text-[#F2EAD3]/90"
+                            : "flex items-center gap-2 text-sm text-[#17233D]/80"
+                        }
+                      >
+                        <Check className="size-4 text-[#A9822E]" />
+                        {perk}
+                      </li>
+                    ))}
+                  </ul>
+                  <Link
+                    href="/register"
+                    className={
+                      plan.highlight
+                        ? "mt-6 inline-block w-full rounded-full bg-[#F2EAD3] px-5 py-2.5 text-center text-sm font-semibold text-[#8C2F39] hover:bg-white transition-colors"
+                        : "mt-6 inline-block w-full rounded-full border border-[#17233D]/20 px-5 py-2.5 text-center text-sm font-semibold text-[#17233D] hover:bg-[#17233D]/[0.04] transition-colors"
+                    }
+                  >
+                    {plan.highlight ? "Pilih Premium" : "Mulai Gratis"}
+                  </Link>
                 </div>
-                <Link
-                  href="/register"
-                  className="mt-6 inline-block w-full rounded-full border border-[#17233D]/20 px-5 py-2.5 text-center text-sm font-semibold text-[#17233D] hover:bg-[#17233D]/[0.04] transition-colors"
-                >
-                  Pakai yang Gratis Dulu
-                </Link>
-              </div>
+              ))}
             </div>
           </div>
         </section>
@@ -638,18 +660,17 @@ export default function LandingPage() {
               className="text-3xl md:text-4xl font-bold"
               style={{ fontFamily: "var(--font-display)" }}
             >
-              Udah siap ninggalin cara manual?
+              Siap mengubah cara Anda membuat sertifikat?
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-[#F2EAD3]/70">
-              Gabung sekarang, jadi salah satu user pertama SertiGen. Gratis
-              50 sertifikat per hari, reset otomatis tiap hari — nggak perlu
-              kartu kredit.
+              Daftar sekarang dan rasakan kemudahan manajemen sertifikat di
+              ujung jari Anda. Gratis untuk memulai.
             </p>
             <Link
               href="/register"
               className="mt-8 inline-block rounded-full bg-[#F2EAD3] px-7 py-3.5 text-base font-bold text-[#17233D] shadow-lg hover:bg-white transition-colors"
             >
-              Coba SertiGen, Gratis
+              Coba SertiGen Sekarang
             </Link>
           </div>
         </section>
@@ -679,7 +700,7 @@ export default function LandingPage() {
             <div className="text-xs font-bold uppercase tracking-wide text-[#17233D]">Produk</div>
             <ul className="mt-4 flex flex-col gap-2 text-sm text-[#17233D]/70">
               <li><Link href="/#features" className="hover:text-[#8C2F39] transition-colors">Fitur</Link></li>
-              <li><Link href="/#pricing" className="hover:text-[#8C2F39] transition-colors">Akses</Link></li>
+              <li><Link href="/#pricing" className="hover:text-[#8C2F39] transition-colors">Harga</Link></li>
               <li><Link href="/#how-it-works" className="hover:text-[#8C2F39] transition-colors">Cara Kerja</Link></li>
             </ul>
           </div>

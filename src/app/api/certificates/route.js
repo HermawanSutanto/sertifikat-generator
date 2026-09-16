@@ -8,13 +8,14 @@ import {
   limit,
   startAfter,
   writeBatch,
-  Timestamp
+  Timestamp,
+  documentId
 } from "firebase/firestore";
 import { NextResponse } from "next/server";
 import admin from "../../../lib/firebaseAdmin";
 import { supabaseAdmin as supabase } from "../../../lib/supabaseAdmin";
 
-const PAGE_SIZE = 10; // Jumlah sertifikat yang akan diambil per halaman (GET)
+const PAGE_SIZE = 20; // Jumlah sertifikat yang akan diambil per halaman (GET)
 
 // PATCH: batas jumlah sertifikat yang dihapus per SATU request DELETE.
 // Kalau user punya ribuan sertifikat, menghapus semuanya dalam satu request
@@ -32,6 +33,15 @@ const DELETE_BATCH_SIZE = 400;
 // terlalu besar untuk sekali panggil, bukan karena ada limit resmi
 // yang didokumentasikan Supabase.
 const STORAGE_REMOVE_CHUNK_SIZE = 100;
+
+// Firestore "in" query hanya mendukung maksimum 30 nilai per query, dipakai
+// saat menghapus sertifikat terpilih (ids) lewat checklist di dashboard.
+const FIRESTORE_IN_CHUNK_SIZE = 30;
+
+// Batas jumlah id yang boleh dikirim sekaligus untuk hapus-terpilih per
+// request, supaya payload/berapa banyak dokumen yang diverifikasi+dihapus
+// dalam satu request tetap terkendali (di bawah limit writeBatch 500).
+const MAX_SELECTED_DELETE_IDS = 450;
 
 const CERTIFICATE_BUCKET = "generated-certificates";
 
@@ -141,27 +151,77 @@ export async function DELETE(req) {
     const { uid, error: authError } = await verifyAuth(req);
     if (authError) return authError;
 
-    // 1. Ambil satu halaman dokumen milik user ini. Query memakai bentuk
-    // (where userId + orderBy dibuatPada) yang SAMA dengan GET di atas agar
-    // memanfaatkan index composite yang sama, tidak perlu index baru.
-    const certificatesRef = collection(db, "sertifikat_terbuat");
-    const q = query(
-      certificatesRef,
-      where("userId", "==", uid),
-      orderBy("dibuatPada", "desc"),
-      limit(DELETE_BATCH_SIZE)
-    );
-    const querySnapshot = await getDocs(q);
-
-    if (querySnapshot.empty) {
-      return NextResponse.json({
-        deletedCount: 0,
-        hasMore: false,
-        message: "Tidak ada sertifikat untuk dihapus."
-      });
+    // PATCH: dashboard sekarang bisa mengirim daftar `ids` (hasil checklist
+    // pilih-sertifikat) di body JSON untuk menghapus HANYA sertifikat yang
+    // dipilih user. Kalau body kosong/tidak ada `ids`, perilaku lama
+    // dipertahankan: hapus semua sertifikat user per-halaman (hasMore loop).
+    let requestedIds = [];
+    try {
+      const body = await req.json();
+      if (Array.isArray(body?.ids)) requestedIds = body.ids;
+    } catch {
+      // Body kosong/bukan JSON valid -> anggap mode "hapus semua" (lama).
     }
 
-    const docs = querySnapshot.docs;
+    if (requestedIds.length > MAX_SELECTED_DELETE_IDS) {
+      return NextResponse.json(
+        {
+          message: `Maksimum ${MAX_SELECTED_DELETE_IDS} sertifikat per proses hapus-terpilih. Anda memilih ${requestedIds.length}. Silakan hapus secara bertahap.`
+        },
+        { status: 400 }
+      );
+    }
+
+    const certificatesRef = collection(db, "sertifikat_terbuat");
+    let docs = [];
+
+    if (requestedIds.length > 0) {
+      // Ambil hanya dokumen yang diminta, di-chunk per 30 id (limit query
+      // "in" Firestore), lalu difilter ulang berdasarkan userId sebagai
+      // lapisan keamanan tambahan — supaya user tidak bisa menghapus
+      // sertifikat milik user lain hanya dengan mengirim id orang lain.
+      for (let i = 0; i < requestedIds.length; i += FIRESTORE_IN_CHUNK_SIZE) {
+        const chunkIds = requestedIds.slice(i, i + FIRESTORE_IN_CHUNK_SIZE);
+        const chunkQuery = query(
+          certificatesRef,
+          where(documentId(), "in", chunkIds)
+        );
+        const chunkSnapshot = await getDocs(chunkQuery);
+        chunkSnapshot.forEach((docSnap) => {
+          if (docSnap.data().userId === uid) docs.push(docSnap);
+        });
+      }
+
+      if (docs.length === 0) {
+        return NextResponse.json({
+          deletedCount: 0,
+          hasMore: false,
+          message: "Sertifikat yang dipilih tidak ditemukan."
+        });
+      }
+    } else {
+      // 1. Ambil satu halaman dokumen milik user ini. Query memakai bentuk
+      // (where userId + orderBy dibuatPada) yang SAMA dengan GET di atas agar
+      // memanfaatkan index composite yang sama, tidak perlu index baru.
+      const q = query(
+        certificatesRef,
+        where("userId", "==", uid),
+        orderBy("dibuatPada", "desc"),
+        limit(DELETE_BATCH_SIZE)
+      );
+      const querySnapshot = await getDocs(q);
+
+      if (querySnapshot.empty) {
+        return NextResponse.json({
+          deletedCount: 0,
+          hasMore: false,
+          message: "Tidak ada sertifikat untuk dihapus."
+        });
+      }
+
+      docs = querySnapshot.docs;
+    }
+
     const storagePaths = [];
 
     docs.forEach((docSnap) => {
@@ -203,9 +263,13 @@ export async function DELETE(req) {
     docs.forEach((docSnap) => batch.delete(docSnap.ref));
     await batch.commit();
 
+    // PATCH: `hasMore` cuma relevan untuk mode "hapus semua" (paginasi
+    // per-halaman). Mode hapus-terpilih selalu memproses seluruh `ids` yang
+    // dikirim dalam satu request, jadi hasMore selalu false di mode itu.
     return NextResponse.json({
       deletedCount: docs.length,
-      hasMore: docs.length === DELETE_BATCH_SIZE,
+      hasMore:
+        requestedIds.length === 0 && docs.length === DELETE_BATCH_SIZE,
       storageDeleteErrors: storageDeleteErrors > 0 ? storageDeleteErrors : undefined
     });
   } catch (error) {
