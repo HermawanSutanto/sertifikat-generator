@@ -43,7 +43,7 @@ export default function CetakLokal() {
   useEffect(() => {
     async function loadWasm() {
       try {
-        const wasm = await import("../../../pkg/pdf_cert_wasm.js");
+        const wasm = await import("@/../pkg/pdf_cert_wasm.js");
         await wasm.default();
         setWasmModule(wasm);
         setWasmReady(true);
