@@ -40,19 +40,24 @@ export default function CetakLokal() {
   const printFrameRef = useRef(null);
 
   // Inisialisasi WASM Engine saat komponen di-mount
-  useEffect(() => {
-    async function loadWasm() {
-      try {
-        const wasm = await import("@/../pkg/pdf_cert_wasm.js");
-        await wasm.default();
-        setWasmModule(wasm);
-        setWasmReady(true);
-      } catch (err) {
-        console.error("Gagal memuat Rust WASM:", err);
+  // Inisialisasi WASM Engine saat komponen di-mount di Browser
+    useEffect(() => {
+      async function loadWasm() {
+        // Pastikan kode hanya berjalan di browser, bukan saat SSR Build
+        if (typeof window === "undefined") return;
+
+        try {
+          // Panggil WASM via relative path ke folder pkg di root
+          const wasm = await import("../../../../pkg/pdf_cert_wasm.js");
+          await wasm.default();
+          setWasmModule(wasm);
+          setWasmReady(true);
+        } catch (err) {
+          console.error("Gagal memuat Rust WASM:", err);
+        }
       }
-    }
-    loadWasm();
-  }, []);
+      loadWasm();
+    }, []);
 
   useEffect(() => {
     if (notification.show) {
