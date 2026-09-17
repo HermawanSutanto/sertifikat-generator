@@ -69,9 +69,8 @@ const Notification = ({ message, type, show }) => {
   const bgColor = type === "success" ? "bg-green-600" : "bg-red-600";
   return (
     <div
-      className={`fixed top-5 right-0 p-4 rounded-lg text-white shadow-lg transition-transform transform ${
-        show ? "translate-x-0" : "translate-x-full"
-      } ${bgColor}`}
+      className={`fixed top-5 right-0 p-4 rounded-lg text-white shadow-lg transition-transform transform ${show ? "translate-x-0" : "translate-x-full"
+        } ${bgColor}`}
       style={{ zIndex: 1000 }}
     >
       {message}
@@ -528,8 +527,8 @@ export default function Dashboard() {
         // konfirmasi eksplisit sebelum melanjutkan generate.
         const proceed = window.confirm(
           `Jumlah nilai pada atribut ${detail} tidak sama dengan jumlah nama (${rowCount} nama).\n\n` +
-            `Untuk atribut yang jumlahnya tidak cocok, HANYA nilai PERTAMA yang akan dipakai untuk SEMUA ${rowCount} sertifikat.\n\n` +
-            `Lanjutkan generate dengan begitu?`
+          `Untuk atribut yang jumlahnya tidak cocok, HANYA nilai PERTAMA yang akan dipakai untuk SEMUA ${rowCount} sertifikat.\n\n` +
+          `Lanjutkan generate dengan begitu?`
         );
         if (!proceed) return;
       }
@@ -1081,6 +1080,12 @@ export default function Dashboard() {
           <div className="w-full p-8 space-y-6 bg-[#FCFAF2] rounded-2xl shadow-lg border border-[#17233D]/10">
             <div className="flex items-center gap-3">
               <Link
+                href="/dashboard/cetak-lokal"
+                className="px-4 py-2 text-sm font-semibold text-[#17233D] bg-[#A9822E]/10 rounded-lg shadow-sm hover:bg-[#A9822E]/20 flex items-center gap-2 transition-colors"
+              >
+                <span>Cetak Lokal</span>
+              </Link>
+              <Link
                 href="/"
                 aria-label="Kembali ke halaman utama"
                 className="p-2 rounded-lg text-[#17233D] hover:bg-[#A9822E]/10 transition-colors"
@@ -1135,21 +1140,19 @@ export default function Dashboard() {
               <div className="flex bg-[#A9822E]/10 rounded-lg p-1">
                 <button
                   onClick={() => setInputMode("manual")}
-                  className={`w-full p-2 text-sm font-semibold rounded-md transition-colors ${
-                    inputMode === "manual"
+                  className={`w-full p-2 text-sm font-semibold rounded-md transition-colors ${inputMode === "manual"
                       ? "bg-white text-[#17233D] shadow"
                       : "text-[#8C2F39]"
-                  }`}
+                    }`}
                 >
                   Input Manual
                 </button>
                 <button
                   onClick={() => setInputMode("csv")}
-                  className={`w-full p-2 text-sm font-semibold rounded-md transition-colors ${
-                    inputMode === "csv"
+                  className={`w-full p-2 text-sm font-semibold rounded-md transition-colors ${inputMode === "csv"
                       ? "bg-white text-[#17233D] shadow"
                       : "text-[#8C2F39]"
-                  }`}
+                    }`}
                 >
                   Unggah File CSV
                 </button>
@@ -1264,11 +1267,10 @@ export default function Dashboard() {
                     type="button"
                     onClick={() => toggleCenterHorizontal(element.id)}
                     aria-pressed={!!element.centerHorizontal}
-                    className={`w-full text-sm font-medium px-3 py-1.5 rounded-md border transition-colors ${
-                      element.centerHorizontal
+                    className={`w-full text-sm font-medium px-3 py-1.5 rounded-md border transition-colors ${element.centerHorizontal
                         ? "bg-[#8C2F39] text-white border-[#8C2F39]"
                         : "bg-white text-[#17233D] border-[#A9822E]/40 hover:bg-[#A9822E]/10"
-                    }`}
+                      }`}
                   >
                     {element.centerHorizontal
                       ? "✓ Rata Tengah Horizontal (posisi Y tetap bisa diatur)"
@@ -1399,11 +1401,10 @@ export default function Dashboard() {
             <div className="pt-4 border-t border-[#17233D]/10">
               {quota && (
                 <p
-                  className={`text-xs text-center mb-2 ${
-                    quota.remaining <= 0
+                  className={`text-xs text-center mb-2 ${quota.remaining <= 0
                       ? "text-red-600 font-semibold"
                       : "text-[#17233D]/60"
-                  }`}
+                    }`}
                 >
                   Kuota generate hari ini: {quota.used}/{quota.limit} sertifikat
                   {quota.remaining <= 0 ? " — kuota habis, coba lagi besok" : ""}
@@ -1558,11 +1559,10 @@ export default function Dashboard() {
                   {selectedIds.size > 0 && (
                     <>
                       <span
-                        className={`text-sm font-medium ${
-                          selectedIds.size > MAX_ZIP_CERTIFICATES
+                        className={`text-sm font-medium ${selectedIds.size > MAX_ZIP_CERTIFICATES
                             ? "text-red-700"
                             : "text-[#17233D]"
-                        }`}
+                          }`}
                       >
                         {selectedIds.size} terpilih
                         {selectedIds.size > MAX_ZIP_CERTIFICATES &&
@@ -1614,9 +1614,8 @@ export default function Dashboard() {
                 {certificates.map((cert) => (
                   <div
                     key={cert.id}
-                    className={`flex items-center justify-between p-4 rounded-lg bg-[#A9822E]/10 ${
-                      selectedIds.has(cert.id) ? "ring-2 ring-[#8C2F39]" : ""
-                    }`}
+                    className={`flex items-center justify-between p-4 rounded-lg bg-[#A9822E]/10 ${selectedIds.has(cert.id) ? "ring-2 ring-[#8C2F39]" : ""
+                      }`}
                   >
                     <div className="flex items-center gap-3">
                       <input
