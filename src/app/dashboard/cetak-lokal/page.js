@@ -1,12 +1,12 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../../context/AuthContext";
 import Papa from "papaparse";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
+import JSZip from "jszip";
 
-// Notifikasi & Spinner (dipertahankan sama)
 const Spinner = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" {...props}>
     <path fill="currentColor" d="M12,23a9.63,9.63,0,0,1-8-9.5,9.51,9.51,0,0,1,6.79-9.1A1,1,0,0,1,12,5.19a8.4,8.4,0,0,0-6.1,8.31,8.44,8.44,0,0,0,8.38,8.38A1,1,0,0,1,12,23Z">
@@ -27,7 +27,7 @@ const Notification = ({ message, type, show }) => {
 export default function CetakLokal() {
   const { user, loading } = useAuth();
   const router = useRouter();
-  
+
   const [csvFile, setCsvFile] = useState(null);
   const [csvRowCount, setCsvRowCount] = useState(0);
   const [templateFile, setTemplateFile] = useState(null);
@@ -37,27 +37,20 @@ export default function CetakLokal() {
   const [wasmModule, setWasmModule] = useState(null);
   const [notification, setNotification] = useState({ show: false, message: "", type: "success" });
 
-  const printFrameRef = useRef(null);
-
-  // Inisialisasi WASM Engine saat komponen di-mount
-  // Inisialisasi WASM Engine saat komponen di-mount di Browser
-    useEffect(() => {
-      async function loadWasm() {
-        // Pastikan kode hanya berjalan di browser, bukan saat SSR Build
-        if (typeof window === "undefined") return;
-
-        try {
-          // Panggil WASM via relative path ke folder pkg di root
-          const wasm = await import("../../../../pkg/pdf_cert_wasm.js");
-          await wasm.default();
-          setWasmModule(wasm);
-          setWasmReady(true);
-        } catch (err) {
-          console.error("Gagal memuat Rust WASM:", err);
-        }
+  useEffect(() => {
+    async function loadWasm() {
+      if (typeof window === "undefined") return;
+      try {
+        const wasm = await import("@/../pkg/pdf_cert_wasm.js");
+        await wasm.default();
+        setWasmModule(wasm);
+        setWasmReady(true);
+      } catch (err) {
+        console.error("Gagal memuat Rust WASM:", err);
       }
-      loadWasm();
-    }, []);
+    }
+    loadWasm();
+  }, []);
 
   useEffect(() => {
     if (notification.show) {
@@ -91,7 +84,7 @@ export default function CetakLokal() {
     if (file) setTemplateFile(file);
   };
 
-  const handleCetakLokal = async () => {
+  const handleGenerateAndDownloadZip = async () => {
     if (!csvFile || !templateFile) {
       setNotification({ show: true, message: "Harap unggah CSV peserta dan template PDF terlebih dahulu.", type: "error" });
       return;
@@ -112,16 +105,17 @@ export default function CetakLokal() {
         throw new Error("File CSV kosong atau tidak valid.");
       }
 
-      const mergedPdf = await PDFDocument.create();
+      const zip = new JSZip();
 
       for (let i = 0; i < allData.length; i++) {
         setProgress({ current: i + 1, total: allData.length });
         const row = allData[i];
         const rawNama = row["Nama"] || row["nama"] || `Peserta_${i + 1}`;
 
-        // 1. Gunakan Rust WASM untuk sanitasi nama jika module siap
+        // Sanitasi Nama via WASM
         const nama = wasmReady && wasmModule ? wasmModule.sanitize_name(rawNama) : rawNama;
 
+        // Load Template PDF Asli (Presisi Background)
         const pdfDoc = await PDFDocument.load(templateArrayBuffer);
         const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
 
@@ -129,7 +123,7 @@ export default function CetakLokal() {
         const firstPage = pages[0];
         const { width, height } = firstPage.getSize();
 
-        // 2. Kalkulasi Tata Letak menggunakan Rust WASM Engine
+        // Kalkulasi Layout via WASM
         let xPos, yPos, fontSize;
         if (wasmReady && wasmModule) {
           const layout = wasmModule.calculate_text_layout(nama, width, height);
@@ -137,7 +131,6 @@ export default function CetakLokal() {
           yPos = layout.y;
           fontSize = layout.font_size;
         } else {
-          // Fallback JavaScript lokal
           fontSize = 32;
           const textWidth = font.widthOfTextAtSize(nama, fontSize);
           xPos = (width - textWidth) / 2;
@@ -152,33 +145,38 @@ export default function CetakLokal() {
           color: rgb(0.1, 0.1, 0.1)
         });
 
-        const [copiedPage] = await mergedPdf.copyPages(pdfDoc, [0]);
-        mergedPdf.addPage(copiedPage);
+        const pdfBytes = await pdfDoc.save();
+        const fileName = `sertifikat_${nama.toLowerCase().replace(/\s+/g, '_')}_${i + 1}.pdf`;
+        
+        // Masukkan file PDF per peserta ke dalam ZIP
+        zip.file(fileName, pdfBytes);
       }
 
-      setNotification({ show: true, message: "Menyiapkan pratinjau cetak...", type: "success" });
+      setNotification({ show: true, message: "Mengompresi seluruh file ke ZIP...", type: "success" });
 
-      const mergedBytes = await mergedPdf.save();
-      const blob = new Blob([mergedBytes], { type: "application/pdf" });
-      const blobUrl = URL.createObjectURL(blob);
+      // Generasi Kompresi ZIP
+      const zipBlob = await zip.generateAsync({ type: "blob" });
 
-      const frame = printFrameRef.current;
-      frame.onload = () => {
-        setNotification({
-          show: true,
-          message: `Selesai! ${allData.length} sertifikat siap dicetak. Membuka dialog print...`,
-          type: "success"
-        });
-        setTimeout(() => {
-          frame.contentWindow.focus();
-          frame.contentWindow.print();
-          setIsProcessing(false);
-          setProgress(null);
-        }, 300);
-      };
-      frame.src = blobUrl;
+      // Trigger Unduhan ZIP Automatis
+      const downloadUrl = URL.createObjectURL(zipBlob);
+      const link = document.createElement("a");
+      link.href = downloadUrl;
+      link.download = `sertifikat_massal_${Date.now()}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(downloadUrl);
+
+      setNotification({
+        show: true,
+        message: `Berhasil! ${allData.length} sertifikat dikompresi dan mulai terunduh.`,
+        type: "success"
+      });
+
+      setIsProcessing(false);
+      setProgress(null);
     } catch (error) {
-      console.error("Gagal memproses cetak lokal:", error);
+      console.error("Gagal memproses sertifikat:", error);
       setNotification({ show: true, message: `Terjadi kesalahan: ${error.message}`, type: "error" });
       setIsProcessing(false);
       setProgress(null);
@@ -199,7 +197,7 @@ export default function CetakLokal() {
 
       <header className="w-full bg-white shadow-sm border-b border-[#17233D]/10 sticky top-0 z-40">
         <div className="container mx-auto flex justify-between items-center px-6 py-3">
-          <h1 className="text-xl font-bold text-[#17233D] tracking-tight">SertiGen — Cetak Lokal</h1>
+          <h1 className="text-xl font-bold text-[#17233D] tracking-tight">SertiGen — Generasi ZIP Massal</h1>
           <div className="flex items-center gap-4">
             <Link href="/dashboard" className="px-4 py-2 text-sm font-semibold text-white bg-[#8C2F39] rounded-lg shadow-sm hover:bg-[#742531] transition-colors">
               Kembali ke Dashboard
@@ -221,12 +219,12 @@ export default function CetakLokal() {
                   <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 111.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
                 </svg>
               </Link>
-              <h2 className="flex-1 text-3xl font-bold text-center text-[#17233D]">Cetak Sertifikat Lokal</h2>
+              <h2 className="flex-1 text-3xl font-bold text-center text-[#17233D]">Generate ZIP Sertifikat</h2>
               <div className="w-9" aria-hidden="true"></div>
             </div>
 
             <p className="text-sm text-[#17233D]/60 text-center">
-              Semua sertifikat digabung jadi satu file PDF via WASM-accelerated layout, lalu dialog print browser terbuka otomatis.
+              Setiap sertifikat dibuat sesuai template PDF asli, disanitasi &amp; dihitung posisinya via WASM, lalu dikompresi menjadi file .ZIP secara client-side.
             </p>
 
             <div>
@@ -258,24 +256,22 @@ export default function CetakLokal() {
             )}
 
             <button
-              onClick={handleCetakLokal}
+              onClick={handleGenerateAndDownloadZip}
               disabled={isProcessing || !csvFile || !templateFile}
               className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold text-white bg-[#8C2F39] rounded-lg shadow-sm hover:bg-[#742531] disabled:bg-[#17233D]/20 disabled:cursor-not-allowed transition-colors"
             >
               {isProcessing ? (
                 <>
                   <Spinner className="w-4 h-4" />
-                  <span>Memproses...</span>
+                  <span>Memproses &amp; Mengompresi...</span>
                 </>
               ) : (
-                <span>Gabung &amp; Cetak Semua (Print Lokal)</span>
+                <span>Cetak Semua &amp; Download (.zip)</span>
               )}
             </button>
           </div>
         </div>
       </main>
-
-      <iframe ref={printFrameRef} style={{ display: "none" }} title="print-frame" />
     </>
   );
 }
