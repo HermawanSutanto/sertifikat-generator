@@ -1,0 +1,15 @@
+{
+  "name": "pdf_cert_wasm",
+  "type": "module",
+  "version": "0.1.0",
+  "files": [
+    "pdf_cert_wasm_bg.wasm",
+    "pdf_cert_wasm.js",
+    "pdf_cert_wasm.d.ts"
+  ],
+  "main": "pdf_cert_wasm.js",
+  "types": "pdf_cert_wasm.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
