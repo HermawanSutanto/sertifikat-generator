@@ -1,4 +1,10 @@
 "use client";
+// Polyfill untuk global `Iterator` (TC39 Iterator Helpers).
+// Chrome baru dukung native mulai v122 (Feb 2024) — device kentang/Chrome lawas
+// (mis. Chrome 110 ke bawah) akan crash saat memuat pdfjs-dist tanpa ini.
+// Harus di baris paling atas supaya polyfill aktif sebelum modul lain (termasuk
+// dynamic import pdfjs-dist) dieksekusi.
+import "es-iterator-helpers/auto";
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -171,8 +177,11 @@ export default function CetakLokal() {
 // scale: faktor render (1.0 ≈ 100 DPI, 1.5 ≈ 150 DPI, 2.0 ≈ 200 DPI, dst)
 // quality: kualitas JPEG 0.1 (paling kecil) - 1.0 (paling tajam)
 const compressPdfTemplate = async (originalFile, scale = 1.5, quality = 0.8) => {
-  const pdfjsLib = await import("pdfjs-dist/build/pdf");
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+  // Pakai build "legacy" pdfjs-dist — ditranspile untuk browser lama/terbatas
+  // (mis. Chrome < 122 yang belum punya global `Iterator` native), lebih aman
+  // untuk device kentang dibanding build "modern" default.
+  const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf");
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/legacy/build/pdf.worker.min.mjs`;
 
   const arrayBuffer = await originalFile.arrayBuffer();
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
@@ -283,8 +292,8 @@ const compressPdfTemplate = async (originalFile, scale = 1.5, quality = 0.8) => 
     try {
       const compressedFile = await compressPdfTemplate(file, compressionScale, compressionQuality);
       setTemplateFile(compressedFile);
-      const pdfjsLib = await import("pdfjs-dist/build/pdf");
-      pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+      const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf");
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/legacy/build/pdf.worker.min.mjs`;
 
       const arrayBuffer = await file.arrayBuffer();
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
