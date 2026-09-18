@@ -22,10 +22,12 @@
     "next-mdx-remote": "^6.0.0",
     "papaparse": "^5.7.0",
     "pdf-lib": "^1.17.1",
+    "pdfjs-dist": "^6.3.289",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "react-draggable": "^4.5.0",
     "react-konva": "^19.0.10",
+    "react-rnd": "^10.5.3",
     "sharp": "^0.34.4"
   },
   "devDependencies": {

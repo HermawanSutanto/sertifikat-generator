@@ -2,21 +2,25 @@ import init, * as wasm from "@/rust_wasm/pkg/pdf_cert_wasm.js";
 
 self.onmessage = async (e) => {
   try {
-    const { templateUint8, names, chunkSize = 1000 } = e.data;
+    const { templateUint8, csvRows, configs, chunkSize = 1000 } = e.data;
 
-    // 1. Tunggu inisialisasi memori WASM selesai
     await init();
 
-    const total = names.length;
+    const total = csvRows.length;
     let processed = 0;
 
     for (let i = 0; i < total; i += chunkSize) {
-      const chunkNames = names.slice(i, i + chunkSize);
+      const chunkRows = csvRows.slice(i, i + chunkSize);
 
-      // 2. Panggil fungsi langsung dari objek `wasm` yang sudah siap
-      const zipBytes = wasm.generate_certificates_chunk(templateUint8, chunkNames, i);
+      // Kirim Array JSON CSV & Configs ke Rust
+      const zipBytes = wasm.generate_certificates_chunk(
+        templateUint8,
+        chunkRows,
+        configs,
+        i
+      );
 
-      processed += chunkNames.length;
+      processed += chunkRows.length;
 
       self.postMessage({
         type: "CHUNK_COMPLETE",
