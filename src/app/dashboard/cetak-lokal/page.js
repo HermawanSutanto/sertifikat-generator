@@ -81,6 +81,11 @@ export default function CetakLokal() {
   const [csvRows, setCsvRows] = useState([]);
   const [longestRowSample, setLongestRowSample] = useState({});
   const [templateFile, setTemplateFile] = useState(null);
+  const [originalTemplateRawFile, setOriginalTemplateRawFile] = useState(null);
+  const [originalTemplateSize, setOriginalTemplateSize] = useState(0);
+  const [compressionScale, setCompressionScale] = useState(1.5); // ~150 DPI
+  const [compressionQuality, setCompressionQuality] = useState(0.8); // JPEG quality 0-1
+  const [isRecompressing, setIsRecompressing] = useState(false);
 
   // PDF Preview & Multi-Page States
   const [pdfDoc, setPdfDoc] = useState(null);
@@ -140,6 +145,14 @@ export default function CetakLokal() {
     }
   }, [pdfDoc, currentPage]);
 
+  const formatBytes = (bytes) => {
+    if (!bytes || bytes <= 0) return "0 B";
+    const units = ["B", "KB", "MB", "GB"];
+    const idx = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
+    const value = bytes / Math.pow(1024, idx);
+    return `${value.toFixed(idx === 0 ? 0 : 1)} ${units[idx]}`;
+  };
+
   const scanLongestRowSample = (rows, headers) => {
     const sample = {};
     headers.forEach((header) => {
@@ -155,7 +168,9 @@ export default function CetakLokal() {
     return sample;
   };
 // Fungsi untuk mengompres template PDF di browser pengguna
-const compressPdfTemplate = async (originalFile) => {
+// scale: faktor render (1.0 ≈ 100 DPI, 1.5 ≈ 150 DPI, 2.0 ≈ 200 DPI, dst)
+// quality: kualitas JPEG 0.1 (paling kecil) - 1.0 (paling tajam)
+const compressPdfTemplate = async (originalFile, scale = 1.5, quality = 0.8) => {
   const pdfjsLib = await import("pdfjs-dist/build/pdf");
   pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
@@ -166,8 +181,8 @@ const compressPdfTemplate = async (originalFile) => {
 
   for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
     const page = await pdf.getPage(pageNum);
-    // Render dengan scale 1.5 (~150 DPI) untuk efisiensi ukuran vs kualitas
-    const viewport = page.getViewport({ scale: 1.5 });
+    // Render sesuai scale yang dipilih user untuk mengatur trade-off ukuran vs kualitas
+    const viewport = page.getViewport({ scale });
 
     const canvas = document.createElement("canvas");
     const context = canvas.getContext("2d");
@@ -176,8 +191,8 @@ const compressPdfTemplate = async (originalFile) => {
 
     await page.render({ canvasContext: context, viewport }).promise;
 
-    // Convert Canvas ke JPEG Terkompresi (Quality 0.8)
-    const imgDataUrl = canvas.toDataURL("image/jpeg", 0.8);
+    // Convert Canvas ke JPEG Terkompresi sesuai quality yang dipilih user
+    const imgDataUrl = canvas.toDataURL("image/jpeg", quality);
     const imgBytes = await fetch(imgDataUrl).then((res) => res.arrayBuffer());
 
     const embeddedImage = await compressedPdfDoc.embedJpg(imgBytes);
@@ -262,8 +277,11 @@ const compressPdfTemplate = async (originalFile) => {
     if (!file) return;
     // setTemplateFile(file);
 
+    setOriginalTemplateRawFile(file);
+    setOriginalTemplateSize(file.size);
+
     try {
-      const compressedFile = await compressPdfTemplate(file);
+      const compressedFile = await compressPdfTemplate(file, compressionScale, compressionQuality);
       setTemplateFile(compressedFile);
       const pdfjsLib = await import("pdfjs-dist/build/pdf");
       pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
@@ -278,6 +296,35 @@ const compressPdfTemplate = async (originalFile) => {
     } catch (err) {
       console.error("Gagal memuat preview PDF:", err);
       setNotification({ show: true, message: `Gagal memuat preview PDF: ${err.message}`, type: "error" });
+    }
+  };
+
+  // Kompres ulang template dari berkas asli menggunakan pengaturan scale/quality terbaru.
+  // Dipanggil saat user menekan tombol "Terapkan Kompresi" setelah mengubah slider.
+  const handleRecompress = async () => {
+    if (!originalTemplateRawFile) {
+      setNotification({ show: true, message: "Unggah template PDF terlebih dahulu.", type: "error" });
+      return;
+    }
+
+    setIsRecompressing(true);
+    try {
+      const recompressedFile = await compressPdfTemplate(
+        originalTemplateRawFile,
+        compressionScale,
+        compressionQuality
+      );
+      setTemplateFile(recompressedFile);
+      setNotification({
+        show: true,
+        message: `Template dikompres ulang: ${formatBytes(recompressedFile.size)} (dari ${formatBytes(originalTemplateSize)} asli)`,
+        type: "success",
+      });
+    } catch (err) {
+      console.error("Gagal mengompres ulang template:", err);
+      setNotification({ show: true, message: `Gagal mengompres ulang template: ${err.message}`, type: "error" });
+    } finally {
+      setIsRecompressing(false);
     }
   };
 
@@ -570,6 +617,14 @@ const handleRestoreElement = (colName) => {
     );
   }
 
+  // Estimasi Pre-flight: jumlah sertifikat, jumlah part ZIP, dan perkiraan ukuran total.
+  // Estimasi per-file didekati dari ukuran template terkompresi (dominan dibanding overlay teks).
+  const GENERATION_CHUNK_SIZE = 1000; // harus sinkron dengan chunkSize di executeBatchRendering
+  const estimatedCertCount = csvRows.length;
+  const estimatedZipParts = estimatedCertCount > 0 ? Math.ceil(estimatedCertCount / GENERATION_CHUNK_SIZE) : 0;
+  const estimatedPerFileBytes = templateFile ? templateFile.size : 0;
+  const estimatedTotalBytes = estimatedCertCount * estimatedPerFileBytes;
+
   return (
     <>
       <Notification {...notification} />
@@ -603,6 +658,100 @@ const handleRestoreElement = (colName) => {
             <label className="block text-sm font-semibold mb-1">Upload Template PDF</label>
             <input type="file" accept="application/pdf" onChange={handleTemplateChange} className="w-full text-sm p-2 border rounded-lg bg-white" />
           </div>
+
+          {templateFile && (
+            <div className="bg-[#17233D]/5 border border-[#17233D]/10 rounded-xl p-3 space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs font-bold text-[#17233D]">Pengaturan Kompresi Template</span>
+                <span className="text-[10px] text-gray-500">
+                  {formatBytes(originalTemplateSize)} → <span className="font-semibold text-[#8C2F39]">{formatBytes(templateFile.size)}</span>
+                </span>
+              </div>
+
+              <div>
+                <div className="flex justify-between text-[11px] font-medium text-gray-600 mb-1">
+                  <span>Resolusi (≈{Math.round(compressionScale * 100)} DPI)</span>
+                  <span>{compressionScale.toFixed(1)}x</span>
+                </div>
+                <input
+                  type="range"
+                  min="0.5"
+                  max="3"
+                  step="0.1"
+                  value={compressionScale}
+                  onChange={(e) => setCompressionScale(Number(e.target.value))}
+                  className="w-full accent-[#8C2F39]"
+                />
+                <div className="flex justify-between text-[9px] text-gray-400">
+                  <span>Kecil (buram)</span>
+                  <span>Besar (tajam)</span>
+                </div>
+              </div>
+
+              <div>
+                <div className="flex justify-between text-[11px] font-medium text-gray-600 mb-1">
+                  <span>Kualitas JPEG</span>
+                  <span>{Math.round(compressionQuality * 100)}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="0.1"
+                  max="1"
+                  step="0.05"
+                  value={compressionQuality}
+                  onChange={(e) => setCompressionQuality(Number(e.target.value))}
+                  className="w-full accent-[#8C2F39]"
+                />
+                <div className="flex justify-between text-[9px] text-gray-400">
+                  <span>Kecil (buram)</span>
+                  <span>Besar (tajam)</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-3 gap-1.5">
+                {[
+                  { label: "Hemat", scale: 1.0, quality: 0.6 },
+                  { label: "Seimbang", scale: 1.5, quality: 0.8 },
+                  { label: "Tajam", scale: 2.0, quality: 0.9 },
+                ].map((preset) => (
+                  <button
+                    key={preset.label}
+                    type="button"
+                    onClick={() => {
+                      setCompressionScale(preset.scale);
+                      setCompressionQuality(preset.quality);
+                    }}
+                    className={`py-1.5 text-[11px] font-semibold rounded-lg border transition-colors ${
+                      compressionScale === preset.scale && compressionQuality === preset.quality
+                        ? "bg-[#8C2F39] text-white border-[#8C2F39]"
+                        : "bg-white text-gray-700 hover:bg-gray-100 border-gray-300"
+                    }`}
+                  >
+                    {preset.label}
+                  </button>
+                ))}
+              </div>
+
+              <button
+                type="button"
+                onClick={handleRecompress}
+                disabled={isRecompressing || !originalTemplateRawFile}
+                className="w-full py-2 text-xs font-semibold text-white bg-[#17233D] rounded-lg shadow-sm hover:bg-[#0f1729] disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+              >
+                {isRecompressing ? (
+                  <>
+                    <Spinner className="w-3.5 h-3.5" />
+                    Mengompres Ulang...
+                  </>
+                ) : (
+                  "Terapkan Kompresi"
+                )}
+              </button>
+              <p className="text-[10px] text-gray-500">
+                Ubah resolusi/kualitas lalu tekan "Terapkan Kompresi" untuk memperbarui ukuran template dan estimasi hasil ekspor. Perubahan tidak otomatis diterapkan saat slider digeser.
+              </p>
+            </div>
+          )}
 
           {/* Preset Manager Section */}
           <div className="pt-4 border-t border-[#17233D]/10 space-y-3">
@@ -813,6 +962,34 @@ const handleRestoreElement = (colName) => {
               <div className="w-full h-2 bg-[#17233D]/10 rounded-full overflow-hidden">
                 <div className="h-full bg-[#8C2F39] transition-all duration-300" style={{ width: `${(progress.current / progress.total) * 100}%` }} />
               </div>
+            </div>
+          )}
+
+          {!isProcessing && csvFile && templateFile && estimatedCertCount > 0 && (
+            <div className="bg-[#17233D]/5 border border-[#17233D]/10 rounded-xl p-3 space-y-1.5">
+              <div className="flex items-center gap-2 text-xs font-bold text-[#17233D]">
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+                </svg>
+                <span>Ringkasan Sebelum Cetak</span>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-xs text-gray-700">
+                <div>
+                  <div className="text-[10px] text-gray-500 uppercase tracking-wide">Sertifikat</div>
+                  <div className="font-semibold">{estimatedCertCount.toLocaleString("id-ID")} berkas</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-gray-500 uppercase tracking-wide">File ZIP</div>
+                  <div className="font-semibold">{estimatedZipParts} bagian</div>
+                </div>
+                <div>
+                  <div className="text-[10px] text-gray-500 uppercase tracking-wide">Estimasi Ukuran</div>
+                  <div className="font-semibold">≈ {formatBytes(estimatedTotalBytes)}</div>
+                </div>
+              </div>
+              <p className="text-[10px] text-gray-500 pt-1">
+                Estimasi berdasarkan ukuran template terkompresi × jumlah baris data. Ukuran aktual bisa sedikit berbeda tergantung panjang teks.
+              </p>
             </div>
           )}
 
