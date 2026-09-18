@@ -23,7 +23,6 @@ const Notification = ({ message, type, show }) => {
   );
 };
 
-// Modal Pre-flight Validation Component
 const ValidationModal = ({ isOpen, warnings, onConfirm, onCancel }) => {
   if (!isOpen) return null;
 
@@ -80,18 +79,29 @@ export default function CetakLokal() {
   const [csvFile, setCsvFile] = useState(null);
   const [csvHeaders, setCsvHeaders] = useState([]);
   const [csvRows, setCsvRows] = useState([]);
-  const [longestRowSample, setLongestRowSample] = useState({}); // Stores longest string samples
+  const [longestRowSample, setLongestRowSample] = useState({});
   const [templateFile, setTemplateFile] = useState(null);
+
+  // PDF Preview & Multi-Page States
+  const [pdfDoc, setPdfDoc] = useState(null);
+  const [totalPages, setTotalPages] = useState(1);
+  const [currentPage, setCurrentPage] = useState(1);
   const [pdfPreviewSize, setPdfPreviewSize] = useState({ width: 842, height: 595 });
 
   const [configs, setConfigs] = useState([]);
   const [activeColumn, setActiveColumn] = useState("");
 
+  // Preset Manager States
+  const [presetName, setPresetName] = useState("");
+  const [savedPresets, setSavedPresets] = useState([]);
+
+  // Snap Guides Active States
+  const [activeSnapGuides, setActiveSnapGuides] = useState({ x: false, y: false });
+
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(null);
   const [notification, setNotification] = useState({ show: false, message: "", type: "success" });
 
-  // Validation Modal States
   const [validationWarnings, setValidationWarnings] = useState([]);
   const [isValidationModalOpen, setIsValidationModalOpen] = useState(false);
 
@@ -111,7 +121,25 @@ export default function CetakLokal() {
     }
   }, [user, loading, router]);
 
-  // Longest Data Scanner: Find longest string per column in CSV
+  // Load Saved Presets from localStorage on Init
+  useEffect(() => {
+    const local = localStorage.getItem("sertigen_presets");
+    if (local) {
+      try {
+        setSavedPresets(JSON.parse(local));
+      } catch (e) {
+        console.error("Gagal membaca presets:", e);
+      }
+    }
+  }, []);
+
+  // Render Page Preview whenever currentPage or pdfDoc changes
+  useEffect(() => {
+    if (pdfDoc) {
+      renderPdfPage(pdfDoc, currentPage);
+    }
+  }, [pdfDoc, currentPage]);
+
   const scanLongestRowSample = (rows, headers) => {
     const sample = {};
     headers.forEach((header) => {
@@ -143,14 +171,13 @@ export default function CetakLokal() {
           const fields = results.meta.fields;
           setCsvHeaders(fields);
 
-          // Scan samples terpanjang
           const scannedLongest = scanLongestRowSample(rows, fields);
           setLongestRowSample(scannedLongest);
 
           const initialConfigs = fields.map((header, idx) => ({
             column_name: header,
             static_text: "",
-            x: 100,
+            x: (pdfPreviewSize.width - 400) / 2, // Default Center Horizontal
             y: 150 + idx * 60,
             font_size: 28,
             max_width: 400,
@@ -168,19 +195,9 @@ export default function CetakLokal() {
     });
   };
 
-  const handleTemplateChange = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setTemplateFile(file);
-
+  const renderPdfPage = async (pdf, pageNum) => {
     try {
-      const pdfjsLib = await import("pdfjs-dist/build/pdf");
-      pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
-
-      const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      const page = await pdf.getPage(1);
-
+      const page = await pdf.getPage(pageNum);
       const viewport = page.getViewport({ scale: 1.0 });
       setPdfPreviewSize({ width: viewport.width, height: viewport.height });
 
@@ -193,6 +210,27 @@ export default function CetakLokal() {
         await page.render({ canvasContext: context, viewport }).promise;
       }
     } catch (err) {
+      console.error("Gagal merender halaman PDF:", err);
+    }
+  };
+
+  const handleTemplateChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setTemplateFile(file);
+
+    try {
+      const pdfjsLib = await import("pdfjs-dist/build/pdf");
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
+
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      setPdfDoc(pdf);
+      setTotalPages(pdf.numPages);
+      setCurrentPage(1);
+
+      await renderPdfPage(pdf, 1);
+    } catch (err) {
       console.error("Gagal memuat preview PDF:", err);
       setNotification({ show: true, message: `Gagal memuat preview PDF: ${err.message}`, type: "error" });
     }
@@ -203,13 +241,13 @@ export default function CetakLokal() {
     const newConfig = {
       column_name: staticId,
       static_text: "Teks Statis {Nama}",
-      x: 150,
+      x: (pdfPreviewSize.width - 300) / 2,
       y: 100,
       font_size: 24,
       max_width: 300,
       align: "center",
       enabled: true,
-      page_number: 1,
+      page_number: currentPage,
     };
 
     setConfigs((prev) => [...prev, newConfig]);
@@ -227,7 +265,94 @@ export default function CetakLokal() {
     );
   };
 
-  // Interpolasi String Template untuk Canvas Live Preview
+  // Dragging Snapping Logic
+  const handleDrag = (colName, x, y, width) => {
+    const snapThreshold = 6;
+    const centerX = pdfPreviewSize.width / 2;
+    const centerY = pdfPreviewSize.height / 2;
+
+    const elementCenterX = x + width / 2;
+    let snappedX = x;
+    let snappedY = y;
+
+    let isSnapX = false;
+    let isSnapY = false;
+
+    // Snap Horizontal Center
+    if (Math.abs(elementCenterX - centerX) < snapThreshold) {
+      snappedX = centerX - width / 2;
+      isSnapX = true;
+    }
+
+    // Snap Vertical Center
+    if (Math.abs(y - centerY) < snapThreshold) {
+      snappedY = centerY;
+      isSnapY = true;
+    }
+
+    setActiveSnapGuides({ x: isSnapX, y: isSnapY });
+    return { x: snappedX, y: snappedY };
+  };
+
+  // Preset Management
+  const handleSavePreset = () => {
+    if (!presetName.trim()) {
+      setNotification({ show: true, message: "Masukkan nama preset terlebih dahulu.", type: "error" });
+      return;
+    }
+
+    const newPreset = {
+      id: Date.now(),
+      name: presetName.trim(),
+      configs,
+    };
+
+    const updated = [...savedPresets.filter((p) => p.name !== presetName.trim()), newPreset];
+    setSavedPresets(updated);
+    localStorage.setItem("sertigen_presets", JSON.stringify(updated));
+    setPresetName("");
+    setNotification({ show: true, message: `Preset "${newPreset.name}" berhasil disimpan!`, type: "success" });
+  };
+
+  const handleLoadPreset = (presetId) => {
+    const target = savedPresets.find((p) => p.id === Number(presetId));
+    if (target) {
+      setConfigs(target.configs);
+      if (target.configs.length > 0) setActiveColumn(target.configs[0].column_name);
+      setNotification({ show: true, message: `Preset "${target.name}" dimuat!`, type: "success" });
+    }
+  };
+
+  const handleExportJson = () => {
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(configs, null, 2));
+    const downloadAnchor = document.createElement("a");
+    downloadAnchor.setAttribute("href", dataStr);
+    downloadAnchor.setAttribute("download", `preset_layout_${Date.now()}.json`);
+    document.body.appendChild(downloadAnchor);
+    downloadAnchor.click();
+    downloadAnchor.remove();
+  };
+
+  const handleImportJson = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const imported = JSON.parse(evt.target.result);
+        if (Array.isArray(imported)) {
+          setConfigs(imported);
+          if (imported.length > 0) setActiveColumn(imported[0].column_name);
+          setNotification({ show: true, message: "Preset JSON berhasil diimpor!", type: "success" });
+        }
+      } catch (err) {
+        setNotification({ show: true, message: "File JSON preset tidak valid.", type: "error" });
+      }
+    };
+    reader.readAsText(file);
+  };
+
   const renderPreviewText = (cfg) => {
     if (cfg.static_text !== undefined && cfg.static_text !== "") {
       let text = cfg.static_text;
@@ -250,12 +375,10 @@ export default function CetakLokal() {
     return longestRowSample[cfg.column_name] || `[Kolom ${cfg.column_name}]`;
   };
 
-  // Pre-flight Validation Runner
   const runPreflightValidation = () => {
     const warnings = [];
 
     configs.filter((c) => c.enabled).forEach((cfg) => {
-      // 1. Cek Typo Placeholder {Variabel} di Teks Statis
       if (cfg.static_text) {
         const matches = cfg.static_text.match(/\{([^}]+)\}/g);
         if (matches) {
@@ -265,14 +388,13 @@ export default function CetakLokal() {
 
             if (!csvHeaders.includes(key)) {
               warnings.push(
-                `Placeholder "${match}" di elemen Teks Statis tidak ditemukan pada header CSV. (Headers CSV yang ada: ${csvHeaders.join(", ")})`
+                `Placeholder "${match}" di Teks Statis tidak ditemukan pada header CSV. (Headers CSV: ${csvHeaders.join(", ")})`
               );
             }
           });
         }
       }
 
-      // 2. Cek Data Kosong pada CSV untuk Kolom Aktif
       if (!cfg.static_text && csvHeaders.includes(cfg.column_name)) {
         let emptyCount = 0;
         csvRows.forEach((row) => {
@@ -282,9 +404,7 @@ export default function CetakLokal() {
         });
 
         if (emptyCount > 0) {
-          warnings.push(
-            `Terdapat ${emptyCount} baris data yang kosong di kolom "${cfg.column_name}".`
-          );
+          warnings.push(`Terdapat ${emptyCount} baris data kosong di kolom "${cfg.column_name}".`);
         }
       }
     });
@@ -425,6 +545,56 @@ export default function CetakLokal() {
             <input type="file" accept="application/pdf" onChange={handleTemplateChange} className="w-full text-sm p-2 border rounded-lg bg-white" />
           </div>
 
+          {/* Preset Manager Section */}
+          <div className="pt-4 border-t border-[#17233D]/10 space-y-3">
+            <h2 className="text-sm font-bold">Preset Layout Manager</h2>
+
+            <div className="flex gap-2">
+              <input
+                type="text"
+                placeholder="Nama Preset..."
+                value={presetName}
+                onChange={(e) => setPresetName(e.target.value)}
+                className="w-full p-1.5 text-xs border rounded-lg bg-white"
+              />
+              <button
+                type="button"
+                onClick={handleSavePreset}
+                className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shrink-0"
+              >
+                Simpan
+              </button>
+            </div>
+
+            {savedPresets.length > 0 && (
+              <select
+                onChange={(e) => handleLoadPreset(e.target.value)}
+                defaultValue=""
+                className="w-full p-1.5 text-xs border rounded-lg bg-white"
+              >
+                <option value="" disabled>-- Muat Preset Tersimpan --</option>
+                {savedPresets.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
+            )}
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={handleExportJson}
+                className="w-1/2 py-1 text-xs font-semibold text-gray-700 bg-gray-200 hover:bg-gray-300 rounded-lg"
+              >
+                Export JSON
+              </button>
+              <label className="w-1/2 py-1 text-xs font-semibold text-center text-gray-700 bg-gray-200 hover:bg-gray-300 rounded-lg cursor-pointer">
+                Import JSON
+                <input type="file" accept=".json" onChange={handleImportJson} className="hidden" />
+              </label>
+            </div>
+          </div>
+
+          {/* Tata Letak Elemen */}
           <div className="space-y-4 pt-4 border-t border-[#17233D]/10">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-bold">2. Tata Letak Elemen</h2>
@@ -433,7 +603,7 @@ export default function CetakLokal() {
                 onClick={handleAddStaticText}
                 className="px-3 py-1.5 text-xs font-semibold text-white bg-green-700 hover:bg-green-800 rounded-lg shadow-sm transition-colors"
               >
-                + Tambah Teks Statis
+                + Teks Statis
               </button>
             </div>
 
@@ -464,15 +634,29 @@ export default function CetakLokal() {
                     <div>
                       <div className="flex justify-between items-center mb-1">
                         <label className="block text-xs font-semibold">Isi Teks Statis</label>
-                        <span className="text-[10px] text-gray-500">Gunakan {"{Nama}"} atau {"{Nama:uppercase}"}</span>
+                        <span className="text-[10px] text-gray-500">Gunakan {"{Nama}"}</span>
                       </div>
                       <input
                         type="text"
                         value={cfg.static_text}
                         onChange={(e) => updateConfig(cfg.column_name, { static_text: e.target.value })}
                         className="w-full p-2 text-sm border rounded-lg font-medium"
-                        placeholder="Contoh: Diberikan kepada {Nama}"
                       />
+                    </div>
+                  )}
+
+                  {totalPages > 1 && (
+                    <div>
+                      <label className="block text-xs font-semibold mb-1">Ditempatkan di Halaman Target</label>
+                      <select
+                        value={cfg.page_number || 1}
+                        onChange={(e) => updateConfig(cfg.column_name, { page_number: Number(e.target.value) })}
+                        className="w-full p-2 text-sm border rounded-lg bg-white"
+                      >
+                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((num) => (
+                          <option key={num} value={num}>Halaman {num}</option>
+                        ))}
+                      </select>
                     </div>
                   )}
 
@@ -558,62 +742,92 @@ export default function CetakLokal() {
 
         {/* Panel Preview Layout Canvas */}
         <div className="w-full lg:w-2/3 flex flex-col items-center bg-[#FCFAF2] p-6 rounded-2xl shadow-md border border-[#17233D]/10 overflow-auto">
+          {/* Header Preview & Multi-Page Switcher */}
           <div className="w-full flex justify-between items-center mb-3">
             <span className="text-xs font-semibold text-gray-500">
-              💡 Smart Live Preview: Menampilkan data terpanjang dari CSV
+              💡 Drag elemen untuk mengatur posisi. Kotak akan otomatis snap ke tengah canvas.
             </span>
+
+            {totalPages > 1 && (
+              <div className="flex items-center gap-2 bg-white px-3 py-1 rounded-lg border shadow-sm">
+                <span className="text-xs font-bold text-gray-700">Halaman:</span>
+                {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                  <button
+                    key={pageNum}
+                    onClick={() => setCurrentPage(pageNum)}
+                    className={`px-2 py-0.5 text-xs font-bold rounded ${
+                      currentPage === pageNum ? "bg-[#8C2F39] text-white" : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    {pageNum}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div
             ref={containerRef}
-            className="relative border border-gray-400 bg-white shadow-lg rounded-sm"
+            className="relative border border-gray-400 bg-white shadow-lg rounded-sm overflow-hidden"
             style={{ width: pdfPreviewSize.width, height: pdfPreviewSize.height }}
           >
             <canvas ref={canvasRef} className="absolute top-0 left-0 z-0 pointer-events-none" />
 
-            {configs.map((cfg) => {
-              const displayText = renderPreviewText(cfg);
-              const isSelected = activeColumn === cfg.column_name;
-              const isStatic = cfg.static_text !== undefined;
+            {/* Center Snap Guides (Visual Only) */}
+            {activeSnapGuides.x && (
+              <div className="absolute top-0 bottom-0 left-1/2 w-[1px] bg-red-500 border-r border-dashed border-red-500 z-20 pointer-events-none" />
+            )}
+            {activeSnapGuides.y && (
+              <div className="absolute left-0 right-0 top-1/2 h-[1px] bg-red-500 border-b border-dashed border-red-500 z-20 pointer-events-none" />
+            )}
 
-              return (
-                <Rnd
-                  key={cfg.column_name}
-                  bounds="parent"
-                  size={{ width: cfg.max_width, height: cfg.font_size * 1.5 }}
-                  position={{ x: cfg.x, y: cfg.y }}
-                  onDragStop={(e, d) => {
-                    updateConfig(cfg.column_name, { x: d.x, y: d.y });
-                    setActiveColumn(cfg.column_name);
-                  }}
-                  onResizeStop={(e, dir, ref, delta, pos) => {
-                    updateConfig(cfg.column_name, {
-                      max_width: parseFloat(ref.style.width),
-                      x: pos.x,
-                      y: pos.y,
-                    });
-                    setActiveColumn(cfg.column_name);
-                  }}
-                  onClick={() => setActiveColumn(cfg.column_name)}
-                  className={`absolute flex items-center border-2 border-dashed px-2 cursor-move z-10 transition-colors ${
-                    isSelected
-                      ? "border-[#8C2F39] bg-[#8C2F39]/15"
-                      : isStatic
-                      ? "border-green-500 bg-green-500/10"
-                      : "border-blue-400 bg-blue-400/10"
-                  } ${
-                    cfg.align === "center" ? "justify-center text-center" : cfg.align === "right" ? "justify-end text-right" : "justify-start text-left"
-                  }`}
-                >
-                  <span
-                    style={{ fontSize: `${cfg.font_size * 0.75}px` }}
-                    className="truncate font-bold text-gray-800 select-none w-full"
+            {/* Render Elemen Khusus Halaman Aktif */}
+            {configs
+              .filter((cfg) => (cfg.page_number || 1) === currentPage)
+              .map((cfg) => {
+                const displayText = renderPreviewText(cfg);
+                const isSelected = activeColumn === cfg.column_name;
+                const isStatic = cfg.static_text !== undefined;
+
+                return (
+                  <Rnd
+                    key={cfg.column_name}
+                    bounds="parent"
+                    size={{ width: cfg.max_width, height: cfg.font_size * 1.5 }}
+                    position={{ x: cfg.x, y: cfg.y }}
+                    onDrag={(e, d) => {
+                      const { x, y } = handleDrag(cfg.column_name, d.x, d.y, cfg.max_width);
+                      updateConfig(cfg.column_name, { x, y });
+                    }}
+                    onDragStop={() => setActiveSnapGuides({ x: false, y: false })}
+                    onResizeStop={(e, dir, ref, delta, pos) => {
+                      updateConfig(cfg.column_name, {
+                        max_width: parseFloat(ref.style.width),
+                        x: pos.x,
+                        y: pos.y,
+                      });
+                      setActiveColumn(cfg.column_name);
+                    }}
+                    onClick={() => setActiveColumn(cfg.column_name)}
+                    className={`absolute flex items-center border-2 border-dashed px-2 cursor-move z-10 transition-colors ${
+                      isSelected
+                        ? "border-[#8C2F39] bg-[#8C2F39]/15"
+                        : isStatic
+                        ? "border-green-500 bg-green-500/10"
+                        : "border-blue-400 bg-blue-400/10"
+                    } ${
+                      cfg.align === "center" ? "justify-center text-center" : cfg.align === "right" ? "justify-end text-right" : "justify-start text-left"
+                    }`}
                   >
-                    {displayText}
-                  </span>
-                </Rnd>
-              );
-            })}
+                    <span
+                      style={{ fontSize: `${cfg.font_size * 0.75}px` }}
+                      className="truncate font-bold text-gray-800 select-none w-full"
+                    >
+                      {displayText}
+                    </span>
+                  </Rnd>
+                );
+              })}
           </div>
         </div>
       </main>
