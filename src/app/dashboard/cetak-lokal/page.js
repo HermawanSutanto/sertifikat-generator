@@ -254,10 +254,24 @@ export default function CetakLokal() {
     setActiveColumn(staticId);
   };
 
-  const handleDeleteElement = (colName) => {
-    setConfigs((prev) => prev.filter((c) => c.column_name !== colName));
-    setActiveColumn(configs[0]?.column_name || "");
-  };
+  // Mengubah status elemen menjadi nonaktif (hide dari canvas)
+const handleHideElement = (colName) => {
+  setConfigs((prev) =>
+    prev.map((c) => (c.column_name === colName ? { ...c, enabled: false } : c))
+  );
+  
+  // Pindahkan activeColumn ke elemen lain yang masih aktif
+  const remainingActive = configs.filter((c) => c.enabled && c.column_name !== colName);
+  setActiveColumn(remainingActive[0]?.column_name || "");
+};
+
+// Mengaktifkan kembali elemen yang disembunyikan/dihapus
+const handleRestoreElement = (colName) => {
+  setConfigs((prev) =>
+    prev.map((c) => (c.column_name === colName ? { ...c, enabled: true } : c))
+  );
+  setActiveColumn(colName);
+};
 
   const updateConfig = (colName, newProps) => {
     setConfigs((prev) =>
@@ -615,7 +629,7 @@ export default function CetakLokal() {
                   onChange={(e) => setActiveColumn(e.target.value)}
                   className="w-full p-2 text-sm border rounded-lg bg-white font-medium"
                 >
-                  {configs.map((c) => (
+                  {configs.filter((c) => c.enabled).map((c) => (
                     <option key={c.column_name} value={c.column_name}>
                       {c.static_text !== undefined && c.static_text !== ""
                         ? `[Teks Statis] ${c.static_text}`
@@ -625,7 +639,33 @@ export default function CetakLokal() {
                 </select>
               </div>
             )}
-
+            {/* Daftar Elemen Nonaktif / Tersedia untuk Dipanggil */}
+            {configs.some((c) => !c.enabled) && (
+              <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-200 space-y-2">
+                <label className="block text-xs font-bold text-amber-900">
+                  Elemen/Kolom yang Disembunyikan ({configs.filter((c) => !c.enabled).length})
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {configs
+                    .filter((c) => !c.enabled)
+                    .map((cfg) => (
+                      <button
+                        key={cfg.column_name}
+                        type="button"
+                        onClick={() => handleRestoreElement(cfg.column_name)}
+                        className="px-2.5 py-1 text-xs font-semibold bg-white text-gray-700 hover:bg-amber-100 border border-amber-300 rounded-lg shadow-sm flex items-center gap-1 transition-colors"
+                      >
+                        <span>+</span>
+                        <span>
+                          {cfg.static_text !== undefined && cfg.static_text !== ""
+                            ? cfg.static_text
+                            : cfg.column_name}
+                        </span>
+                      </button>
+                    ))}
+                </div>
+              </div>
+            )}
             {configs
               .filter((c) => c.column_name === activeColumn)
               .map((cfg) => (
@@ -783,7 +823,7 @@ export default function CetakLokal() {
 
             {/* Render Elemen Khusus Halaman Aktif */}
             {configs
-              .filter((cfg) => (cfg.page_number || 1) === currentPage)
+              .filter((cfg) => cfg.enabled && (cfg.page_number || 1) === currentPage) // <--- LETAKNYA DI SINI
               .map((cfg) => {
                 const displayText = renderPreviewText(cfg);
                 const isSelected = activeColumn === cfg.column_name;
