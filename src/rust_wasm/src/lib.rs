@@ -26,12 +26,40 @@ pub fn sanitize_name(nama: &str) -> String {
 }
 
 fn wrap_text(text: &str, font_size: f32, max_width: f32) -> Vec<String> {
-    let approx_char_width = font_size * 0.52;
+    let approx_char_width = font_size * 0.52; // Estimasi rata-rata lebar karakter Helvetica-Bold
     let words: Vec<&str> = text.split_whitespace().collect();
     let mut lines = Vec::new();
     let mut current_line = String::new();
 
     for word in words {
+        let word_width = word.len() as f32 * approx_char_width;
+
+        // BISA TERJADI: 1 Kata Tunggal Sendirian Sudah Lebih Lebar dari Box
+        if word_width > max_width {
+            // Flush baris yang sedang berjalan dulu
+            if !current_line.is_empty() {
+                lines.push(current_line.clone());
+                current_line.clear();
+            }
+
+            // Pecah kata panjang tersebut per karakter
+            let mut char_chunk = String::new();
+            for ch in word.chars() {
+                let test_chunk = format!("{}{}", char_chunk, ch);
+                if (test_chunk.len() as f32 * approx_char_width) > max_width && !char_chunk.is_empty() {
+                    lines.push(char_chunk);
+                    char_chunk = ch.to_string();
+                } else {
+                    char_chunk = test_chunk;
+                }
+            }
+            if !char_chunk.is_empty() {
+                current_line = char_chunk;
+            }
+            continue;
+        }
+
+        // KASUS NORMAL: Uji gabungkan kata ke baris aktif
         let test_line = if current_line.is_empty() {
             word.to_string()
         } else {
@@ -39,6 +67,7 @@ fn wrap_text(text: &str, font_size: f32, max_width: f32) -> Vec<String> {
         };
 
         let test_width = test_line.len() as f32 * approx_char_width;
+
         if test_width > max_width && !current_line.is_empty() {
             lines.push(current_line);
             current_line = word.to_string();
