@@ -3,12 +3,13 @@
 /**
  * @param {Uint8Array} template_bytes
  * @param {any} names
+ * @param {number} start_idx
  * @returns {Uint8Array}
  */
-export function generate_certificates_zip(template_bytes, names) {
+export function generate_certificates_chunk(template_bytes, names, start_idx) {
     const ptr0 = passArray8ToWasm0(template_bytes, wasm.__wbindgen_malloc);
     const len0 = WASM_VECTOR_LEN;
-    const ret = wasm.generate_certificates_zip(ptr0, len0, names);
+    const ret = wasm.generate_certificates_chunk(ptr0, len0, names, start_idx);
     if (ret[3]) {
         throw takeFromExternrefTable0(ret[2]);
     }
@@ -22,13 +23,6 @@ function __wbg_get_imports() {
         __wbg_Error_67e7344beaa85059: function(arg0, arg1) {
             const ret = Error(getStringFromWasm0(arg0, arg1));
             return ret;
-        },
-        __wbg_String_8564e559799eccda: function(arg0, arg1) {
-            const ret = String(arg1);
-            const ptr1 = passStringToWasm0(ret, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
-            const len1 = WASM_VECTOR_LEN;
-            getDataViewMemory0().setInt32(arg0 + 4 * 1, len1, true);
-            getDataViewMemory0().setInt32(arg0 + 4 * 0, ptr1, true);
         },
         __wbg___wbindgen_boolean_get_7a12af2b3f899c5a: function(arg0) {
             const v = arg0;

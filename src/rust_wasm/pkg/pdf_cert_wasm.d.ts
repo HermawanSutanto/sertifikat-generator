@@ -1,13 +1,13 @@
 /* tslint:disable */
 /* eslint-disable */
 
-export function generate_certificates_zip(template_bytes: Uint8Array, names: any): Uint8Array;
+export function generate_certificates_chunk(template_bytes: Uint8Array, names: any, start_idx: number): Uint8Array;
 
 export type InitInput = RequestInfo | URL | Response | BufferSource | WebAssembly.Module;
 
 export interface InitOutput {
     readonly memory: WebAssembly.Memory;
-    readonly generate_certificates_zip: (a: number, b: number, c: any) => [number, number, number, number];
+    readonly generate_certificates_chunk: (a: number, b: number, c: any, d: number) => [number, number, number, number];
     readonly __wbindgen_malloc: (a: number, b: number) => number;
     readonly __wbindgen_realloc: (a: number, b: number, c: number, d: number) => number;
     readonly __wbindgen_exn_store: (a: number) => void;

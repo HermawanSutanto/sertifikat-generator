@@ -30,24 +30,8 @@ export default function CetakLokal() {
   const [csvRowCount, setCsvRowCount] = useState(0);
   const [templateFile, setTemplateFile] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [wasmReady, setWasmReady] = useState(false);
-  const [wasmModule, setWasmModule] = useState(null);
+  const [progress, setProgress] = useState(null);
   const [notification, setNotification] = useState({ show: false, message: "", type: "success" });
-
-  useEffect(() => {
-    async function loadWasm() {
-      if (typeof window === "undefined") return;
-      try {
-        const wasm = await import("@/rust_wasm/pkg/pdf_cert_wasm.js");
-        await wasm.default();
-        setWasmModule(wasm);
-        setWasmReady(true);
-      } catch (err) {
-        console.error("Gagal memuat Rust WASM:", err);
-      }
-    }
-    loadWasm();
-  }, []);
 
   useEffect(() => {
     if (notification.show) {
@@ -87,13 +71,9 @@ export default function CetakLokal() {
       return;
     }
 
-    if (!wasmReady || !wasmModule) {
-      setNotification({ show: true, message: "Modul Rust WASM belum siap. Tunggu sebentar.", type: "error" });
-      return;
-    }
-
     setIsProcessing(true);
-    setNotification({ show: true, message: "Memproses seluruh PDF & ZIP di Engine Rust...", type: "success" });
+    setProgress({ current: 0, total: csvRowCount });
+    setNotification({ show: true, message: "Memulai pemrosesan via Web Worker...", type: "success" });
 
     try {
       // 1. Baca data CSV
@@ -106,37 +86,74 @@ export default function CetakLokal() {
         throw new Error("File CSV kosong atau tidak valid.");
       }
 
-      // 2. Ekstrak array nama
       const names = allData.map((row, i) => row["Nama"] || row["nama"] || `Peserta_${i + 1}`);
-
-      // 3. Baca ArrayBuffer dari template PDF
       const templateArrayBuffer = await templateFile.arrayBuffer();
       const templateUint8 = new Uint8Array(templateArrayBuffer);
 
-      // 4. Eksekusi Full di Rust WASM (PDF generation + ZIP Compression)
-      const zipBytes = wasmModule.generate_certificates_zip(templateUint8, names);
+      // 2. Inisialisasi Web Worker dari folder public
+      // KODE BARU (BISA DI-BUNDEL NEXT.JS):
+      const worker = new Worker(new URL("./pdfWorker.js", import.meta.url));
 
-      // 5. Trigger download file ZIP
-      const blob = new Blob([zipBytes], { type: "application/zip" });
-      const downloadUrl = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = downloadUrl;
-      link.download = `sertifikat_massal_${Date.now()}.zip`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(downloadUrl);
-
-      setNotification({
-        show: true,
-        message: `Berhasil! ${names.length} sertifikat selesai diproses & diunduh.`,
-        type: "success"
+      // 3. Kirim data ke Web Worker
+      worker.postMessage({
+        templateUint8,
+        names,
+        chunkSize: 1000 // Mengelompokkan per 1000 sertifikat per file ZIP
       });
+
+      // 4. Tangani sinyal balasan dari Web Worker
+      worker.onmessage = (e) => {
+        const { type, zipBytes, part, progress: workerProgress, error } = e.data;
+
+        if (type === "CHUNK_COMPLETE") {
+          // Update progress UI secara real-time (bebas lag)
+          setProgress(workerProgress);
+
+          // Unduh ZIP batch yang baru selesai
+          const blob = new Blob([zipBytes], { type: "application/zip" });
+          const downloadUrl = URL.createObjectURL(blob);
+          const link = document.createElement("a");
+          link.href = downloadUrl;
+          link.download = `sertifikat_massal_part_${part}_${Date.now()}.zip`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(downloadUrl);
+        }
+
+        if (type === "ALL_COMPLETE") {
+          setIsProcessing(false);
+          setProgress(null);
+          setNotification({
+            show: true,
+            message: `Berhasil! Seluruh ${names.length} sertifikat selesai diproses.`,
+            type: "success"
+          });
+          worker.terminate(); // Matikan worker setelah selesai
+        }
+
+        if (type === "ERROR") {
+          console.error("Worker error:", error);
+          setNotification({ show: true, message: `Error Worker: ${error}`, type: "error" });
+          setIsProcessing(false);
+          setProgress(null);
+          worker.terminate();
+        }
+      };
+
+      worker.onerror = (err) => {
+        console.error("Worker Execution Error:", err);
+        setNotification({ show: true, message: `Gagal menjalankan Web Worker: ${err.message}`, type: "error" });
+        setIsProcessing(false);
+        setProgress(null);
+        worker.terminate();
+      };
+
     } catch (error) {
       console.error("Gagal memproses sertifikat:", error);
       setNotification({ show: true, message: `Terjadi kesalahan: ${error.message || error}`, type: "error" });
-    } finally {
       setIsProcessing(false);
+      setProgress(null);
     }
   };
 
@@ -181,7 +198,7 @@ export default function CetakLokal() {
             </div>
 
             <p className="text-sm text-[#17233D]/60 text-center">
-              Seluruh proses perenderan PDF dan pengompresan file ZIP dilakukan secara native menggunakan <strong>Rust WASM</strong>.
+              Seluruh proses perenderan PDF dan pengompresan file ZIP diproses di <strong>Web Worker Thread (Rust WASM)</strong> tanpa membuat UI terhenti.
             </p>
 
             <div>
@@ -200,15 +217,27 @@ export default function CetakLokal() {
               </label>
             </div>
 
+            {progress && (
+              <div>
+                <div className="flex justify-between text-xs text-[#17233D]/60 mb-1">
+                  <span>Memproses sertifikat (Web Worker)...</span>
+                  <span>{progress.current} / {progress.total}</span>
+                </div>
+                <div className="w-full h-2 rounded-full bg-[#17233D]/10 overflow-hidden">
+                  <div className="h-full bg-[#8C2F39] transition-all duration-300" style={{ width: `${(progress.current / progress.total) * 100}%` }} />
+                </div>
+              </div>
+            )}
+
             <button
               onClick={handleGenerateAndDownloadZip}
-              disabled={isProcessing || !csvFile || !templateFile || !wasmReady}
+              disabled={isProcessing || !csvFile || !templateFile}
               className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold text-white bg-[#8C2F39] rounded-lg shadow-sm hover:bg-[#742531] disabled:bg-[#17233D]/20 disabled:cursor-not-allowed transition-colors"
             >
               {isProcessing ? (
                 <>
                   <Spinner className="w-4 h-4" />
-                  <span>Memproses dalam Rust WASM...</span>
+                  <span>Memproses via Background Worker...</span>
                 </>
               ) : (
                 <span>Cetak Semua &amp; Download (.zip)</span>
