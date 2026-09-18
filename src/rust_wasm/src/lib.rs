@@ -16,7 +16,7 @@ pub struct TextElementConfig {
     pub max_width: f32,
     pub line_height: Option<f32>,
     pub align: Option<String>,
-    pub page_number: Option<usize>, // Halaman target (Default: 1)
+    pub page_number: Option<usize>,
 }
 
 pub fn sanitize_name(nama: &str) -> String {
@@ -26,32 +26,33 @@ pub fn sanitize_name(nama: &str) -> String {
         .replace(':', "_")
 }
 
-// Algoritma Word-Wrapping Presisi dengan Character-Level Break
+// Algoritma Word-Wrapping Presisi dengan Alokasi Memori Efisien
 fn wrap_text(text: &str, font_size: f32, max_width: f32) -> Vec<String> {
-    let approx_char_width = font_size * 0.52; // Estimasi lebar karakter Helvetica-Bold
+    let approx_char_width = font_size * 0.52;
     let words: Vec<&str> = text.split_whitespace().collect();
-    let mut lines = Vec::new();
-    let mut current_line = String::new();
+    let mut lines = Vec::with_capacity(4);
+    let mut current_line = String::with_capacity(64);
 
     for word in words {
         let word_width = word.len() as f32 * approx_char_width;
 
-        // KASUS KATA SANGAT PANJANG (melebihi max_width sendirian): Potong per karakter
+        // Fallback: Kata tunggal yang melebihi max_width
         if word_width > max_width {
             if !current_line.is_empty() {
                 lines.push(current_line.clone());
                 current_line.clear();
             }
 
-            let mut char_chunk = String::new();
+            let mut char_chunk = String::with_capacity(32);
             for ch in word.chars() {
-                let test_chunk = format!("{}{}", char_chunk, ch);
-                if (test_chunk.len() as f32 * approx_char_width) > max_width && !char_chunk.is_empty() {
-                    lines.push(char_chunk);
-                    char_chunk = ch.to_string();
-                } else {
-                    char_chunk = test_chunk;
+                let char_len = ch.len_utf8();
+                let test_len = char_chunk.len() + char_len;
+
+                if (test_len as f32 * approx_char_width) > max_width && !char_chunk.is_empty() {
+                    lines.push(char_chunk.clone());
+                    char_chunk.clear();
                 }
+                char_chunk.push(ch);
             }
             if !char_chunk.is_empty() {
                 current_line = char_chunk;
@@ -59,20 +60,20 @@ fn wrap_text(text: &str, font_size: f32, max_width: f32) -> Vec<String> {
             continue;
         }
 
-        // KASUS NORMAL: Gabungkan kata ke baris aktif
-        let test_line = if current_line.is_empty() {
-            word.to_string()
-        } else {
-            format!("{} {}", current_line, word)
-        };
-
-        let test_width = test_line.len() as f32 * approx_char_width;
+        // Kasus Normal Word-Level Break
+        let space_needed = if current_line.is_empty() { 0 } else { 1 };
+        let test_len = current_line.len() + space_needed + word.len();
+        let test_width = test_len as f32 * approx_char_width;
 
         if test_width > max_width && !current_line.is_empty() {
-            lines.push(current_line);
-            current_line = word.to_string();
+            lines.push(current_line.clone());
+            current_line.clear();
+            current_line.push_str(word);
         } else {
-            current_line = test_line;
+            if !current_line.is_empty() {
+                current_line.push(' ');
+            }
+            current_line.push_str(word);
         }
     }
 
@@ -83,25 +84,23 @@ fn wrap_text(text: &str, font_size: f32, max_width: f32) -> Vec<String> {
     lines
 }
 
-// Helper untuk parsing template string {Kolom} dan {Kolom:uppercase}
+// Interpolasi Template String Tanpa Regex untuk Kecepatan Maksimal
 fn interpolate_template(template: &str, row: &serde_json::Value) -> String {
     let mut result = template.to_string();
 
     if let Some(obj) = row.as_object() {
         for (key, val) in obj {
             let val_str = match val {
-                serde_json::Value::String(s) => s.clone(),
-                serde_json::Value::Number(n) => n.to_string(),
-                _ => String::new(),
+                serde_json::Value::String(s) => s.as_str(),
+                serde_json::Value::Number(n) => &n.to_string(),
+                _ => "",
             };
 
-            // 1. Placeholder standar {Nama}
             let placeholder_normal = format!("{{{}}}", key);
             if result.contains(&placeholder_normal) {
-                result = result.replace(&placeholder_normal, &val_str);
+                result = result.replace(&placeholder_normal, val_str);
             }
 
-            // 2. Placeholder modifier {Nama:uppercase}
             let placeholder_upper = format!("{{{}:uppercase}}", key);
             if result.contains(&placeholder_upper) {
                 result = result.replace(&placeholder_upper, &val_str.to_uppercase());
@@ -125,44 +124,46 @@ pub fn generate_certificates_chunk(
     let configs: Vec<TextElementConfig> = serde_wasm_bindgen::from_value(configs_json)
         .map_err(|e| JsValue::from_str(&format!("Gagal membaca konfigurasi elemen: {}", e)))?;
 
-    let doc_template = Document::load_mem(template_bytes)
+    // Load PDF Base Template Sekali di Awal
+    let mut base_doc = Document::load_mem(template_bytes)
         .map_err(|e| JsValue::from_str(&format!("Gagal membaca template PDF: {}", e)))?;
 
-    let mut zip_buffer = Vec::new();
-    {
-        let mut zip = ZipWriter::new(Cursor::new(&mut zip_buffer));
-        let zip_options = SimpleFileOptions::default()
-            .compression_method(zip::CompressionMethod::Deflated);
+    // Registrasi Font Helvetica-Bold Sekali di Master Template
+    let font_dict = dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type1",
+        "BaseFont" => "Helvetica-Bold",
+    };
+    let font_id = base_doc.add_object(font_dict);
 
-        for (i, row) in csv_rows.iter().enumerate() {
-            let global_idx = start_idx + i + 1;
-            let mut doc = doc_template.clone();
-
-            let pages = doc.get_pages();
-
-            // Registrasi Font Helvetica-Bold di semua halaman PDF yang ada
-            let font_dict = dictionary! {
-                "Type" => "Font",
-                "Subtype" => "Type1",
-                "BaseFont" => "Helvetica-Bold",
-            };
-            let font_id = doc.add_object(font_dict);
-
-            for page_id in pages.values() {
-                if let Ok(page_dict) = doc.get_dictionary_mut(*page_id) {
-                    if let Ok(resources_obj) = page_dict.get_mut(b"Resources") {
-                        if let Ok(res_dict) = resources_obj.as_dict_mut() {
-                            if let Ok(font_obj) = res_dict.get_mut(b"Font") {
-                                if let Ok(font_dict_mut) = font_obj.as_dict_mut() {
-                                    font_dict_mut.set("F1", font_id);
-                                }
-                            } else {
-                                res_dict.set("Font", dictionary! { "F1" => font_id });
-                            }
+    let pages = base_doc.get_pages();
+    for page_id in pages.values() {
+        if let Ok(page_dict) = base_doc.get_dictionary_mut(*page_id) {
+            if let Ok(resources_obj) = page_dict.get_mut(b"Resources") {
+                if let Ok(res_dict) = resources_obj.as_dict_mut() {
+                    if let Ok(font_obj) = res_dict.get_mut(b"Font") {
+                        if let Ok(font_dict_mut) = font_obj.as_dict_mut() {
+                            font_dict_mut.set("F1", font_id);
                         }
+                    } else {
+                        res_dict.set("Font", dictionary! { "F1" => font_id });
                     }
                 }
             }
+        }
+    }
+
+    let mut zip_buffer = Vec::with_capacity(1024 * 1024 * 10); // Pre-allocate 10MB Buffer
+    {
+        let mut zip = ZipWriter::new(Cursor::new(&mut zip_buffer));
+        
+        // OPTIMASI UTAMA: Gunakan Stored (tanpa re-kompresi) agar ZIP tereksekusi instan
+        let zip_options = SimpleFileOptions::default()
+            .compression_method(zip::CompressionMethod::Stored);
+
+        for (i, row) in csv_rows.iter().enumerate() {
+            let global_idx = start_idx + i + 1;
+            let mut doc = base_doc.clone();
 
             let main_name = row
                 .get("Nama")
@@ -171,12 +172,10 @@ pub fn generate_certificates_chunk(
                 .unwrap_or("peserta");
             let file_name_sanitized = sanitize_name(main_name);
 
-            // Grouping elemen teks berdasarkan target halaman (page_number)
             for (page_num, page_id) in &pages {
-                let mut operations = vec![
-                    Operation::new("BT", vec![]),
-                    Operation::new("rg", vec![0.1.into(), 0.1.into(), 0.1.into()]),
-                ];
+                let mut operations = Vec::with_capacity(32);
+                operations.push(Operation::new("BT", vec![]));
+                operations.push(Operation::new("rg", vec![0.1.into(), 0.1.into(), 0.1.into()]));
 
                 let mut has_operations = false;
 
@@ -186,7 +185,6 @@ pub fn generate_certificates_chunk(
                         continue;
                     }
 
-                    // Tentukan isi teks: Interpolasi template jika ada static_text, atau ambil langsung dari CSV
                     let raw_text = if let Some(ref st) = cfg.static_text {
                         interpolate_template(st, row)
                     } else {
@@ -234,7 +232,7 @@ pub fn generate_certificates_chunk(
                 }
             }
 
-            let mut pdf_bytes = Vec::new();
+            let mut pdf_bytes = Vec::with_capacity(1024 * 100);
             doc.save_to(&mut pdf_bytes)
                 .map_err(|e| JsValue::from_str(&format!("Gagal menyusun sertifikat: {}", e)))?;
 
