@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useAuth } from "../../../context/AuthContext";
 import Papa from "papaparse";
 import { Rnd } from "react-rnd";
-
+import { PDFDocument } from "pdf-lib";
 const Spinner = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" {...props}>
     <path fill="currentColor" d="M12,23a9.63,9.63,0,0,1-8-9.5,9.51,9.51,0,0,1,6.79-9.1A1,1,0,0,1,12,5.19a8.4,8.4,0,0,0-6.1,8.31,8.44,8.44,0,0,0,8.38,8.38A1,1,0,0,1,12,23Z">
@@ -154,7 +154,50 @@ export default function CetakLokal() {
     });
     return sample;
   };
+// Fungsi untuk mengompres template PDF di browser pengguna
+const compressPdfTemplate = async (originalFile) => {
+  const pdfjsLib = await import("pdfjs-dist/build/pdf");
+  pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
+  const arrayBuffer = await originalFile.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+
+  const compressedPdfDoc = await PDFDocument.create();
+
+  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+    const page = await pdf.getPage(pageNum);
+    // Render dengan scale 1.5 (~150 DPI) untuk efisiensi ukuran vs kualitas
+    const viewport = page.getViewport({ scale: 1.5 });
+
+    const canvas = document.createElement("canvas");
+    const context = canvas.getContext("2d");
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+
+    await page.render({ canvasContext: context, viewport }).promise;
+
+    // Convert Canvas ke JPEG Terkompresi (Quality 0.8)
+    const imgDataUrl = canvas.toDataURL("image/jpeg", 0.8);
+    const imgBytes = await fetch(imgDataUrl).then((res) => res.arrayBuffer());
+
+    const embeddedImage = await compressedPdfDoc.embedJpg(imgBytes);
+    
+    // Sesuaikan ukuran halaman PDF baru dengan ukuran asli PDF awal (Point unit)
+    const origViewport = page.getViewport({ scale: 1.0 });
+    const newPage = compressedPdfDoc.addPage([origViewport.width, origViewport.height]);
+    newPage.drawImage(embeddedImage, {
+      x: 0,
+      y: 0,
+      width: origViewport.width,
+      height: origViewport.height,
+    });
+  }
+
+  const compressedPdfBytes = await compressedPdfDoc.save();
+  return new File([compressedPdfBytes], "compressed_template.pdf", {
+    type: "application/pdf",
+  });
+};
   const handleCsvChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -217,9 +260,11 @@ export default function CetakLokal() {
   const handleTemplateChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setTemplateFile(file);
+    // setTemplateFile(file);
 
     try {
+      const compressedFile = await compressPdfTemplate(file);
+      setTemplateFile(compressedFile);
       const pdfjsLib = await import("pdfjs-dist/build/pdf");
       pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
