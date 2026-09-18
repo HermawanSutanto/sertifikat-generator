@@ -943,7 +943,7 @@ const handleRestoreElement = (colName) => {
                   {cfg.static_text !== undefined && (
                     <button
                       type="button"
-                      onClick={() => handleDeleteElement(cfg.column_name)}
+                      onClick={() => handleHideElement(cfg.column_name)}
                       className="w-full py-1.5 text-xs font-semibold text-red-600 hover:bg-red-50 border border-red-200 rounded-lg transition-colors"
                     >
                       Hapus Elemen Ini
