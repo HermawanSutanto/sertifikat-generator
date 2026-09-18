@@ -4,8 +4,6 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "../../../context/AuthContext";
 import Papa from "papaparse";
-import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
-import JSZip from "jszip";
 
 const Spinner = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" {...props}>
@@ -32,7 +30,6 @@ export default function CetakLokal() {
   const [csvRowCount, setCsvRowCount] = useState(0);
   const [templateFile, setTemplateFile] = useState(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [progress, setProgress] = useState(null);
   const [wasmReady, setWasmReady] = useState(false);
   const [wasmModule, setWasmModule] = useState(null);
   const [notification, setNotification] = useState({ show: false, message: "", type: "success" });
@@ -41,7 +38,7 @@ export default function CetakLokal() {
     async function loadWasm() {
       if (typeof window === "undefined") return;
       try {
-        const wasm = await import("@/../pkg/pdf_cert_wasm.js");
+        const wasm = await import("@/rust_wasm/pkg/pdf_cert_wasm.js");
         await wasm.default();
         setWasmModule(wasm);
         setWasmReady(true);
@@ -90,12 +87,16 @@ export default function CetakLokal() {
       return;
     }
 
+    if (!wasmReady || !wasmModule) {
+      setNotification({ show: true, message: "Modul Rust WASM belum siap. Tunggu sebentar.", type: "error" });
+      return;
+    }
+
     setIsProcessing(true);
-    setNotification({ show: true, message: "Membaca file template...", type: "success" });
+    setNotification({ show: true, message: "Memproses seluruh PDF & ZIP di Engine Rust...", type: "success" });
 
     try {
-      const templateArrayBuffer = await templateFile.arrayBuffer();
-
+      // 1. Baca data CSV
       const parseResult = await new Promise((resolve, reject) => {
         Papa.parse(csvFile, { header: true, skipEmptyLines: true, complete: resolve, error: reject });
       });
@@ -105,60 +106,19 @@ export default function CetakLokal() {
         throw new Error("File CSV kosong atau tidak valid.");
       }
 
-      const zip = new JSZip();
+      // 2. Ekstrak array nama
+      const names = allData.map((row, i) => row["Nama"] || row["nama"] || `Peserta_${i + 1}`);
 
-      for (let i = 0; i < allData.length; i++) {
-        setProgress({ current: i + 1, total: allData.length });
-        const row = allData[i];
-        const rawNama = row["Nama"] || row["nama"] || `Peserta_${i + 1}`;
+      // 3. Baca ArrayBuffer dari template PDF
+      const templateArrayBuffer = await templateFile.arrayBuffer();
+      const templateUint8 = new Uint8Array(templateArrayBuffer);
 
-        // Sanitasi Nama via WASM
-        const nama = wasmReady && wasmModule ? wasmModule.sanitize_name(rawNama) : rawNama;
+      // 4. Eksekusi Full di Rust WASM (PDF generation + ZIP Compression)
+      const zipBytes = wasmModule.generate_certificates_zip(templateUint8, names);
 
-        // Load Template PDF Asli (Presisi Background)
-        const pdfDoc = await PDFDocument.load(templateArrayBuffer);
-        const font = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-
-        const pages = pdfDoc.getPages();
-        const firstPage = pages[0];
-        const { width, height } = firstPage.getSize();
-
-        // Kalkulasi Layout via WASM
-        let xPos, yPos, fontSize;
-        if (wasmReady && wasmModule) {
-          const layout = wasmModule.calculate_text_layout(nama, width, height);
-          xPos = layout.x;
-          yPos = layout.y;
-          fontSize = layout.font_size;
-        } else {
-          fontSize = 32;
-          const textWidth = font.widthOfTextAtSize(nama, fontSize);
-          xPos = (width - textWidth) / 2;
-          yPos = height / 2 - 20;
-        }
-
-        firstPage.drawText(nama, {
-          x: xPos,
-          y: yPos,
-          size: fontSize,
-          font: font,
-          color: rgb(0.1, 0.1, 0.1)
-        });
-
-        const pdfBytes = await pdfDoc.save();
-        const fileName = `sertifikat_${nama.toLowerCase().replace(/\s+/g, '_')}_${i + 1}.pdf`;
-        
-        // Masukkan file PDF per peserta ke dalam ZIP
-        zip.file(fileName, pdfBytes);
-      }
-
-      setNotification({ show: true, message: "Mengompresi seluruh file ke ZIP...", type: "success" });
-
-      // Generasi Kompresi ZIP
-      const zipBlob = await zip.generateAsync({ type: "blob" });
-
-      // Trigger Unduhan ZIP Automatis
-      const downloadUrl = URL.createObjectURL(zipBlob);
+      // 5. Trigger download file ZIP
+      const blob = new Blob([zipBytes], { type: "application/zip" });
+      const downloadUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = downloadUrl;
       link.download = `sertifikat_massal_${Date.now()}.zip`;
@@ -169,17 +129,14 @@ export default function CetakLokal() {
 
       setNotification({
         show: true,
-        message: `Berhasil! ${allData.length} sertifikat dikompresi dan mulai terunduh.`,
+        message: `Berhasil! ${names.length} sertifikat selesai diproses & diunduh.`,
         type: "success"
       });
-
-      setIsProcessing(false);
-      setProgress(null);
     } catch (error) {
       console.error("Gagal memproses sertifikat:", error);
-      setNotification({ show: true, message: `Terjadi kesalahan: ${error.message}`, type: "error" });
+      setNotification({ show: true, message: `Terjadi kesalahan: ${error.message || error}`, type: "error" });
+    } finally {
       setIsProcessing(false);
-      setProgress(null);
     }
   };
 
@@ -224,7 +181,7 @@ export default function CetakLokal() {
             </div>
 
             <p className="text-sm text-[#17233D]/60 text-center">
-              Setiap sertifikat dibuat sesuai template PDF asli, disanitasi &amp; dihitung posisinya via WASM, lalu dikompresi menjadi file .ZIP secara client-side.
+              Seluruh proses perenderan PDF dan pengompresan file ZIP dilakukan secara native menggunakan <strong>Rust WASM</strong>.
             </p>
 
             <div>
@@ -243,27 +200,15 @@ export default function CetakLokal() {
               </label>
             </div>
 
-            {progress && (
-              <div>
-                <div className="flex justify-between text-xs text-[#17233D]/60 mb-1">
-                  <span>Memproses sertifikat...</span>
-                  <span>{progress.current} / {progress.total}</span>
-                </div>
-                <div className="w-full h-2 rounded-full bg-[#17233D]/10 overflow-hidden">
-                  <div className="h-full bg-[#8C2F39] transition-all" style={{ width: `${(progress.current / progress.total) * 100}%` }} />
-                </div>
-              </div>
-            )}
-
             <button
               onClick={handleGenerateAndDownloadZip}
-              disabled={isProcessing || !csvFile || !templateFile}
+              disabled={isProcessing || !csvFile || !templateFile || !wasmReady}
               className="w-full flex items-center justify-center gap-2 px-4 py-3 text-sm font-semibold text-white bg-[#8C2F39] rounded-lg shadow-sm hover:bg-[#742531] disabled:bg-[#17233D]/20 disabled:cursor-not-allowed transition-colors"
             >
               {isProcessing ? (
                 <>
                   <Spinner className="w-4 h-4" />
-                  <span>Memproses &amp; Mengompresi...</span>
+                  <span>Memproses dalam Rust WASM...</span>
                 </>
               ) : (
                 <span>Cetak Semua &amp; Download (.zip)</span>
