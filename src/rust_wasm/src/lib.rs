@@ -2,6 +2,7 @@ use lopdf::content::{Content, Operation};
 use lopdf::{dictionary, Document, Object, StringFormat};
 use serde::{Deserialize, Serialize};
 use std::io::{Cursor, Write};
+use ttf_parser::Face;
 use wasm_bindgen::prelude::*;
 use zip::write::SimpleFileOptions;
 use zip::ZipWriter;
@@ -111,12 +112,100 @@ fn interpolate_template(template: &str, row: &serde_json::Value) -> String {
     result
 }
 
+// Embed font TrueType/OpenType custom (hasil pilihan user, mis. dari Local Font Access API)
+// ke dalam dokumen PDF, lalu kembalikan ObjectId dictionary Font-nya.
+//
+// KETERBATASAN (disengaja demi kesederhanaan & ukuran kode):
+// - Hanya WinAnsiEncoding, kode karakter 32-126 (ASCII dasar) yang dihitung lebar
+//   glyph-nya secara akurat. Karakter di luar itu (misal huruf beraksen ó/é, atau
+//   simbol non-Latin) memakai MissingWidth (500 unit) sebagai fallback kasar —
+//   posisi teks bisa sedikit meleset untuk nama dengan karakter semacam itu.
+// - Font di-embed utuh (tanpa subsetting), jadi ukuran PDF bertambah sebesar
+//   ukuran file font aslinya (bisa ratusan KB - beberapa MB tergantung fontnya).
+// - Tidak mendukung font Symbolic/CID (CJK, Arab, dll) — untuk itu perlu Type0/
+//   CIDFontType2 dengan Identity-H, di luar scope perubahan ini.
+fn embed_truetype_font(doc: &mut Document, font_bytes: &[u8]) -> Result<lopdf::ObjectId, String> {
+    let face = Face::parse(font_bytes, 0).map_err(|e| format!("Font tidak valid/gagal diparse: {:?}", e))?;
+
+    let units_per_em = face.units_per_em() as f32;
+    let scale = if units_per_em > 0.0 { 1000.0 / units_per_em } else { 1.0 };
+
+    const FIRST_CHAR: u32 = 32;
+    const LAST_CHAR: u32 = 126;
+    const MISSING_WIDTH: i64 = 500;
+
+    let mut widths = Vec::with_capacity((LAST_CHAR - FIRST_CHAR + 1) as usize);
+    for code in FIRST_CHAR..=LAST_CHAR {
+        let ch = char::from_u32(code).unwrap_or(' ');
+        let width = face
+            .glyph_index(ch)
+            .and_then(|gid| face.glyph_hor_advance(gid))
+            .map(|w| (w as f32 * scale).round() as i64)
+            .unwrap_or(MISSING_WIDTH);
+        widths.push(Object::Integer(width));
+    }
+
+    let bbox = face.global_bounding_box();
+    let font_bbox = vec![
+        Object::Real(bbox.x_min as f32 * scale),
+        Object::Real(bbox.y_min as f32 * scale),
+        Object::Real(bbox.x_max as f32 * scale),
+        Object::Real(bbox.y_max as f32 * scale),
+    ];
+
+    let ascent = (face.ascender() as f32 * scale).round();
+    let descent = (face.descender() as f32 * scale).round();
+    let cap_height = face
+        .capital_height()
+        .map(|h| (h as f32 * scale).round())
+        .unwrap_or(ascent);
+    let italic_angle = face.italic_angle().unwrap_or(0.0);
+
+    // Simpan font mentah sebagai stream FontFile2 (kompresi Flate otomatis oleh lopdf)
+    let mut font_file_stream = lopdf::Stream::new(
+        dictionary! { "Length1" => font_bytes.len() as i64 },
+        font_bytes.to_vec(),
+    );
+    let _ = font_file_stream.compress();
+    let font_file_id = doc.add_object(font_file_stream);
+
+    let descriptor_dict = dictionary! {
+        "Type" => "FontDescriptor",
+        "FontName" => "EmbeddedCustomFont",
+        "Flags" => 32i64, // Nonsymbolic
+        "FontBBox" => font_bbox,
+        "ItalicAngle" => italic_angle,
+        "Ascent" => ascent,
+        "Descent" => descent,
+        "CapHeight" => cap_height,
+        "StemV" => 80i64,
+        "MissingWidth" => MISSING_WIDTH,
+        "FontFile2" => font_file_id,
+    };
+    let descriptor_id = doc.add_object(descriptor_dict);
+
+    let font_dict = dictionary! {
+        "Type" => "Font",
+        "Subtype" => "TrueType",
+        "BaseFont" => "EmbeddedCustomFont",
+        "FirstChar" => FIRST_CHAR as i64,
+        "LastChar" => LAST_CHAR as i64,
+        "Widths" => widths,
+        "FontDescriptor" => descriptor_id,
+        "Encoding" => "WinAnsiEncoding",
+    };
+
+    Ok(doc.add_object(font_dict))
+}
+
+
 #[wasm_bindgen]
 pub fn generate_certificates_chunk(
     template_bytes: &[u8],
     csv_rows_json: JsValue,
     configs_json: JsValue,
     start_idx: usize,
+    font_bytes: Option<Vec<u8>>,
 ) -> Result<Vec<u8>, JsValue> {
     let csv_rows: Vec<serde_json::Value> = serde_wasm_bindgen::from_value(csv_rows_json)
         .map_err(|e| JsValue::from_str(&format!("Gagal membaca data CSV: {}", e)))?;
@@ -128,13 +217,30 @@ pub fn generate_certificates_chunk(
     let mut base_doc = Document::load_mem(template_bytes)
         .map_err(|e| JsValue::from_str(&format!("Gagal membaca template PDF: {}", e)))?;
 
-    // Registrasi Font Helvetica-Bold Sekali di Master Template
-    let font_dict = dictionary! {
-        "Type" => "Font",
-        "Subtype" => "Type1",
-        "BaseFont" => "Helvetica-Bold",
+    // Registrasi Font: pakai font custom (TrueType embed) jika user memilihnya,
+    // fallback diam-diam ke Helvetica-Bold standar PDF kalau tidak dipilih atau embed gagal
+    // (misal file font korup/tidak didukung) — supaya proses cetak tetap bisa lanjut.
+    let font_id = match font_bytes.as_deref() {
+        Some(bytes) => match embed_truetype_font(&mut base_doc, bytes) {
+            Ok(id) => id,
+            Err(_) => {
+                let fallback_dict = dictionary! {
+                    "Type" => "Font",
+                    "Subtype" => "Type1",
+                    "BaseFont" => "Helvetica-Bold",
+                };
+                base_doc.add_object(fallback_dict)
+            }
+        },
+        None => {
+            let font_dict = dictionary! {
+                "Type" => "Font",
+                "Subtype" => "Type1",
+                "BaseFont" => "Helvetica-Bold",
+            };
+            base_doc.add_object(font_dict)
+        }
     };
-    let font_id = base_doc.add_object(font_dict);
 
     let pages = base_doc.get_pages();
     for page_id in pages.values() {

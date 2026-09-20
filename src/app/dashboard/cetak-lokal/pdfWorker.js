@@ -2,7 +2,7 @@ import init, * as wasm from "@/rust_wasm/pkg/pdf_cert_wasm.js";
 
 self.onmessage = async (e) => {
   try {
-    const { templateUint8, csvRows, configs, chunkSize = 1000 } = e.data;
+    const { templateUint8, csvRows, configs, chunkSize = 1000, fontBytes } = e.data;
 
     await init();
 
@@ -12,12 +12,13 @@ self.onmessage = async (e) => {
     for (let i = 0; i < total; i += chunkSize) {
       const chunkRows = csvRows.slice(i, i + chunkSize);
 
-      // Kirim Array JSON CSV & Configs ke Rust
+      // Kirim Array JSON CSV & Configs ke Rust, sekaligus font custom (kalau user memilihnya)
       const zipBytes = wasm.generate_certificates_chunk(
         templateUint8,
         chunkRows,
         configs,
-        i
+        i,
+        fontBytes
       );
 
       processed += chunkRows.length;

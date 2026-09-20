@@ -93,6 +93,77 @@ export default function CetakLokal() {
   const [compressionQuality, setCompressionQuality] = useState(0.8); // JPEG quality 0-1
   const [isRecompressing, setIsRecompressing] = useState(false);
 
+  // --- Deteksi & Seleksi Font Lokal (Local Font Access API) ---
+  // HANYA didukung Chrome/Edge desktop (v103+) — tidak ada di Firefox/Safari.
+  // Jadi ini fitur opsional; kalau tidak dipilih, fallback ke Helvetica-Bold bawaan.
+  const [localFontApiSupported, setLocalFontApiSupported] = useState(false);
+  const [isDetectingFonts, setIsDetectingFonts] = useState(false);
+  const [localFontsRaw, setLocalFontsRaw] = useState([]);
+  const [localFontFamilies, setLocalFontFamilies] = useState([]);
+  const [selectedLocalFontFamily, setSelectedLocalFontFamily] = useState("");
+  const [selectedFontBytes, setSelectedFontBytes] = useState(null);
+  const [isLoadingFontBytes, setIsLoadingFontBytes] = useState(false);
+  const [fontDetectionError, setFontDetectionError] = useState("");
+
+  useEffect(() => {
+    setLocalFontApiSupported(typeof window !== "undefined" && "queryLocalFonts" in window);
+  }, []);
+
+  const handleDetectLocalFonts = async () => {
+    setFontDetectionError("");
+    setIsDetectingFonts(true);
+    try {
+      const fonts = await window.queryLocalFonts();
+      setLocalFontsRaw(fonts);
+      const uniqueFamilies = Array.from(new Set(fonts.map((f) => f.family))).sort((a, b) =>
+        a.localeCompare(b)
+      );
+      setLocalFontFamilies(uniqueFamilies);
+      if (uniqueFamilies.length === 0) {
+        setFontDetectionError("Tidak ada font yang terdeteksi di perangkat ini.");
+      } else {
+        setNotification({
+          show: true,
+          message: `Ditemukan ${uniqueFamilies.length} font terinstal di perangkat Anda.`,
+          type: "success",
+        });
+      }
+    } catch (err) {
+      if (err.name === "NotAllowedError" || err.name === "SecurityError") {
+        setFontDetectionError("Akses ke font lokal ditolak. Anda bisa mengizinkannya lewat pengaturan situs di browser.");
+      } else {
+        setFontDetectionError(`Gagal mendeteksi font: ${err.message}`);
+      }
+      console.error("Gagal query local fonts:", err);
+    } finally {
+      setIsDetectingFonts(false);
+    }
+  };
+
+  const handleSelectLocalFont = async (family) => {
+    setSelectedLocalFontFamily(family);
+    setSelectedFontBytes(null);
+    setFontDetectionError("");
+    if (!family) return;
+
+    setIsLoadingFontBytes(true);
+    try {
+      // Utamakan style "Regular"; kalau tidak ada, pakai style pertama untuk family ini.
+      const candidates = localFontsRaw.filter((f) => f.family === family);
+      const chosen = candidates.find((f) => f.style === "Regular") || candidates[0];
+      if (!chosen) throw new Error("Font tidak ditemukan di hasil deteksi.");
+
+      const blob = await chosen.blob();
+      const arrayBuffer = await blob.arrayBuffer();
+      setSelectedFontBytes(new Uint8Array(arrayBuffer));
+    } catch (err) {
+      setFontDetectionError(`Gagal memuat data font "${family}": ${err.message}`);
+      setSelectedLocalFontFamily("");
+    } finally {
+      setIsLoadingFontBytes(false);
+    }
+  };
+
   // PDF Preview & Multi-Page States
   const [pdfDoc, setPdfDoc] = useState(null);
   const [totalPages, setTotalPages] = useState(1);
@@ -571,6 +642,7 @@ const handleRestoreElement = (colName) => {
         csvRows,
         configs: formattedConfigs,
         chunkSize: 1000,
+        fontBytes: selectedFontBytes || undefined,
       });
 
       worker.onmessage = (e) => {
@@ -761,6 +833,79 @@ const handleRestoreElement = (colName) => {
               </p>
             </div>
           )}
+
+          {/* Panel Deteksi & Seleksi Font Lokal */}
+          <div className="p-4 rounded-lg border border-dashed border-[#17233D]/20 bg-[#17233D]/[0.03] space-y-3">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-bold text-[#17233D]">Font dari Komputer Lokal (Opsional)</span>
+              {localFontApiSupported ? (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
+                  Didukung
+                </span>
+              ) : (
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-gray-200 text-gray-500 font-medium">
+                  Tidak Didukung
+                </span>
+              )}
+            </div>
+
+            {!localFontApiSupported ? (
+              <p className="text-[10px] text-gray-500">
+                Hanya tersedia di Chrome/Edge desktop. Browser ini akan memakai font Helvetica-Bold bawaan.
+              </p>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={handleDetectLocalFonts}
+                  disabled={isDetectingFonts}
+                  className="w-full py-2 text-xs font-semibold text-[#17233D] bg-white border border-[#17233D]/20 rounded-lg hover:bg-[#17233D]/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                >
+                  {isDetectingFonts ? (
+                    <>
+                      <Spinner className="w-3.5 h-3.5" />
+                      Memindai Font...
+                    </>
+                  ) : (
+                    "Deteksi Font di Perangkat Saya"
+                  )}
+                </button>
+
+                {fontDetectionError && <p className="text-[10px] text-red-600">{fontDetectionError}</p>}
+
+                {localFontFamilies.length > 0 && (
+                  <div>
+                    <label className="block text-[11px] font-medium text-gray-600 mb-1">
+                      Pilih Font ({localFontFamilies.length} ditemukan)
+                    </label>
+                    <select
+                      value={selectedLocalFontFamily}
+                      onChange={(e) => handleSelectLocalFont(e.target.value)}
+                      disabled={isLoadingFontBytes}
+                      className="w-full p-2 text-sm border rounded-lg bg-white"
+                    >
+                      <option value="">-- Pakai font bawaan (Helvetica-Bold) --</option>
+                      {localFontFamilies.map((family) => (
+                        <option key={family} value={family}>
+                          {family}
+                        </option>
+                      ))}
+                    </select>
+                    {isLoadingFontBytes && (
+                      <p className="text-[10px] text-gray-400 mt-1 flex items-center gap-1">
+                        <Spinner className="w-3 h-3" /> Memuat data font...
+                      </p>
+                    )}
+                    {selectedFontBytes && !isLoadingFontBytes && (
+                      <p className="text-[10px] text-green-600 mt-1">
+                        Font "{selectedLocalFontFamily}" siap dipakai ({formatBytes(selectedFontBytes.length)}).
+                      </p>
+                    )}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
 
           {/* Preset Manager Section */}
           <div className="pt-4 border-t border-[#17233D]/10 space-y-3">
