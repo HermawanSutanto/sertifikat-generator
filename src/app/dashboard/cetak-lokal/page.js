@@ -1,9 +1,4 @@
 "use client";
-// Polyfill untuk global `Iterator` (TC39 Iterator Helpers).
-// Chrome baru dukung native mulai v122 (Feb 2024) — device kentang/Chrome lawas
-// (mis. Chrome 110 ke bawah) akan crash saat memuat pdfjs-dist tanpa ini.
-// Harus di baris paling atas supaya polyfill aktif sebelum modul lain (termasuk
-// dynamic import pdfjs-dist) dieksekusi.
 import "es-iterator-helpers/auto";
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
@@ -12,6 +7,7 @@ import { useAuth } from "../../../context/AuthContext";
 import Papa from "papaparse";
 import { Rnd } from "react-rnd";
 import { PDFDocument } from "pdf-lib";
+
 const Spinner = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" {...props}>
     <path fill="currentColor" d="M12,23a9.63,9.63,0,0,1-8-9.5,9.51,9.51,0,0,1,6.79-9.1A1,1,0,0,1,12,5.19a8.4,8.4,0,0,0-6.1,8.31,8.44,8.44,0,0,0,8.38,8.38A1,1,0,0,1,12,23Z">
@@ -89,13 +85,11 @@ export default function CetakLokal() {
   const [templateFile, setTemplateFile] = useState(null);
   const [originalTemplateRawFile, setOriginalTemplateRawFile] = useState(null);
   const [originalTemplateSize, setOriginalTemplateSize] = useState(0);
-  const [compressionScale, setCompressionScale] = useState(1.5); // ~150 DPI
-  const [compressionQuality, setCompressionQuality] = useState(0.8); // JPEG quality 0-1
+  const [compressionScale, setCompressionScale] = useState(1.5);
+  const [compressionQuality, setCompressionQuality] = useState(0.8);
   const [isRecompressing, setIsRecompressing] = useState(false);
 
-  // --- Deteksi & Seleksi Font Lokal (Local Font Access API) ---
-  // HANYA didukung Chrome/Edge desktop (v103+) — tidak ada di Firefox/Safari.
-  // Jadi ini fitur opsional; kalau tidak dipilih, fallback ke Helvetica-Bold bawaan.
+  // Deteksi & Seleksi Font Lokal
   const [localFontApiSupported, setLocalFontApiSupported] = useState(false);
   const [isDetectingFonts, setIsDetectingFonts] = useState(false);
   const [localFontsRaw, setLocalFontsRaw] = useState([]);
@@ -148,14 +142,20 @@ export default function CetakLokal() {
 
     setIsLoadingFontBytes(true);
     try {
-      // Utamakan style "Regular"; kalau tidak ada, pakai style pertama untuk family ini.
       const candidates = localFontsRaw.filter((f) => f.family === family);
       const chosen = candidates.find((f) => f.style === "Regular") || candidates[0];
       if (!chosen) throw new Error("Font tidak ditemukan di hasil deteksi.");
 
       const blob = await chosen.blob();
       const arrayBuffer = await blob.arrayBuffer();
-      setSelectedFontBytes(new Uint8Array(arrayBuffer));
+      const bytes = new Uint8Array(arrayBuffer);
+
+      // Load font ke DOM Browser untuk Live Preview Canvas
+      const fontFace = new FontFace(family, arrayBuffer);
+      await fontFace.load();
+      document.fonts.add(fontFace);
+
+      setSelectedFontBytes(bytes);
     } catch (err) {
       setFontDetectionError(`Gagal memuat data font "${family}": ${err.message}`);
       setSelectedLocalFontFamily("");
@@ -173,11 +173,8 @@ export default function CetakLokal() {
   const [configs, setConfigs] = useState([]);
   const [activeColumn, setActiveColumn] = useState("");
 
-  // Preset Manager States
   const [presetName, setPresetName] = useState("");
   const [savedPresets, setSavedPresets] = useState([]);
-
-  // Snap Guides Active States
   const [activeSnapGuides, setActiveSnapGuides] = useState({ x: false, y: false });
 
   const [isProcessing, setIsProcessing] = useState(false);
@@ -203,7 +200,6 @@ export default function CetakLokal() {
     }
   }, [user, loading, router]);
 
-  // Load Saved Presets from localStorage on Init
   useEffect(() => {
     const local = localStorage.getItem("sertigen_presets");
     if (local) {
@@ -215,7 +211,6 @@ export default function CetakLokal() {
     }
   }, []);
 
-  // Render Page Preview whenever currentPage or pdfDoc changes
   useEffect(() => {
     if (pdfDoc) {
       renderPdfPage(pdfDoc, currentPage);
@@ -244,55 +239,48 @@ export default function CetakLokal() {
     });
     return sample;
   };
-// Fungsi untuk mengompres template PDF di browser pengguna
-// scale: faktor render (1.0 ≈ 100 DPI, 1.5 ≈ 150 DPI, 2.0 ≈ 200 DPI, dst)
-// quality: kualitas JPEG 0.1 (paling kecil) - 1.0 (paling tajam)
-const compressPdfTemplate = async (originalFile, scale = 1.5, quality = 0.8) => {
-  // Pakai build "legacy" pdfjs-dist — ditranspile untuk browser lama/terbatas
-  // (mis. Chrome < 122 yang belum punya global `Iterator` native), lebih aman
-  // untuk device kentang dibanding build "modern" default.
-  const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf");
-  pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/legacy/build/pdf.worker.min.mjs`;
 
-  const arrayBuffer = await originalFile.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const compressPdfTemplate = async (originalFile, scale = 1.5, quality = 0.8) => {
+    const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf");
+    pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/legacy/build/pdf.worker.min.mjs`;
 
-  const compressedPdfDoc = await PDFDocument.create();
+    const arrayBuffer = await originalFile.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
 
-  for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-    const page = await pdf.getPage(pageNum);
-    // Render sesuai scale yang dipilih user untuk mengatur trade-off ukuran vs kualitas
-    const viewport = page.getViewport({ scale });
+    const compressedPdfDoc = await PDFDocument.create();
 
-    const canvas = document.createElement("canvas");
-    const context = canvas.getContext("2d");
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      const page = await pdf.getPage(pageNum);
+      const viewport = page.getViewport({ scale });
 
-    await page.render({ canvasContext: context, viewport }).promise;
+      const canvas = document.createElement("canvas");
+      const context = canvas.getContext("2d");
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
 
-    // Convert Canvas ke JPEG Terkompresi sesuai quality yang dipilih user
-    const imgDataUrl = canvas.toDataURL("image/jpeg", quality);
-    const imgBytes = await fetch(imgDataUrl).then((res) => res.arrayBuffer());
+      await page.render({ canvasContext: context, viewport }).promise;
 
-    const embeddedImage = await compressedPdfDoc.embedJpg(imgBytes);
-    
-    // Sesuaikan ukuran halaman PDF baru dengan ukuran asli PDF awal (Point unit)
-    const origViewport = page.getViewport({ scale: 1.0 });
-    const newPage = compressedPdfDoc.addPage([origViewport.width, origViewport.height]);
-    newPage.drawImage(embeddedImage, {
-      x: 0,
-      y: 0,
-      width: origViewport.width,
-      height: origViewport.height,
+      const imgDataUrl = canvas.toDataURL("image/jpeg", quality);
+      const imgBytes = await fetch(imgDataUrl).then((res) => res.arrayBuffer());
+
+      const embeddedImage = await compressedPdfDoc.embedJpg(imgBytes);
+
+      const origViewport = page.getViewport({ scale: 1.0 });
+      const newPage = compressedPdfDoc.addPage([origViewport.width, origViewport.height]);
+      newPage.drawImage(embeddedImage, {
+        x: 0,
+        y: 0,
+        width: origViewport.width,
+        height: origViewport.height,
+      });
+    }
+
+    const compressedPdfBytes = await compressedPdfDoc.save();
+    return new File([compressedPdfBytes], "compressed_template.pdf", {
+      type: "application/pdf",
     });
-  }
+  };
 
-  const compressedPdfBytes = await compressedPdfDoc.save();
-  return new File([compressedPdfBytes], "compressed_template.pdf", {
-    type: "application/pdf",
-  });
-};
   const handleCsvChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -315,7 +303,7 @@ const compressPdfTemplate = async (originalFile, scale = 1.5, quality = 0.8) => 
           const initialConfigs = fields.map((header, idx) => ({
             column_name: header,
             static_text: "",
-            x: (pdfPreviewSize.width - 400) / 2, // Default Center Horizontal
+            x: (pdfPreviewSize.width - 400) / 2,
             y: 150 + idx * 60,
             font_size: 28,
             max_width: 400,
@@ -355,7 +343,6 @@ const compressPdfTemplate = async (originalFile, scale = 1.5, quality = 0.8) => 
   const handleTemplateChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    // setTemplateFile(file);
 
     setOriginalTemplateRawFile(file);
     setOriginalTemplateSize(file.size);
@@ -379,8 +366,6 @@ const compressPdfTemplate = async (originalFile, scale = 1.5, quality = 0.8) => 
     }
   };
 
-  // Kompres ulang template dari berkas asli menggunakan pengaturan scale/quality terbaru.
-  // Dipanggil saat user menekan tombol "Terapkan Kompresi" setelah mengubah slider.
   const handleRecompress = async () => {
     if (!originalTemplateRawFile) {
       setNotification({ show: true, message: "Unggah template PDF terlebih dahulu.", type: "error" });
@@ -426,24 +411,20 @@ const compressPdfTemplate = async (originalFile, scale = 1.5, quality = 0.8) => 
     setActiveColumn(staticId);
   };
 
-  // Mengubah status elemen menjadi nonaktif (hide dari canvas)
-const handleHideElement = (colName) => {
-  setConfigs((prev) =>
-    prev.map((c) => (c.column_name === colName ? { ...c, enabled: false } : c))
-  );
-  
-  // Pindahkan activeColumn ke elemen lain yang masih aktif
-  const remainingActive = configs.filter((c) => c.enabled && c.column_name !== colName);
-  setActiveColumn(remainingActive[0]?.column_name || "");
-};
+  const handleHideElement = (colName) => {
+    setConfigs((prev) =>
+      prev.map((c) => (c.column_name === colName ? { ...c, enabled: false } : c))
+    );
+    const remainingActive = configs.filter((c) => c.enabled && c.column_name !== colName);
+    setActiveColumn(remainingActive[0]?.column_name || "");
+  };
 
-// Mengaktifkan kembali elemen yang disembunyikan/dihapus
-const handleRestoreElement = (colName) => {
-  setConfigs((prev) =>
-    prev.map((c) => (c.column_name === colName ? { ...c, enabled: true } : c))
-  );
-  setActiveColumn(colName);
-};
+  const handleRestoreElement = (colName) => {
+    setConfigs((prev) =>
+      prev.map((c) => (c.column_name === colName ? { ...c, enabled: true } : c))
+    );
+    setActiveColumn(colName);
+  };
 
   const updateConfig = (colName, newProps) => {
     setConfigs((prev) =>
@@ -451,7 +432,6 @@ const handleRestoreElement = (colName) => {
     );
   };
 
-  // Dragging Snapping Logic
   const handleDrag = (colName, x, y, width) => {
     const snapThreshold = 6;
     const centerX = pdfPreviewSize.width / 2;
@@ -464,13 +444,11 @@ const handleRestoreElement = (colName) => {
     let isSnapX = false;
     let isSnapY = false;
 
-    // Snap Horizontal Center
     if (Math.abs(elementCenterX - centerX) < snapThreshold) {
       snappedX = centerX - width / 2;
       isSnapX = true;
     }
 
-    // Snap Vertical Center
     if (Math.abs(y - centerY) < snapThreshold) {
       snappedY = centerY;
       isSnapY = true;
@@ -480,7 +458,6 @@ const handleRestoreElement = (colName) => {
     return { x: snappedX, y: snappedY };
   };
 
-  // Preset Management
   const handleSavePreset = () => {
     if (!presetName.trim()) {
       setNotification({ show: true, message: "Masukkan nama preset terlebih dahulu.", type: "error" });
@@ -637,13 +614,6 @@ const handleRestoreElement = (colName) => {
 
       const worker = new Worker(new URL("./pdfWorker.js", import.meta.url));
 
-      // DEBUG SEMENTARA: cek apakah fontBytes benar-benar ada & berapa ukurannya
-      // sebelum dikirim ke worker. Hapus lagi setelah masalah font ketemu.
-      console.log(
-        "[DEBUG] fontBytes sebelum dikirim ke worker:",
-        selectedFontBytes ? `${selectedFontBytes.length} bytes` : "TIDAK ADA (null/undefined)"
-      );
-
       worker.postMessage({
         templateUint8,
         csvRows,
@@ -705,9 +675,7 @@ const handleRestoreElement = (colName) => {
     );
   }
 
-  // Estimasi Pre-flight: jumlah sertifikat, jumlah part ZIP, dan perkiraan ukuran total.
-  // Estimasi per-file didekati dari ukuran template terkompresi (dominan dibanding overlay teks).
-  const GENERATION_CHUNK_SIZE = 1000; // harus sinkron dengan chunkSize di executeBatchRendering
+  const GENERATION_CHUNK_SIZE = 1000;
   const estimatedCertCount = csvRows.length;
   const estimatedZipParts = estimatedCertCount > 0 ? Math.ceil(estimatedCertCount / GENERATION_CHUNK_SIZE) : 0;
   const estimatedPerFileBytes = templateFile ? templateFile.size : 0;
@@ -994,6 +962,7 @@ const handleRestoreElement = (colName) => {
                 </select>
               </div>
             )}
+
             {/* Daftar Elemen Nonaktif / Tersedia untuk Dipanggil */}
             {configs.some((c) => !c.enabled) && (
               <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-200 space-y-2">
@@ -1021,6 +990,7 @@ const handleRestoreElement = (colName) => {
                 </div>
               </div>
             )}
+
             {configs
               .filter((c) => c.column_name === activeColumn)
               .map((cfg) => (
@@ -1206,7 +1176,7 @@ const handleRestoreElement = (colName) => {
 
             {/* Render Elemen Khusus Halaman Aktif */}
             {configs
-              .filter((cfg) => cfg.enabled && (cfg.page_number || 1) === currentPage) // <--- LETAKNYA DI SINI
+              .filter((cfg) => cfg.enabled && (cfg.page_number || 1) === currentPage)
               .map((cfg) => {
                 const displayText = renderPreviewText(cfg);
                 const isSelected = activeColumn === cfg.column_name;
@@ -1243,7 +1213,10 @@ const handleRestoreElement = (colName) => {
                     }`}
                   >
                     <span
-                      style={{ fontSize: `${cfg.font_size * 0.75}px` }}
+                      style={{
+                        fontSize: `${cfg.font_size * 0.75}px`,
+                        fontFamily: selectedLocalFontFamily ? `"${selectedLocalFontFamily}", sans-serif` : "sans-serif",
+                      }}
                       className="truncate font-bold text-gray-800 select-none w-full"
                     >
                       {displayText}

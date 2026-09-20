@@ -27,7 +27,6 @@ pub fn sanitize_name(nama: &str) -> String {
         .replace(':', "_")
 }
 
-// Algoritma Word-Wrapping Presisi dengan Alokasi Memori Efisien
 fn wrap_text(text: &str, font_size: f32, max_width: f32) -> Vec<String> {
     let approx_char_width = font_size * 0.52;
     let words: Vec<&str> = text.split_whitespace().collect();
@@ -37,7 +36,6 @@ fn wrap_text(text: &str, font_size: f32, max_width: f32) -> Vec<String> {
     for word in words {
         let word_width = word.len() as f32 * approx_char_width;
 
-        // Fallback: Kata tunggal yang melebihi max_width
         if word_width > max_width {
             if !current_line.is_empty() {
                 lines.push(current_line.clone());
@@ -61,7 +59,6 @@ fn wrap_text(text: &str, font_size: f32, max_width: f32) -> Vec<String> {
             continue;
         }
 
-        // Kasus Normal Word-Level Break
         let space_needed = if current_line.is_empty() { 0 } else { 1 };
         let test_len = current_line.len() + space_needed + word.len();
         let test_width = test_len as f32 * approx_char_width;
@@ -85,7 +82,6 @@ fn wrap_text(text: &str, font_size: f32, max_width: f32) -> Vec<String> {
     lines
 }
 
-// Interpolasi Template String Tanpa Regex untuk Kecepatan Maksimal
 fn interpolate_template(template: &str, row: &serde_json::Value) -> String {
     let mut result = template.to_string();
 
@@ -112,38 +108,12 @@ fn interpolate_template(template: &str, row: &serde_json::Value) -> String {
     result
 }
 
-// Embed font TrueType/OpenType custom (hasil pilihan user, mis. dari Local Font Access API)
-// ke dalam dokumen PDF, lalu kembalikan ObjectId dictionary Font-nya.
-//
-// KETERBATASAN (disengaja demi kesederhanaan & ukuran kode):
-// - Hanya WinAnsiEncoding, kode karakter 32-126 (ASCII dasar) yang dihitung lebar
-//   glyph-nya secara akurat. Karakter di luar itu (misal huruf beraksen ó/é, atau
-//   simbol non-Latin) memakai MissingWidth (500 unit) sebagai fallback kasar —
-//   posisi teks bisa sedikit meleset untuk nama dengan karakter semacam itu.
-// - Font di-embed utuh (tanpa subsetting), jadi ukuran PDF bertambah sebesar
-//   ukuran file font aslinya (bisa ratusan KB - beberapa MB tergantung fontnya).
-// - Tidak mendukung font Symbolic/CID (CJK, Arab, dll) — untuk itu perlu Type0/
-//   CIDFontType2 dengan Identity-H, di luar scope perubahan ini.
+// Embed font TrueType kustom sebagai Type0 + CIDFontType2 (Identity-H)
 fn embed_truetype_font(doc: &mut Document, font_bytes: &[u8]) -> Result<lopdf::ObjectId, String> {
-    let face = Face::parse(font_bytes, 0).map_err(|e| format!("Font tidak valid/gagal diparse: {:?}", e))?;
+    let face = Face::parse(font_bytes, 0).map_err(|e| format!("Font gagal diparse: {:?}", e))?;
 
     let units_per_em = face.units_per_em() as f32;
     let scale = if units_per_em > 0.0 { 1000.0 / units_per_em } else { 1.0 };
-
-    const FIRST_CHAR: u32 = 32;
-    const LAST_CHAR: u32 = 126;
-    const MISSING_WIDTH: i64 = 500;
-
-    let mut widths = Vec::with_capacity((LAST_CHAR - FIRST_CHAR + 1) as usize);
-    for code in FIRST_CHAR..=LAST_CHAR {
-        let ch = char::from_u32(code).unwrap_or(' ');
-        let width = face
-            .glyph_index(ch)
-            .and_then(|gid| face.glyph_hor_advance(gid))
-            .map(|w| (w as f32 * scale).round() as i64)
-            .unwrap_or(MISSING_WIDTH);
-        widths.push(Object::Integer(width));
-    }
 
     let bbox = face.global_bounding_box();
     let font_bbox = vec![
@@ -155,13 +125,9 @@ fn embed_truetype_font(doc: &mut Document, font_bytes: &[u8]) -> Result<lopdf::O
 
     let ascent = (face.ascender() as f32 * scale).round();
     let descent = (face.descender() as f32 * scale).round();
-    let cap_height = face
-        .capital_height()
-        .map(|h| (h as f32 * scale).round())
-        .unwrap_or(ascent);
+    let cap_height = face.capital_height().map(|h| (h as f32 * scale).round()).unwrap_or(ascent);
     let italic_angle = face.italic_angle().unwrap_or(0.0);
 
-    // Simpan font mentah sebagai stream FontFile2 (kompresi Flate otomatis oleh lopdf)
     let mut font_file_stream = lopdf::Stream::new(
         dictionary! { "Length1" => font_bytes.len() as i64 },
         font_bytes.to_vec(),
@@ -171,33 +137,44 @@ fn embed_truetype_font(doc: &mut Document, font_bytes: &[u8]) -> Result<lopdf::O
 
     let descriptor_dict = dictionary! {
         "Type" => "FontDescriptor",
-        "FontName" => "EmbeddedCustomFont",
-        "Flags" => 32i64, // Nonsymbolic
+        "FontName" => "CustomFont",
+        "Flags" => 32i64,
         "FontBBox" => font_bbox,
         "ItalicAngle" => italic_angle,
         "Ascent" => ascent,
         "Descent" => descent,
         "CapHeight" => cap_height,
         "StemV" => 80i64,
-        "MissingWidth" => MISSING_WIDTH,
         "FontFile2" => font_file_id,
     };
     let descriptor_id = doc.add_object(descriptor_dict);
 
-    let font_dict = dictionary! {
-        "Type" => "Font",
-        "Subtype" => "TrueType",
-        "BaseFont" => "EmbeddedCustomFont",
-        "FirstChar" => FIRST_CHAR as i64,
-        "LastChar" => LAST_CHAR as i64,
-        "Widths" => widths,
-        "FontDescriptor" => descriptor_id,
-        "Encoding" => "WinAnsiEncoding",
+    let cid_system_info = dictionary! {
+        "Registry" => Object::String("Adobe".into(), StringFormat::Literal),
+        "Ordering" => Object::String("Identity".into(), StringFormat::Literal),
+        "Supplement" => 0i64,
     };
 
-    Ok(doc.add_object(font_dict))
-}
+    let cid_font_dict = dictionary! {
+        "Type" => "Font",
+        "Subtype" => "CIDFontType2",
+        "BaseFont" => "CustomFont",
+        "CIDSystemInfo" => cid_system_info,
+        "FontDescriptor" => descriptor_id,
+        "DW" => 1000i64,
+    };
+    let cid_font_id = doc.add_object(cid_font_dict);
 
+    let type0_dict = dictionary! {
+        "Type" => "Font",
+        "Subtype" => "Type0",
+        "BaseFont" => "CustomFont",
+        "Encoding" => "Identity-H",
+        "DescendantFonts" => vec![Object::Reference(cid_font_id)],
+    };
+
+    Ok(doc.add_object(type0_dict))
+}
 
 #[wasm_bindgen]
 pub fn generate_certificates_chunk(
@@ -213,21 +190,16 @@ pub fn generate_certificates_chunk(
     let configs: Vec<TextElementConfig> = serde_wasm_bindgen::from_value(configs_json)
         .map_err(|e| JsValue::from_str(&format!("Gagal membaca konfigurasi elemen: {}", e)))?;
 
-    // Load PDF Base Template Sekali di Awal
     let mut base_doc = Document::load_mem(template_bytes)
         .map_err(|e| JsValue::from_str(&format!("Gagal membaca template PDF: {}", e)))?;
 
-    // Registrasi Font: pakai font custom (TrueType embed) jika user memilihnya,
-    // fallback diam-diam ke Helvetica-Bold standar PDF kalau tidak dipilih atau embed gagal
-    // (misal file font korup/tidak didukung) — supaya proses cetak tetap bisa lanjut.
+    let is_custom_font = font_bytes.is_some();
+
     let font_id = match font_bytes.as_deref() {
         Some(bytes) => match embed_truetype_font(&mut base_doc, bytes) {
             Ok(id) => id,
             Err(err) => {
-                // SEMENTARA untuk debugging: lempar error ke JS alih-alih fallback diam-diam,
-                // supaya kelihatan alasan pastinya kenapa embed font gagal.
-                // Setelah ketemu penyebabnya & diperbaiki, kembalikan ke fallback diam-diam.
-                return Err(JsValue::from_str(&format!("DEBUG font embed gagal: {}", err)));
+                return Err(JsValue::from_str(&format!("Gagal embed font kustom: {}", err)));
             }
         },
         None => {
@@ -257,11 +229,9 @@ pub fn generate_certificates_chunk(
         }
     }
 
-    let mut zip_buffer = Vec::with_capacity(1024 * 1024 * 10); // Pre-allocate 10MB Buffer
+    let mut zip_buffer = Vec::with_capacity(1024 * 1024 * 10);
     {
         let mut zip = ZipWriter::new(Cursor::new(&mut zip_buffer));
-        
-        // OPTIMASI UTAMA: Gunakan Stored (tanpa re-kompresi) agar ZIP tereksekusi instan
         let zip_options = SimpleFileOptions::default()
             .compression_method(zip::CompressionMethod::Stored);
 
@@ -319,11 +289,23 @@ pub fn generate_certificates_chunk(
                             _ => cfg.x,
                         };
 
+                        // Encode ke UTF-16BE jika menggunakan font TrueType kustom
+                        let (text_bytes, string_format) = if is_custom_font {
+                            let mut u16_bytes = Vec::new();
+                            for u in line_str.encode_utf16() {
+                                u16_bytes.push((u >> 8) as u8);
+                                u16_bytes.push((u & 0xFF) as u8);
+                            }
+                            (u16_bytes, StringFormat::Hexadecimal)
+                        } else {
+                            (line_str.as_bytes().to_vec(), StringFormat::Literal)
+                        };
+
                         operations.push(Operation::new("Tf", vec!["F1".into(), cfg.font_size.into()]));
                         operations.push(Operation::new("Td", vec![adjusted_x.into(), current_y.into()]));
                         operations.push(Operation::new(
                             "Tj",
-                            vec![Object::String(line_str.as_bytes().to_vec(), StringFormat::Literal)],
+                            vec![Object::String(text_bytes, string_format)],
                         ));
                         operations.push(Operation::new("Td", vec![(-adjusted_x).into(), (-current_y).into()]));
                     }
