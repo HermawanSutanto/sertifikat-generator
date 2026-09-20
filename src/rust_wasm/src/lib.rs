@@ -108,35 +108,27 @@ fn interpolate_template(template: &str, row: &serde_json::Value) -> String {
     result
 }
 
-// Buat ToUnicode CMap Stream agar PDF Reader bisa memetakan byte UTF-16BE ke Glyph font kustom
-fn create_to_unicode_stream(doc: &mut Document) -> lopdf::ObjectId {
-    let cmap_content = "/CIDInit /ProcSet findresource begin\n\
-12 dict begin\n\
-begincmap\n\
-/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def\n\
-/CMapName /CustomToUnicode def\n\
-/CMapType 2 def\n\
-1 begincodespacerange\n\
-<0000> <FFFF>\n\
-endcodespacerange\n\
-1 beginbfrange\n\
-<0020> <007E> <0020>\n\
-endbfrange\n\
-endcmap\n\
-CMapName currentdict /CMap defineresource pop\n\
-end\n\
-end";
-
-    let mut stream = lopdf::Stream::new(dictionary! {}, cmap_content.as_bytes().to_vec());
-    let _ = stream.compress();
-    doc.add_object(stream)
-}
-
+// Embed Font TrueType dengan WinAnsiEncoding agar karakter dibaca standar (Single-Byte)
 fn embed_truetype_font(doc: &mut Document, font_bytes: &[u8]) -> Result<lopdf::ObjectId, String> {
     let face = Face::parse(font_bytes, 0).map_err(|e| format!("Font gagal diparse: {:?}", e))?;
 
     let units_per_em = face.units_per_em() as f32;
     let scale = if units_per_em > 0.0 { 1000.0 / units_per_em } else { 1.0 };
+
+    const FIRST_CHAR: u32 = 32;
+    const LAST_CHAR: u32 = 255;
+    const MISSING_WIDTH: i64 = 500;
+
+    let mut widths = Vec::with_capacity((LAST_CHAR - FIRST_CHAR + 1) as usize);
+    for code in FIRST_CHAR..=LAST_CHAR {
+        let ch = char::from_u32(code).unwrap_or(' ');
+        let width = face
+            .glyph_index(ch)
+            .and_then(|gid| face.glyph_hor_advance(gid))
+            .map(|w| (w as f32 * scale).round() as i64)
+            .unwrap_or(MISSING_WIDTH);
+        widths.push(Object::Integer(width));
+    }
 
     let bbox = face.global_bounding_box();
     let font_bbox = vec![
@@ -168,38 +160,23 @@ fn embed_truetype_font(doc: &mut Document, font_bytes: &[u8]) -> Result<lopdf::O
         "Descent" => descent,
         "CapHeight" => cap_height,
         "StemV" => 80i64,
+        "MissingWidth" => MISSING_WIDTH,
         "FontFile2" => font_file_id,
     };
     let descriptor_id = doc.add_object(descriptor_dict);
 
-    let cid_system_info = dictionary! {
-        "Registry" => Object::String("Adobe".into(), StringFormat::Literal),
-        "Ordering" => Object::String("Identity".into(), StringFormat::Literal),
-        "Supplement" => 0i64,
-    };
-
-    let cid_font_dict = dictionary! {
+    let font_dict = dictionary! {
         "Type" => "Font",
-        "Subtype" => "CIDFontType2",
+        "Subtype" => "TrueType",
         "BaseFont" => "CustomFont",
-        "CIDSystemInfo" => cid_system_info,
+        "FirstChar" => FIRST_CHAR as i64,
+        "LastChar" => LAST_CHAR as i64,
+        "Widths" => widths,
         "FontDescriptor" => descriptor_id,
-        "DW" => 1000i64,
-    };
-    let cid_font_id = doc.add_object(cid_font_dict);
-
-    let to_unicode_id = create_to_unicode_stream(doc);
-
-    let type0_dict = dictionary! {
-        "Type" => "Font",
-        "Subtype" => "Type0",
-        "BaseFont" => "CustomFont",
-        "Encoding" => "Identity-H",
-        "DescendantFonts" => vec![Object::Reference(cid_font_id)],
-        "ToUnicode" => to_unicode_id,
+        "Encoding" => "WinAnsiEncoding",
     };
 
-    Ok(doc.add_object(type0_dict))
+    Ok(doc.add_object(font_dict))
 }
 
 #[wasm_bindgen]
@@ -218,8 +195,6 @@ pub fn generate_certificates_chunk(
 
     let mut base_doc = Document::load_mem(template_bytes)
         .map_err(|e| JsValue::from_str(&format!("Gagal membaca template PDF: {}", e)))?;
-
-    let is_custom_font = font_bytes.is_some();
 
     let font_id = match font_bytes.as_deref() {
         Some(bytes) => match embed_truetype_font(&mut base_doc, bytes) {
@@ -315,22 +290,12 @@ pub fn generate_certificates_chunk(
                             _ => cfg.x,
                         };
 
-                        let (text_bytes, string_format) = if is_custom_font {
-                            let mut u16_bytes = Vec::new();
-                            for u in line_str.encode_utf16() {
-                                u16_bytes.push((u >> 8) as u8);
-                                u16_bytes.push((u & 0xFF) as u8);
-                            }
-                            (u16_bytes, StringFormat::Hexadecimal)
-                        } else {
-                            (line_str.as_bytes().to_vec(), StringFormat::Literal)
-                        };
-
+                        // Tulis teks sebagai byte WinAnsi (Standard Literal)
                         operations.push(Operation::new("Tf", vec!["F1".into(), cfg.font_size.into()]));
                         operations.push(Operation::new("Td", vec![adjusted_x.into(), current_y.into()]));
                         operations.push(Operation::new(
                             "Tj",
-                            vec![Object::String(text_bytes, string_format)],
+                            vec![Object::String(line_str.as_bytes().to_vec(), StringFormat::Literal)],
                         ));
                         operations.push(Operation::new("Td", vec![(-adjusted_x).into(), (-current_y).into()]));
                     }
