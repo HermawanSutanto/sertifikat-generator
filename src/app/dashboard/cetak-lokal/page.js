@@ -169,6 +169,8 @@ export default function CetakLokal() {
   const [totalPages, setTotalPages] = useState(1);
   const [currentPage, setCurrentPage] = useState(1);
   const [pdfPreviewSize, setPdfPreviewSize] = useState({ width: 842, height: 595 });
+  // Ukuran (pt) setiap halaman template: { 1: {width, height}, 2: {...} }
+  const [pageSizes, setPageSizes] = useState({});
 
   const [configs, setConfigs] = useState([]);
   const [activeColumn, setActiveColumn] = useState("");
@@ -358,6 +360,14 @@ export default function CetakLokal() {
       setPdfDoc(pdf);
       setTotalPages(pdf.numPages);
       setCurrentPage(1);
+
+      const sizes = {};
+      for (let p = 1; p <= pdf.numPages; p++) {
+        const pg = await pdf.getPage(p);
+        const vp = pg.getViewport({ scale: 1.0 });
+        sizes[p] = { width: vp.width, height: vp.height };
+      }
+      setPageSizes(sizes);
 
       await renderPdfPage(pdf, 1);
     } catch (err) {
@@ -575,6 +585,28 @@ export default function CetakLokal() {
     return warnings;
   };
 
+  // Kirim koordinat MENTAH dari preview (pojok kiri-atas kotak, satuan pt).
+  // Flip sumbu Y + penentuan baseline dilakukan di Rust dengan metrik font yang
+  // sama dengan yang dipakai untuk wrap/align, sehingga hasil = preview.
+  const buildFormattedConfigs = () =>
+    configs
+      .filter((c) => c.enabled)
+      .map((c) => {
+        const page = c.page_number || 1;
+        const size = pageSizes[page] || pdfPreviewSize;
+        return {
+          column_name: c.column_name,
+          static_text: c.static_text || null,
+          x: Number(c.x),
+          y: Number(c.y),
+          font_size: parseFloat(c.font_size),
+          max_width: parseFloat(c.max_width),
+          align: c.align || "left",
+          page_number: page,
+          page_height: size.height,
+        };
+      });
+
   // Unduh 1 Sampel Sertifikat (Preview Data Terpanjang)
   const handleDownloadPreview = async () => {
     if (!templateFile) {
@@ -598,19 +630,7 @@ export default function CetakLokal() {
 
       const sampleCsvRow = [longestRowSample];
 
-      // Formatter dengan koreksi offset Y presisi
-      const formattedConfigs = configs
-        .filter((c) => c.enabled)
-        .map((c) => ({
-          column_name: c.column_name,
-          static_text: c.static_text || null,
-          x: c.x,
-          y: pdfPreviewSize.height - c.y - (c.font_size * 0.85),
-          font_size: parseFloat(c.font_size),
-          max_width: parseFloat(c.max_width),
-          align: c.align || "left",
-          page_number: c.page_number || 1,
-        }));
+      const formattedConfigs = buildFormattedConfigs();
 
       const wasm = await import("@/rust_wasm/pkg/pdf_cert_wasm.js");
       await wasm.default();
@@ -672,19 +692,7 @@ export default function CetakLokal() {
       const templateArrayBuffer = await templateFile.arrayBuffer();
       const templateUint8 = new Uint8Array(templateArrayBuffer);
 
-      // Formatter dengan koreksi offset Y presisi
-      const formattedConfigs = configs
-        .filter((c) => c.enabled)
-        .map((c) => ({
-          column_name: c.column_name,
-          static_text: c.static_text || null,
-          x: c.x,
-          y: pdfPreviewSize.height - c.y - (c.font_size * 0.85),
-          font_size: parseFloat(c.font_size),
-          max_width: parseFloat(c.max_width),
-          align: c.align || "left",
-          page_number: c.page_number || 1,
-        }));
+      const formattedConfigs = buildFormattedConfigs();
 
       const worker = new Worker(new URL("./pdfWorker.js", import.meta.url));
 
@@ -1272,12 +1280,19 @@ export default function CetakLokal() {
                 const displayText = renderPreviewText(cfg);
                 const isSelected = activeColumn === cfg.column_name;
                 const isStatic = cfg.static_text !== undefined;
+                const outlineColor = isSelected ? "#8C2F39" : isStatic ? "#22c55e" : "#60a5fa";
+                const boxBg = isSelected
+                  ? "rgba(140,47,57,0.15)"
+                  : isStatic
+                  ? "rgba(34,197,94,0.10)"
+                  : "rgba(96,165,250,0.10)";
 
                 return (
                   <Rnd
                     key={cfg.column_name}
                     bounds="parent"
-                    size={{ width: cfg.max_width, height: cfg.font_size * 1.5 }}
+                    size={{ width: cfg.max_width, height: cfg.font_size * 1.2 }}
+                    enableResizing={{ left: true, right: true }}
                     position={{ x: cfg.x, y: cfg.y }}
                     onDrag={(e, d) => {
                       const { x, y } = handleDrag(cfg.column_name, d.x, d.y, cfg.max_width);
@@ -1293,23 +1308,29 @@ export default function CetakLokal() {
                       setActiveColumn(cfg.column_name);
                     }}
                     onClick={() => setActiveColumn(cfg.column_name)}
-                    className={`absolute flex items-center border-2 border-dashed px-2 cursor-move z-10 transition-colors ${
-                      isSelected
-                        ? "border-[#8C2F39] bg-[#8C2F39]/15"
-                        : isStatic
-                        ? "border-green-500 bg-green-500/10"
-                        : "border-blue-400 bg-blue-400/10"
-                    } ${
-                      cfg.align === "center" ? "justify-center text-center" : cfg.align === "right" ? "justify-end text-right" : "justify-start text-left"
-                    }`}
+                    className="absolute cursor-move z-10"
+                    style={{ outline: `2px dashed ${outlineColor}`, backgroundColor: boxBg }}
                   >
                     <span
+                      className="select-none"
                       style={{
-                        fontSize: `${cfg.font_size * 0.75}px`,
+                        display: "block",
+                        width: "100%",
+                        // 1 px preview = 1 pt PDF, jadi ukuran font TIDAK dikali 0.75
+                        fontSize: `${cfg.font_size}px`,
                         lineHeight: 1.2,
-                        fontFamily: selectedLocalFontFamily ? `"${selectedLocalFontFamily}", sans-serif` : "sans-serif",
+                        textAlign: cfg.align || "left",
+                        whiteSpace: "normal",
+                        overflowWrap: "anywhere",
+                        fontKerning: "none",
+                        fontVariantLigatures: "none",
+                        color: "#1a1a1a",
+                        // Font kustom: Regular (sama dengan yang di-embed). Fallback: Helvetica-Bold.
+                        fontWeight: selectedLocalFontFamily ? 400 : 700,
+                        fontFamily: selectedLocalFontFamily
+                          ? `"${selectedLocalFontFamily}", Helvetica, Arial, sans-serif`
+                          : 'Helvetica, Arial, "Liberation Sans", sans-serif',
                       }}
-                      className="truncate font-bold text-gray-800 select-none w-full"
                     >
                       {displayText}
                     </span>

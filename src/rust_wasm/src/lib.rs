@@ -7,6 +7,24 @@ use wasm_bindgen::prelude::*;
 use zip::write::SimpleFileOptions;
 use zip::ZipWriter;
 
+// ---------------------------------------------------------------------------
+// Konstanta layout — HARUS sama dengan preview di page.js (lineHeight: 1.2)
+// ---------------------------------------------------------------------------
+const LINE_HEIGHT_RATIO: f32 = 1.2;
+// Metrik fallback (Arial/Helvetica) saat tidak ada font kustom.
+const FALLBACK_ASCENT: f32 = 0.905;
+const FALLBACK_DESCENT: f32 = 0.212;
+
+const FIRST_CHAR: u32 = 32;
+const LAST_CHAR: u32 = 255;
+const MISSING_WIDTH: f32 = 500.0;
+
+/// Konfigurasi satu elemen teks.
+///
+/// Koordinat `x`/`y` adalah pojok KIRI-ATAS kotak elemen pada preview
+/// (satuan pt, origin di kiri-atas halaman). Konversi ke koordinat PDF
+/// (origin kiri-bawah) dan penentuan baseline dilakukan di sini, memakai
+/// metrik font yang benar-benar dipakai, sehingga hasilnya sama dengan preview.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TextElementConfig {
     pub column_name: String,
@@ -18,67 +36,183 @@ pub struct TextElementConfig {
     pub line_height: Option<f32>,
     pub align: Option<String>,
     pub page_number: Option<usize>,
+    /// Tinggi halaman tujuan (pt), dikirim dari page.js per halaman.
+    pub page_height: f32,
 }
 
 pub fn sanitize_name(nama: &str) -> String {
     nama.trim()
-        .replace('/', "_")
-        .replace('\\', "_")
-        .replace(':', "_")
+        .chars()
+        .map(|c| match c {
+            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
+            c if c.is_control() => '_',
+            c => c,
+        })
+        .collect()
 }
 
-fn wrap_text(text: &str, font_size: f32, max_width: f32) -> Vec<String> {
-    let approx_char_width = font_size * 0.52;
-    let words: Vec<&str> = text.split_whitespace().collect();
-    let mut lines = Vec::with_capacity(4);
-    let mut current_line = String::with_capacity(64);
+// ---------------------------------------------------------------------------
+// Encoding WinAnsi (dipakai oleh font kustom maupun fallback Helvetica-Bold)
+// ---------------------------------------------------------------------------
+const WINANSI_80_9F: [char; 32] = [
+    '€', '\u{81}', '‚', 'ƒ', '„', '…', '†', '‡', 'ˆ', '‰', 'Š', '‹', 'Œ', '\u{8D}', 'Ž', '\u{8F}',
+    '\u{90}', '‘', '’', '“', '”', '•', '–', '—', '˜', '™', 'š', '›', 'œ', '\u{9D}', 'ž', 'Ÿ',
+];
 
-    for word in words {
-        let word_width = word.len() as f32 * approx_char_width;
+fn winansi_to_char(code: u32) -> char {
+    if (0x80..=0x9F).contains(&code) {
+        WINANSI_80_9F[(code - 0x80) as usize]
+    } else {
+        char::from_u32(code).unwrap_or(' ')
+    }
+}
 
-        if word_width > max_width {
-            if !current_line.is_empty() {
-                lines.push(current_line.clone());
-                current_line.clear();
-            }
+fn encode_winansi_char(ch: char) -> u8 {
+    let c = ch as u32;
+    if c < 0x20 {
+        return b' ';
+    }
+    if c < 0x7F || (0xA0..=0xFF).contains(&c) {
+        return c as u8;
+    }
+    match WINANSI_80_9F.iter().position(|&x| x == ch) {
+        // 0x81, 0x8D, 0x8F, 0x90, 0x9D tidak terdefinisi di WinAnsi
+        Some(i) if !matches!(i, 1 | 13 | 15 | 16 | 29) => 0x80 + i as u8,
+        _ => b'?',
+    }
+}
 
-            let mut char_chunk = String::with_capacity(32);
-            for ch in word.chars() {
-                let char_len = ch.len_utf8();
-                let test_len = char_chunk.len() + char_len;
+fn encode_winansi(text: &str) -> Vec<u8> {
+    text.chars().map(encode_winansi_char).collect()
+}
 
-                if (test_len as f32 * approx_char_width) > max_width && !char_chunk.is_empty() {
-                    lines.push(char_chunk.clone());
-                    char_chunk.clear();
+// Lebar glyph Helvetica-Bold (AFM), kode 32..=126, satuan 1/1000 em.
+const HELVETICA_BOLD_WIDTHS: [u16; 95] = [
+    278, 333, 474, 556, 556, 889, 722, 238, 333, 333, 389, 584, 278, 333, 278, 278, // 32-47
+    556, 556, 556, 556, 556, 556, 556, 556, 556, 556, // 48-57
+    333, 333, 584, 584, 584, 611, 975, // 58-64
+    722, 722, 722, 722, 667, 611, 778, 722, 278, 556, 722, 611, 833, // A-M
+    722, 778, 667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, // N-Z
+    333, 278, 333, 584, 556, 333, // 91-96
+    556, 611, 556, 611, 556, 333, 611, 611, 278, 278, 556, 278, 889, // a-m
+    611, 611, 611, 611, 389, 556, 333, 611, 556, 778, 556, 556, 500, // n-z
+    389, 280, 389, 584, // 123-126
+];
+
+fn helvetica_bold_width(code: u8) -> f32 {
+    match code {
+        32..=126 => HELVETICA_BOLD_WIDTHS[(code - 32) as usize] as f32,
+        0x85 | 0x97 => 1000.0,
+        0x91 | 0x92 | 0xA0 => 278.0,
+        0x93 | 0x94 => 500.0,
+        0x95 => 350.0,
+        0x96 => 556.0,
+        _ => 611.0,
+    }
+}
+
+// ---------------------------------------------------------------------------
+// Pengukuran teks — satu sumber kebenaran untuk wrap, align, dan baseline
+// ---------------------------------------------------------------------------
+fn face_width_1000(face: &Face, units_per_em: f32, ch: char) -> Option<f32> {
+    face.glyph_index(ch)
+        .and_then(|gid| face.glyph_hor_advance(gid))
+        .map(|w| w as f32 * 1000.0 / units_per_em)
+}
+
+struct FontMetrics<'a> {
+    face: Option<Face<'a>>,
+    units_per_em: f32,
+    /// Rasio ascent/descent terhadap font size (descent bernilai positif).
+    ascent: f32,
+    descent: f32,
+}
+
+impl<'a> FontMetrics<'a> {
+    fn new(font_bytes: Option<&'a [u8]>) -> Self {
+        if let Some(face) = font_bytes.and_then(|b| Face::parse(b, 0).ok()) {
+            let upm = face.units_per_em() as f32;
+            if upm > 0.0 {
+                let ascent = face.ascender() as f32 / upm;
+                let descent = -(face.descender() as f32) / upm;
+                if ascent + descent > 0.0 {
+                    return Self { face: Some(face), units_per_em: upm, ascent, descent };
                 }
-                char_chunk.push(ch);
             }
-            if !char_chunk.is_empty() {
-                current_line = char_chunk;
+        }
+        Self {
+            face: None,
+            units_per_em: 1000.0,
+            ascent: FALLBACK_ASCENT,
+            descent: FALLBACK_DESCENT,
+        }
+    }
+
+    /// Lebar satu byte WinAnsi dalam 1/1000 em.
+    fn code_width_1000(&self, code: u8) -> f32 {
+        match &self.face {
+            Some(face) => face_width_1000(face, self.units_per_em, winansi_to_char(code as u32))
+                .unwrap_or(MISSING_WIDTH),
+            None => helvetica_bold_width(code),
+        }
+    }
+
+    fn char_width(&self, ch: char, font_size: f32) -> f32 {
+        self.code_width_1000(encode_winansi_char(ch)) / 1000.0 * font_size
+    }
+
+    fn text_width(&self, text: &str, font_size: f32) -> f32 {
+        text.chars().map(|c| self.char_width(c, font_size)).sum()
+    }
+}
+
+/// Word-wrap greedy berdasarkan lebar glyph asli (bukan perkiraan per karakter).
+fn wrap_text(text: &str, font_size: f32, max_width: f32, m: &FontMetrics) -> Vec<String> {
+    let space_w = m.char_width(' ', font_size);
+    let mut lines: Vec<String> = Vec::with_capacity(4);
+    let mut current = String::with_capacity(64);
+    let mut current_w = 0.0_f32;
+
+    for word in text.split_whitespace() {
+        let word_w = m.text_width(word, font_size);
+
+        // Kata tunggal lebih lebar dari kotak: pecah per karakter.
+        if word_w > max_width {
+            if !current.is_empty() {
+                lines.push(std::mem::take(&mut current));
             }
+            let mut chunk = String::with_capacity(32);
+            let mut chunk_w = 0.0_f32;
+            for ch in word.chars() {
+                let cw = m.char_width(ch, font_size);
+                if chunk_w + cw > max_width && !chunk.is_empty() {
+                    lines.push(std::mem::take(&mut chunk));
+                    chunk_w = 0.0;
+                }
+                chunk.push(ch);
+                chunk_w += cw;
+            }
+            current = chunk;
+            current_w = chunk_w;
             continue;
         }
 
-        let space_needed = if current_line.is_empty() { 0 } else { 1 };
-        let test_len = current_line.len() + space_needed + word.len();
-        let test_width = test_len as f32 * approx_char_width;
-
-        if test_width > max_width && !current_line.is_empty() {
-            lines.push(current_line.clone());
-            current_line.clear();
-            current_line.push_str(word);
+        if current.is_empty() {
+            current.push_str(word);
+            current_w = word_w;
+        } else if current_w + space_w + word_w > max_width {
+            lines.push(std::mem::replace(&mut current, word.to_string()));
+            current_w = word_w;
         } else {
-            if !current_line.is_empty() {
-                current_line.push(' ');
-            }
-            current_line.push_str(word);
+            current.push(' ');
+            current.push_str(word);
+            current_w += space_w + word_w;
         }
     }
 
-    if !current_line.is_empty() {
-        lines.push(current_line);
+    if !current.is_empty() {
+        lines.push(current);
     }
-
     lines
 }
 
@@ -87,15 +221,15 @@ fn interpolate_template(template: &str, row: &serde_json::Value) -> String {
 
     if let Some(obj) = row.as_object() {
         for (key, val) in obj {
-            let val_str = match val {
-                serde_json::Value::String(s) => s.as_str(),
-                serde_json::Value::Number(n) => &n.to_string(),
-                _ => "",
+            let val_str: String = match val {
+                serde_json::Value::String(s) => s.clone(),
+                serde_json::Value::Number(n) => n.to_string(),
+                _ => String::new(),
             };
 
             let placeholder_normal = format!("{{{}}}", key);
             if result.contains(&placeholder_normal) {
-                result = result.replace(&placeholder_normal, val_str);
+                result = result.replace(&placeholder_normal, &val_str);
             }
 
             let placeholder_upper = format!("{{{}:uppercase}}", key);
@@ -108,46 +242,23 @@ fn interpolate_template(template: &str, row: &serde_json::Value) -> String {
     result
 }
 
-// Hitung lebar string presisi menggunakan glyph advance dari ttf_parser
-fn measure_text_width(text: &str, font_size: f32, font_bytes: Option<&[u8]>) -> f32 {
-    if let Some(bytes) = font_bytes {
-        if let Ok(face) = Face::parse(bytes, 0) {
-            let units_per_em = face.units_per_em() as f32;
-            if units_per_em > 0.0 {
-                let mut total_width_units = 0.0;
-                for ch in text.chars() {
-                    let adv = face
-                        .glyph_index(ch)
-                        .and_then(|gid| face.glyph_hor_advance(gid))
-                        .unwrap_or(500);
-                    total_width_units += adv as f32;
-                }
-                return (total_width_units / units_per_em) * font_size;
-            }
-        }
-    }
-    text.len() as f32 * (font_size * 0.52)
-}
-
 fn embed_truetype_font(doc: &mut Document, font_bytes: &[u8]) -> Result<lopdf::ObjectId, String> {
     let face = Face::parse(font_bytes, 0).map_err(|e| format!("Font gagal diparse: {:?}", e))?;
 
     let units_per_em = face.units_per_em() as f32;
     let scale = if units_per_em > 0.0 { 1000.0 / units_per_em } else { 1.0 };
 
-    const FIRST_CHAR: u32 = 32;
-    const LAST_CHAR: u32 = 255;
-    const MISSING_WIDTH: i64 = 500;
-
+    // Lebar per kode WinAnsi — dibangun dengan pemetaan yang sama seperti
+    // encode_winansi(), jadi /Widths konsisten dengan pengukuran teks.
     let mut widths = Vec::with_capacity((LAST_CHAR - FIRST_CHAR + 1) as usize);
     for code in FIRST_CHAR..=LAST_CHAR {
-        let ch = char::from_u32(code).unwrap_or(' ');
+        let ch = winansi_to_char(code);
         let width = face
             .glyph_index(ch)
             .and_then(|gid| face.glyph_hor_advance(gid))
-            .map(|w| (w as f32 * scale).round() as i64)
+            .map(|w| w as f32 * scale)
             .unwrap_or(MISSING_WIDTH);
-        widths.push(Object::Integer(width));
+        widths.push(Object::Integer(width.round() as i64));
     }
 
     let bbox = face.global_bounding_box();
@@ -180,7 +291,7 @@ fn embed_truetype_font(doc: &mut Document, font_bytes: &[u8]) -> Result<lopdf::O
         "Descent" => descent,
         "CapHeight" => cap_height,
         "StemV" => 80i64,
-        "MissingWidth" => MISSING_WIDTH,
+        "MissingWidth" => MISSING_WIDTH as i64,
         "FontFile2" => font_file_id,
     };
     let descriptor_id = doc.add_object(descriptor_dict);
@@ -217,17 +328,15 @@ pub fn generate_certificates_chunk(
         .map_err(|e| JsValue::from_str(&format!("Gagal membaca template PDF: {}", e)))?;
 
     let font_id = match font_bytes.as_deref() {
-        Some(bytes) => match embed_truetype_font(&mut base_doc, bytes) {
-            Ok(id) => id,
-            Err(err) => {
-                return Err(JsValue::from_str(&format!("Gagal embed font kustom: {}", err)));
-            }
-        },
+        Some(bytes) => embed_truetype_font(&mut base_doc, bytes)
+            .map_err(|err| JsValue::from_str(&format!("Gagal embed font kustom: {}", err)))?,
         None => {
+            // WinAnsi supaya karakter Latin-1 (é, ü, dst.) dan tanda kutip melengkung tampil benar.
             let font_dict = dictionary! {
                 "Type" => "Font",
                 "Subtype" => "Type1",
                 "BaseFont" => "Helvetica-Bold",
+                "Encoding" => "WinAnsiEncoding",
             };
             base_doc.add_object(font_dict)
         }
@@ -250,6 +359,9 @@ pub fn generate_certificates_chunk(
         }
     }
 
+    // Diparse sekali per chunk, dipakai untuk semua baris.
+    let metrics = FontMetrics::new(font_bytes.as_deref());
+
     let mut zip_buffer = Vec::with_capacity(1024 * 1024 * 10);
     {
         let mut zip = ZipWriter::new(Cursor::new(&mut zip_buffer));
@@ -268,9 +380,11 @@ pub fn generate_certificates_chunk(
             let file_name_sanitized = sanitize_name(main_name);
 
             for (page_num, page_id) in &pages {
+                // q/Q mengisolasi graphics state agar tidak terpengaruh isi template.
                 let mut operations = Vec::with_capacity(32);
+                operations.push(Operation::new("q", vec![]));
                 operations.push(Operation::new("BT", vec![]));
-                operations.push(Operation::new("rg", vec![0.1.into(), 0.1.into(), 0.1.into()]));
+                operations.push(Operation::new("rg", vec![0.1_f32.into(), 0.1_f32.into(), 0.1_f32.into()]));
 
                 let mut has_operations = false;
 
@@ -295,15 +409,20 @@ pub fn generate_certificates_chunk(
 
                     has_operations = true;
 
-                    let lines = wrap_text(&raw_text, cfg.font_size, cfg.max_width);
-                    let line_height = cfg.line_height.unwrap_or(cfg.font_size * 1.2);
+                    let fs = cfg.font_size;
+                    let lines = wrap_text(&raw_text, fs, cfg.max_width, &metrics);
+                    let line_height = cfg.line_height.unwrap_or(fs * LINE_HEIGHT_RATIO);
                     let align = cfg.align.as_deref().unwrap_or("left");
 
+                    // Sama dengan CSS: teks berada di tengah line box (half-leading),
+                    // baseline = tepi atas line box + half-leading + ascent.
+                    let content_h = (metrics.ascent + metrics.descent) * fs;
+                    let baseline_from_top = (line_height - content_h) / 2.0 + metrics.ascent * fs;
+                    let first_baseline_y = cfg.page_height - cfg.y - baseline_from_top;
+
                     for (line_idx, line_str) in lines.iter().enumerate() {
-                        let current_y = cfg.y - (line_idx as f32 * line_height);
-                        
-                        // Perhitungan lebar string presisi
-                        let line_width = measure_text_width(line_str, cfg.font_size, font_bytes.as_deref());
+                        let current_y = first_baseline_y - (line_idx as f32 * line_height);
+                        let line_width = metrics.text_width(line_str, fs);
 
                         let adjusted_x = match align {
                             "center" => cfg.x + ((cfg.max_width - line_width) / 2.0),
@@ -311,18 +430,29 @@ pub fn generate_certificates_chunk(
                             _ => cfg.x,
                         };
 
-                        operations.push(Operation::new("Tf", vec!["F1".into(), cfg.font_size.into()]));
-                        operations.push(Operation::new("Td", vec![adjusted_x.into(), current_y.into()]));
+                        operations.push(Operation::new("Tf", vec!["F1".into(), fs.into()]));
+                        // Tm absolut: tidak ada state posisi yang menumpuk antar baris.
+                        operations.push(Operation::new(
+                            "Tm",
+                            vec![
+                                1.0_f32.into(),
+                                0.0_f32.into(),
+                                0.0_f32.into(),
+                                1.0_f32.into(),
+                                adjusted_x.into(),
+                                current_y.into(),
+                            ],
+                        ));
                         operations.push(Operation::new(
                             "Tj",
-                            vec![Object::String(line_str.as_bytes().to_vec(), StringFormat::Literal)],
+                            vec![Object::String(encode_winansi(line_str), StringFormat::Literal)],
                         ));
-                        operations.push(Operation::new("Td", vec![(-adjusted_x).into(), (-current_y).into()]));
                     }
                 }
 
                 if has_operations {
                     operations.push(Operation::new("ET", vec![]));
+                    operations.push(Operation::new("Q", vec![]));
                     let content_ops = Content { operations };
                     let _ = doc.add_to_page_content(*page_id, content_ops);
                 }
@@ -337,12 +467,50 @@ pub fn generate_certificates_chunk(
                 file_name_sanitized.to_lowercase().replace(' ', "_"),
                 global_idx
             );
-            zip.start_file(file_name, zip_options).unwrap();
-            zip.write_all(&pdf_bytes).unwrap();
+            zip.start_file(file_name, zip_options)
+                .map_err(|e| JsValue::from_str(&format!("Gagal membuat berkas ZIP: {}", e)))?;
+            zip.write_all(&pdf_bytes)
+                .map_err(|e| JsValue::from_str(&format!("Gagal menulis ke ZIP: {}", e)))?;
         }
 
-        zip.finish().unwrap();
+        zip.finish()
+            .map_err(|e| JsValue::from_str(&format!("Gagal menutup ZIP: {}", e)))?;
     }
 
     Ok(zip_buffer)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn winansi_roundtrip() {
+        assert_eq!(encode_winansi("Aé’"), vec![b'A', 0xE9, 0x92]);
+        assert_eq!(encode_winansi("日"), vec![b'?']);
+    }
+
+    #[test]
+    fn helvetica_bold_known_widths() {
+        let m = FontMetrics::new(None);
+        // "AB" = 722 + 722 pada 10pt => 14.44
+        assert!((m.text_width("AB", 10.0) - 14.44).abs() < 0.01);
+    }
+
+    #[test]
+    fn wrap_respects_width() {
+        let m = FontMetrics::new(None);
+        let lines = wrap_text("Muhammad Rizky Ramadhan Putra", 20.0, 150.0, &m);
+        assert!(lines.len() > 1);
+        for l in &lines {
+            assert!(m.text_width(l, 20.0) <= 150.0 + 0.01, "baris melebihi lebar: {}", l);
+        }
+    }
+
+    #[test]
+    fn wrap_splits_overlong_word() {
+        let m = FontMetrics::new(None);
+        let lines = wrap_text("Supercalifragilisticexpialidocious", 20.0, 100.0, &m);
+        assert!(lines.len() > 1);
+    }
 }
