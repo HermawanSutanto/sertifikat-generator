@@ -18,6 +18,8 @@ const FALLBACK_DESCENT: f32 = 0.212;
 const FIRST_CHAR: u32 = 32;
 const LAST_CHAR: u32 = 255;
 const MISSING_WIDTH: f32 = 500.0;
+// Warna teks bawaan (#1A1A1A) bila elemen tidak punya warna / format tidak valid.
+const DEFAULT_COLOR: [f32; 3] = [0.1, 0.1, 0.1];
 
 /// Konfigurasi satu elemen teks.
 ///
@@ -38,6 +40,28 @@ pub struct TextElementConfig {
     pub page_number: Option<usize>,
     /// Tinggi halaman tujuan (pt), dikirim dari page.js per halaman.
     pub page_height: f32,
+    /// Warna teks hex ("#RRGGBB" atau "#RGB"). Opsional.
+    pub color: Option<String>,
+}
+
+/// Parse "#RRGGBB" / "#RGB" (tanpa/dengan '#') menjadi komponen 0.0..=1.0.
+fn parse_hex_color(input: &str) -> Option<[f32; 3]> {
+    let h = input.trim().trim_start_matches('#');
+    if !h.is_ascii() {
+        return None;
+    }
+    let (r, g, b) = match h.len() {
+        3 => {
+            let d = |i: usize| u8::from_str_radix(&h[i..i + 1], 16).ok().map(|v| v * 17);
+            (d(0)?, d(1)?, d(2)?)
+        }
+        6 => {
+            let d = |i: usize| u8::from_str_radix(&h[i..i + 2], 16).ok();
+            (d(0)?, d(2)?, d(4)?)
+        }
+        _ => return None,
+    };
+    Some([r as f32 / 255.0, g as f32 / 255.0, b as f32 / 255.0])
 }
 
 pub fn sanitize_name(nama: &str) -> String {
@@ -384,7 +408,10 @@ pub fn generate_certificates_chunk(
                 let mut operations = Vec::with_capacity(32);
                 operations.push(Operation::new("q", vec![]));
                 operations.push(Operation::new("BT", vec![]));
-                operations.push(Operation::new("rg", vec![0.1_f32.into(), 0.1_f32.into(), 0.1_f32.into()]));
+                operations.push(Operation::new(
+                    "rg",
+                    vec![DEFAULT_COLOR[0].into(), DEFAULT_COLOR[1].into(), DEFAULT_COLOR[2].into()],
+                ));
 
                 let mut has_operations = false;
 
@@ -408,6 +435,14 @@ pub fn generate_certificates_chunk(
                     }
 
                     has_operations = true;
+
+                    // Warna per elemen (persisten di dalam BT, jadi set eksplisit untuk tiap elemen).
+                    let [cr, cg, cb] = cfg
+                        .color
+                        .as_deref()
+                        .and_then(parse_hex_color)
+                        .unwrap_or(DEFAULT_COLOR);
+                    operations.push(Operation::new("rg", vec![cr.into(), cg.into(), cb.into()]));
 
                     let fs = cfg.font_size;
                     let lines = wrap_text(&raw_text, fs, cfg.max_width, &metrics);
@@ -495,6 +530,15 @@ mod tests {
         let m = FontMetrics::new(None);
         // "AB" = 722 + 722 pada 10pt => 14.44
         assert!((m.text_width("AB", 10.0) - 14.44).abs() < 0.01);
+    }
+
+    #[test]
+    fn hex_color_parsing() {
+        assert_eq!(parse_hex_color("#FF0000"), Some([1.0, 0.0, 0.0]));
+        assert_eq!(parse_hex_color("0f0"), Some([0.0, 1.0, 0.0]));
+        assert_eq!(parse_hex_color("#12"), None);
+        assert_eq!(parse_hex_color("#GGGGGG"), None);
+        assert_eq!(parse_hex_color("#éééé"), None);
     }
 
     #[test]

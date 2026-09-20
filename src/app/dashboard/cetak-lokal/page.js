@@ -8,6 +8,9 @@ import Papa from "papaparse";
 import { Rnd } from "react-rnd";
 import { PDFDocument } from "pdf-lib";
 
+// Warna teks bawaan — harus sama dengan DEFAULT_COLOR di lib.rs (#1A1A1A)
+const DEFAULT_TEXT_COLOR = "#1A1A1A";
+
 const Spinner = (props) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" {...props}>
     <path fill="currentColor" d="M12,23a9.63,9.63,0,0,1-8-9.5,9.51,9.51,0,0,1,6.79-9.1A1,1,0,0,1,12,5.19a8.4,8.4,0,0,0-6.1,8.31,8.44,8.44,0,0,0,8.38,8.38A1,1,0,0,1,12,23Z">
@@ -604,6 +607,7 @@ export default function CetakLokal() {
           align: c.align || "left",
           page_number: page,
           page_height: size.height,
+          color: c.color || DEFAULT_TEXT_COLOR,
         };
       });
 
@@ -1154,6 +1158,38 @@ export default function CetakLokal() {
                     </div>
                   </div>
 
+                  <div>
+                    <label className="block text-xs font-semibold mb-1">Warna Teks</label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={cfg.color || DEFAULT_TEXT_COLOR}
+                        onChange={(e) => updateConfig(cfg.column_name, { color: e.target.value })}
+                        className="h-9 w-12 p-0.5 bg-white border rounded-lg cursor-pointer"
+                      />
+                      <span className="text-xs font-mono text-gray-600 uppercase">
+                        {cfg.color || DEFAULT_TEXT_COLOR}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => updateConfig(cfg.column_name, { color: DEFAULT_TEXT_COLOR })}
+                        className="ml-auto px-2 py-1 text-[11px] font-semibold text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-md"
+                      >
+                        Reset
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const picked = cfg.color || DEFAULT_TEXT_COLOR;
+                          setConfigs((prev) => prev.map((c) => ({ ...c, color: picked })));
+                        }}
+                        className="px-2 py-1 text-[11px] font-semibold text-[#8C2F39] bg-[#8C2F39]/10 hover:bg-[#8C2F39]/20 rounded-md"
+                      >
+                        Samakan semua
+                      </button>
+                    </div>
+                  </div>
+
                   {cfg.static_text !== undefined && (
                     <button
                       type="button"
@@ -1324,7 +1360,7 @@ export default function CetakLokal() {
                         overflowWrap: "anywhere",
                         fontKerning: "none",
                         fontVariantLigatures: "none",
-                        color: "#1a1a1a",
+                        color: cfg.color || DEFAULT_TEXT_COLOR,
                         // Font kustom: Regular (sama dengan yang di-embed). Fallback: Helvetica-Bold.
                         fontWeight: selectedLocalFontFamily ? 400 : 700,
                         fontFamily: selectedLocalFontFamily
