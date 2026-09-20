@@ -637,6 +637,13 @@ const handleRestoreElement = (colName) => {
 
       const worker = new Worker(new URL("./pdfWorker.js", import.meta.url));
 
+      // DEBUG SEMENTARA: cek apakah fontBytes benar-benar ada & berapa ukurannya
+      // sebelum dikirim ke worker. Hapus lagi setelah masalah font ketemu.
+      console.log(
+        "[DEBUG] fontBytes sebelum dikirim ke worker:",
+        selectedFontBytes ? `${selectedFontBytes.length} bytes` : "TIDAK ADA (null/undefined)"
+      );
+
       worker.postMessage({
         templateUint8,
         csvRows,

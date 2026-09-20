@@ -223,13 +223,11 @@ pub fn generate_certificates_chunk(
     let font_id = match font_bytes.as_deref() {
         Some(bytes) => match embed_truetype_font(&mut base_doc, bytes) {
             Ok(id) => id,
-            Err(_) => {
-                let fallback_dict = dictionary! {
-                    "Type" => "Font",
-                    "Subtype" => "Type1",
-                    "BaseFont" => "Helvetica-Bold",
-                };
-                base_doc.add_object(fallback_dict)
+            Err(err) => {
+                // SEMENTARA untuk debugging: lempar error ke JS alih-alih fallback diam-diam,
+                // supaya kelihatan alasan pastinya kenapa embed font gagal.
+                // Setelah ketemu penyebabnya & diperbaiki, kembalikan ke fallback diam-diam.
+                return Err(JsValue::from_str(&format!("DEBUG font embed gagal: {}", err)));
             }
         },
         None => {

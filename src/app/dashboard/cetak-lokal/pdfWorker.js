@@ -6,6 +6,12 @@ self.onmessage = async (e) => {
 
     await init();
 
+    // DEBUG SEMENTARA: cek apakah fontBytes benar-benar diterima worker
+    console.log(
+      "[DEBUG] fontBytes diterima worker:",
+      fontBytes ? `${fontBytes.length} bytes` : "TIDAK ADA (null/undefined)"
+    );
+
     const total = csvRows.length;
     let processed = 0;
 
