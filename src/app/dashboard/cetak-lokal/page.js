@@ -239,7 +239,80 @@ export default function CetakLokal() {
     });
     return sample;
   };
+  // Fungsi untuk mendownload 1 sertifikat sampel (Preview Data Terpanjang)
+const handleDownloadPreview = async () => {
+  if (!templateFile) {
+    setNotification({
+      show: true,
+      message: "Harap unggah template PDF terlebih dahulu.",
+      type: "error",
+    });
+    return;
+  }
 
+  try {
+    setNotification({
+      show: true,
+      message: "Menyusun sertifikat preview...",
+      type: "success",
+    });
+
+    const templateArrayBuffer = await templateFile.arrayBuffer();
+    const templateUint8 = new Uint8Array(templateArrayBuffer);
+
+    // Gunakan data paling panjang sebagai 1 sampel data CSV
+    const sampleCsvRow = [longestRowSample];
+
+    const formattedConfigs = configs
+      .filter((c) => c.enabled)
+      .map((c) => ({
+        column_name: c.column_name,
+        static_text: c.static_text || null,
+        x: c.x,
+        y: pdfPreviewSize.height - c.y - c.font_size,
+        font_size: parseFloat(c.font_size),
+        max_width: parseFloat(c.max_width),
+        align: c.align || "left",
+        page_number: c.page_number || 1,
+      }));
+
+    // Import dinamis paket WASM langsung di UI thread untuk 1 file preview
+    const wasm = await import("@/rust_wasm/pkg/pdf_cert_wasm.js");
+    await wasm.default();
+
+    const zipBytes = wasm.generate_certificates_chunk(
+      templateUint8,
+      sampleCsvRow,
+      formattedConfigs,
+      0,
+      selectedFontBytes || undefined
+    );
+
+    // Unduh berkas hasil sampel
+    const blob = new Blob([zipBytes], { type: "application/zip" });
+    const downloadUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = `preview_sertifikat_sampel_${Date.now()}.zip`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(downloadUrl);
+
+    setNotification({
+      show: true,
+      message: "Berhasil mengunduh sampel preview sertifikat!",
+      type: "success",
+    });
+  } catch (err) {
+    console.error("Gagal mendownload preview:", err);
+    setNotification({
+      show: true,
+      message: `Gagal mendownload preview: ${err.message || String(err)}`,
+      type: "error",
+    });
+  }
+};
   const compressPdfTemplate = async (originalFile, scale = 1.5, quality = 0.8) => {
     const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf");
     pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/legacy/build/pdf.worker.min.mjs`;
@@ -1124,13 +1197,31 @@ export default function CetakLokal() {
             </div>
           )}
 
-          <button
-            onClick={handleStartGenerate}
-            disabled={isProcessing || !csvFile || !templateFile}
-            className="w-full py-3 text-sm font-semibold text-white bg-[#8C2F39] rounded-lg shadow-sm hover:bg-[#742531] disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
-          >
-            {isProcessing ? "Memproses dalam Worker..." : "Cetak & Download ZIP"}
-          </button>
+          <div className="space-y-2 pt-2">
+  {/* Tombol Download Preview Sample */}
+  <button
+    type="button"
+    onClick={handleDownloadPreview}
+    disabled={isProcessing || !templateFile}
+    className="w-full py-2 text-xs font-semibold text-[#17233D] bg-white border border-[#17233D]/20 hover:bg-[#17233D]/5 rounded-lg shadow-sm disabled:bg-gray-200 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+  >
+    <svg className="w-4 h-4 text-[#8C2F39]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+    </svg>
+    Download Preview Sampel (1 PDF)
+  </button>
+
+  {/* Tombol Utama Batch Print */}
+  <button
+    onClick={handleStartGenerate}
+    disabled={isProcessing || !csvFile || !templateFile}
+    className="w-full py-3 text-sm font-semibold text-white bg-[#8C2F39] rounded-lg shadow-sm hover:bg-[#742531] disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+  >
+    {isProcessing ? "Memproses dalam Worker..." : "Cetak & Download ZIP (Semua Peserta)"}
+  </button>
+</div>
+          
         </div>
 
         {/* Panel Preview Layout Canvas */}
