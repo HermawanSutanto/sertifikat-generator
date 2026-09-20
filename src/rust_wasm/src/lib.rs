@@ -108,7 +108,27 @@ fn interpolate_template(template: &str, row: &serde_json::Value) -> String {
     result
 }
 
-// Embed Font TrueType dengan WinAnsiEncoding agar karakter dibaca standar (Single-Byte)
+// Hitung lebar string presisi menggunakan glyph advance dari ttf_parser
+fn measure_text_width(text: &str, font_size: f32, font_bytes: Option<&[u8]>) -> f32 {
+    if let Some(bytes) = font_bytes {
+        if let Ok(face) = Face::parse(bytes, 0) {
+            let units_per_em = face.units_per_em() as f32;
+            if units_per_em > 0.0 {
+                let mut total_width_units = 0.0;
+                for ch in text.chars() {
+                    let adv = face
+                        .glyph_index(ch)
+                        .and_then(|gid| face.glyph_hor_advance(gid))
+                        .unwrap_or(500);
+                    total_width_units += adv as f32;
+                }
+                return (total_width_units / units_per_em) * font_size;
+            }
+        }
+    }
+    text.len() as f32 * (font_size * 0.52)
+}
+
 fn embed_truetype_font(doc: &mut Document, font_bytes: &[u8]) -> Result<lopdf::ObjectId, String> {
     let face = Face::parse(font_bytes, 0).map_err(|e| format!("Font gagal diparse: {:?}", e))?;
 
@@ -278,11 +298,12 @@ pub fn generate_certificates_chunk(
                     let lines = wrap_text(&raw_text, cfg.font_size, cfg.max_width);
                     let line_height = cfg.line_height.unwrap_or(cfg.font_size * 1.2);
                     let align = cfg.align.as_deref().unwrap_or("left");
-                    let approx_char_width = cfg.font_size * 0.52;
 
                     for (line_idx, line_str) in lines.iter().enumerate() {
                         let current_y = cfg.y - (line_idx as f32 * line_height);
-                        let line_width = line_str.len() as f32 * approx_char_width;
+                        
+                        // Perhitungan lebar string presisi
+                        let line_width = measure_text_width(line_str, cfg.font_size, font_bytes.as_deref());
 
                         let adjusted_x = match align {
                             "center" => cfg.x + ((cfg.max_width - line_width) / 2.0),
@@ -290,7 +311,6 @@ pub fn generate_certificates_chunk(
                             _ => cfg.x,
                         };
 
-                        // Tulis teks sebagai byte WinAnsi (Standard Literal)
                         operations.push(Operation::new("Tf", vec!["F1".into(), cfg.font_size.into()]));
                         operations.push(Operation::new("Td", vec![adjusted_x.into(), current_y.into()]));
                         operations.push(Operation::new(

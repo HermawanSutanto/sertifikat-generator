@@ -598,13 +598,14 @@ export default function CetakLokal() {
 
       const sampleCsvRow = [longestRowSample];
 
+      // Formatter dengan koreksi offset Y presisi
       const formattedConfigs = configs
         .filter((c) => c.enabled)
         .map((c) => ({
           column_name: c.column_name,
           static_text: c.static_text || null,
           x: c.x,
-          y: pdfPreviewSize.height - c.y - c.font_size,
+          y: pdfPreviewSize.height - c.y - (c.font_size * 0.85),
           font_size: parseFloat(c.font_size),
           max_width: parseFloat(c.max_width),
           align: c.align || "left",
@@ -671,13 +672,14 @@ export default function CetakLokal() {
       const templateArrayBuffer = await templateFile.arrayBuffer();
       const templateUint8 = new Uint8Array(templateArrayBuffer);
 
+      // Formatter dengan koreksi offset Y presisi
       const formattedConfigs = configs
         .filter((c) => c.enabled)
         .map((c) => ({
           column_name: c.column_name,
           static_text: c.static_text || null,
           x: c.x,
-          y: pdfPreviewSize.height - c.y - c.font_size,
+          y: pdfPreviewSize.height - c.y - (c.font_size * 0.85),
           font_size: parseFloat(c.font_size),
           max_width: parseFloat(c.max_width),
           align: c.align || "left",
@@ -772,7 +774,7 @@ export default function CetakLokal() {
         </div>
       </header>
 
-      {/* Main Container dengan items-start agar sticky kanan bekerja */}
+      {/* Main Layout dengan items-start agar Sticky Panel Kanan bekerja */}
       <main className="flex flex-col lg:flex-row items-start gap-6 p-6 min-h-screen bg-[#F2EAD3] text-[#17233D]">
         {/* Panel Kontrol Kiri */}
         <div className="w-full lg:w-1/3 space-y-6 bg-[#FCFAF2] p-6 rounded-2xl shadow-md border border-[#17233D]/10">
@@ -1304,6 +1306,7 @@ export default function CetakLokal() {
                     <span
                       style={{
                         fontSize: `${cfg.font_size * 0.75}px`,
+                        lineHeight: 1.2,
                         fontFamily: selectedLocalFontFamily ? `"${selectedLocalFontFamily}", sans-serif` : "sans-serif",
                       }}
                       className="truncate font-bold text-gray-800 select-none w-full"
