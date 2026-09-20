@@ -108,7 +108,30 @@ fn interpolate_template(template: &str, row: &serde_json::Value) -> String {
     result
 }
 
-// Embed font TrueType kustom sebagai Type0 + CIDFontType2 (Identity-H)
+// Buat ToUnicode CMap Stream agar PDF Reader bisa memetakan byte UTF-16BE ke Glyph font kustom
+fn create_to_unicode_stream(doc: &mut Document) -> lopdf::ObjectId {
+    let cmap_content = "/CIDInit /ProcSet findresource begin\n\
+12 dict begin\n\
+begincmap\n\
+/CIDSystemInfo << /Registry (Adobe) /Ordering (UCS) /Supplement 0 >> def\n\
+/CMapName /CustomToUnicode def\n\
+/CMapType 2 def\n\
+1 begincodespacerange\n\
+<0000> <FFFF>\n\
+endcodespacerange\n\
+1 beginbfrange\n\
+<0020> <007E> <0020>\n\
+endbfrange\n\
+endcmap\n\
+CMapName currentdict /CMap defineresource pop\n\
+end\n\
+end";
+
+    let mut stream = lopdf::Stream::new(dictionary! {}, cmap_content.as_bytes().to_vec());
+    let _ = stream.compress();
+    doc.add_object(stream)
+}
+
 fn embed_truetype_font(doc: &mut Document, font_bytes: &[u8]) -> Result<lopdf::ObjectId, String> {
     let face = Face::parse(font_bytes, 0).map_err(|e| format!("Font gagal diparse: {:?}", e))?;
 
@@ -165,12 +188,15 @@ fn embed_truetype_font(doc: &mut Document, font_bytes: &[u8]) -> Result<lopdf::O
     };
     let cid_font_id = doc.add_object(cid_font_dict);
 
+    let to_unicode_id = create_to_unicode_stream(doc);
+
     let type0_dict = dictionary! {
         "Type" => "Font",
         "Subtype" => "Type0",
         "BaseFont" => "CustomFont",
         "Encoding" => "Identity-H",
         "DescendantFonts" => vec![Object::Reference(cid_font_id)],
+        "ToUnicode" => to_unicode_id,
     };
 
     Ok(doc.add_object(type0_dict))
@@ -194,40 +220,40 @@ pub fn generate_certificates_chunk(
         .map_err(|e| JsValue::from_str(&format!("Gagal membaca template PDF: {}", e)))?;
 
     let is_custom_font = font_bytes.is_some();
-let font_id = match font_bytes.as_deref() {
-    Some(bytes) => match embed_truetype_font(&mut base_doc, bytes) {
-        Ok(id) => id,
-        Err(err) => {
-            return Err(JsValue::from_str(&format!("Gagal embed font kustom: {}", err)));
+
+    let font_id = match font_bytes.as_deref() {
+        Some(bytes) => match embed_truetype_font(&mut base_doc, bytes) {
+            Ok(id) => id,
+            Err(err) => {
+                return Err(JsValue::from_str(&format!("Gagal embed font kustom: {}", err)));
+            }
+        },
+        None => {
+            let font_dict = dictionary! {
+                "Type" => "Font",
+                "Subtype" => "Type1",
+                "BaseFont" => "Helvetica-Bold",
+            };
+            base_doc.add_object(font_dict)
         }
-    },
-    None => {
-        let font_dict = dictionary! {
-            "Type" => "Font",
-            "Subtype" => "Type1",
-            "BaseFont" => "Helvetica-Bold",
-        };
-        base_doc.add_object(font_dict)
-    }
-};
+    };
 
     let pages = base_doc.get_pages();
-for page_id in pages.values() {
-    if let Ok(page_dict) = base_doc.get_dictionary_mut(*page_id) {
-        if let Ok(resources_obj) = page_dict.get_mut(b"Resources") {
-            if let Ok(res_dict) = resources_obj.as_dict_mut() {
-                // Buat dictionary Font jika belum ada, lalu set F1 = font_id
-                if let Ok(font_obj) = res_dict.get_mut(b"Font") {
-                    if let Ok(font_dict_mut) = font_obj.as_dict_mut() {
-                        font_dict_mut.set("F1", font_id); // 👈 Memastikan F1 menunjuk ke font kustom
+    for page_id in pages.values() {
+        if let Ok(page_dict) = base_doc.get_dictionary_mut(*page_id) {
+            if let Ok(resources_obj) = page_dict.get_mut(b"Resources") {
+                if let Ok(res_dict) = resources_obj.as_dict_mut() {
+                    if let Ok(font_obj) = res_dict.get_mut(b"Font") {
+                        if let Ok(font_dict_mut) = font_obj.as_dict_mut() {
+                            font_dict_mut.set("F1", font_id);
+                        }
+                    } else {
+                        res_dict.set("Font", dictionary! { "F1" => font_id });
                     }
-                } else {
-                    res_dict.set("Font", dictionary! { "F1" => font_id });
                 }
             }
         }
     }
-}
 
     let mut zip_buffer = Vec::with_capacity(1024 * 1024 * 10);
     {
@@ -289,7 +315,6 @@ for page_id in pages.values() {
                             _ => cfg.x,
                         };
 
-                        // Encode ke UTF-16BE jika menggunakan font TrueType kustom
                         let (text_bytes, string_format) = if is_custom_font {
                             let mut u16_bytes = Vec::new();
                             for u in line_str.encode_utf16() {
