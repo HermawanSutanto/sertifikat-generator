@@ -470,6 +470,7 @@ const renderPdfPage = async (pdf, pageNum) => {
     try {
       const compressedFile = await compressPdfTemplate(file, compressionScale, compressionQuality);
       setTemplateFile(compressedFile);
+
       const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf");
       pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/legacy/build/pdf.worker.min.mjs`;
 
@@ -479,6 +480,22 @@ const renderPdfPage = async (pdf, pageNum) => {
       setTotalPages(pdf.numPages);
       setCurrentPage(1);
 
+      // 1. Ambil viewport halaman 1 untuk mendapatkan ukuran baru
+      const firstPage = await pdf.getPage(1);
+      const viewport = firstPage.getViewport({ scale: 1.0 });
+      const newWidth = viewport.width;
+      const newHeight = viewport.height;
+
+      // 2. Jalankan Auto-Clamp untuk menyesuaikan posisi elemen teks
+      setConfigs((prevConfigs) =>
+        prevConfigs.map((cfg) => ({
+          ...cfg,
+          x: Math.min(cfg.x, Math.max(0, newWidth - cfg.max_width)),
+          y: Math.min(cfg.y, Math.max(0, newHeight - cfg.font_size)),
+        }))
+      );
+
+      // 3. Simpan ukuran tiap halaman
       const sizes = {};
       for (let p = 1; p <= pdf.numPages; p++) {
         const pg = await pdf.getPage(p);
