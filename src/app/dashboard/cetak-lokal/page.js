@@ -9,6 +9,7 @@ import { Rnd } from "react-rnd";
 import { PDFDocument } from "pdf-lib";
 
 const DEFAULT_TEXT_COLOR = "#1A1A1A";
+const LOCAL_STORAGE_KEY_CONFIGS = "sertigen_active_configs";
 
 const Spinner = ({ className = "w-4 h-4 text-current", ...props }) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className={className} {...props}>
@@ -148,6 +149,8 @@ export default function CetakLokal() {
   const [isLoadingFontBytes, setIsLoadingFontBytes] = useState(false);
   const [fontDetectionError, setFontDetectionError] = useState("");
 
+  const [isInitialConfigLoaded, setIsInitialConfigLoaded] = useState(false);
+
   useEffect(() => {
     setLocalFontApiSupported(typeof window !== "undefined" && "queryLocalFonts" in window);
   }, []);
@@ -247,16 +250,38 @@ export default function CetakLokal() {
     }
   }, [user, loading, router]);
 
+  // Muat Preset dan Config tersimpan dari LocalStorage saat mount
   useEffect(() => {
-    const local = localStorage.getItem("sertigen_presets");
-    if (local) {
+    const localPresets = localStorage.getItem("sertigen_presets");
+    if (localPresets) {
       try {
-        setSavedPresets(JSON.parse(local));
+        setSavedPresets(JSON.parse(localPresets));
       } catch (e) {
         console.error("Gagal membaca preset:", e);
       }
     }
+
+    const localConfigs = localStorage.getItem(LOCAL_STORAGE_KEY_CONFIGS);
+    if (localConfigs) {
+      try {
+        const parsed = JSON.parse(localConfigs);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setConfigs(parsed);
+          setActiveColumn(parsed[0].column_name);
+        }
+      } catch (e) {
+        console.error("Gagal membaca aktif konfigurasi:", e);
+      }
+    }
+    setIsInitialConfigLoaded(true);
   }, []);
+
+  // Simpan otomatis configs setiap kali terjadi perubahan
+  useEffect(() => {
+    if (isInitialConfigLoaded) {
+      localStorage.setItem(LOCAL_STORAGE_KEY_CONFIGS, JSON.stringify(configs));
+    }
+  }, [configs, isInitialConfigLoaded]);
 
   useEffect(() => {
     if (pdfDoc) {
@@ -347,19 +372,22 @@ export default function CetakLokal() {
           const scannedLongest = scanLongestRowSample(rows, fields);
           setLongestRowSample(scannedLongest);
 
-          const initialConfigs = fields.map((header, idx) => ({
-            column_name: header,
-            static_text: "",
-            x: (pdfPreviewSize.width - 400) / 2,
-            y: 150 + idx * 60,
-            font_size: 28,
-            max_width: 400,
-            align: "center",
-            enabled: true,
-            page_number: 1,
-          }));
-          setConfigs(initialConfigs);
-          if (fields.length > 0) setActiveColumn(fields[0]);
+          // Jika configs belum ada dari LocalStorage, buat default dari header CSV
+          if (configs.length === 0) {
+            const initialConfigs = fields.map((header, idx) => ({
+              column_name: header,
+              static_text: "",
+              x: (pdfPreviewSize.width - 400) / 2,
+              y: 150 + idx * 60,
+              font_size: 28,
+              max_width: 400,
+              align: "center",
+              enabled: true,
+              page_number: 1,
+            }));
+            setConfigs(initialConfigs);
+            if (fields.length > 0) setActiveColumn(fields[0]);
+          }
         }
       },
       error: (err) => {
@@ -481,6 +509,13 @@ export default function CetakLokal() {
     setConfigs((prev) =>
       prev.map((cfg) => (cfg.column_name === colName ? { ...cfg, ...newProps } : cfg))
     );
+  };
+
+  const handleResetConfigs = () => {
+    localStorage.removeItem(LOCAL_STORAGE_KEY_CONFIGS);
+    setConfigs([]);
+    setActiveColumn("");
+    setNotification({ show: true, message: "Pengaturan telah direset.", type: "success" });
   };
 
   const handleDrag = (colName, x, y, width) => {
@@ -992,13 +1027,23 @@ export default function CetakLokal() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
                   <h2 className="text-xs font-semibold text-slate-200">Tata Letak Teks</h2>
-                  <button
-                    type="button"
-                    onClick={handleAddStaticText}
-                    className="px-2 py-0.5 text-[11px] font-medium text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded transition-colors"
-                  >
-                    + Teks Statis
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={handleResetConfigs}
+                      className="px-2 py-0.5 text-[10px] font-medium text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 rounded transition-colors"
+                      title="Reset tata letak ke posisi awal"
+                    >
+                      Reset
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAddStaticText}
+                      className="px-2 py-0.5 text-[11px] font-medium text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded transition-colors"
+                    >
+                      + Teks Statis
+                    </button>
+                  </div>
                 </div>
 
                 {configs.some((c) => !c.enabled) && (
