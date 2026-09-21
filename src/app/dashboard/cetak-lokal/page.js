@@ -13,16 +13,16 @@ const LOCAL_STORAGE_KEY_CONFIGS = "sertigen_active_configs";
 
 // Daftar Template PDF Sistem
 const SYSTEM_TEMPLATES = [
-  { id: "default", name: "Template Sertifikat Standard", path: "/templates/preset1.pdf" },
+  { id: "default", name: "Template Sertifikat Standard", path: "/templates/default_template.pdf" },
   { id: "formal", name: "Template Formal / Resmi", path: "/templates/formal_template.pdf" },
   { id: "modern", name: "Template Modern Minimalis", path: "/templates/modern_template.pdf" },
 ];
 
 // Daftar Template Layout JSON Bawaan Sistem
 const SYSTEM_LAYOUT_TEMPLATES = [
-  { id: "seminar", name: "Layout Seminar Standard", path: "/layout-templates/seminar.json" },
-  { id: "pelatihan", name: "Layout Pelatihan / Workshop", path: "/layout-templates/pelatihan.json" },
-  { id: "penghargaan", name: "Layout Sertifikat Penghargaan", path: "/layout-templates/penghargaan.json" },
+  { id: "seminar", name: "Layout Seminar Standard", path: "/layout-templates/preset1.json" },
+  { id: "pelatihan", name: "Layout Pelatihan / Workshop", path: "/layout-templates/preset2.json" },
+  { id: "penghargaan", name: "Layout Sertifikat Penghargaan", path: "/layout-templates/preset3.json" },
 ];
 
 const Spinner = ({ className = "w-4 h-4 text-current", ...props }) => (
