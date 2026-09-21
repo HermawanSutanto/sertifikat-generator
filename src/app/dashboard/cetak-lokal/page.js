@@ -8,15 +8,10 @@ import Papa from "papaparse";
 import { Rnd } from "react-rnd";
 import { PDFDocument } from "pdf-lib";
 
-// Warna teks bawaan — harus sama dengan DEFAULT_COLOR di lib.rs (#1A1A1A)
 const DEFAULT_TEXT_COLOR = "#1A1A1A";
 
-// Font sistem desain Pleurat. Pastikan "General Sans" dimuat secara global
-// (mis. lewat @font-face di globals.css atau next/font) — fallback aman jika belum.
-const FONT_STACK = '"General Sans", ui-sans-serif, system-ui, -apple-system, sans-serif';
-
-const Spinner = (props) => (
-  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" {...props}>
+const Spinner = ({ className = "w-5 h-5 text-current", ...props }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className={className} {...props}>
     <path fill="currentColor" d="M12,23a9.63,9.63,0,0,1-8-9.5,9.51,9.51,0,0,1,6.79-9.1A1,1,0,0,1,12,5.19a8.4,8.4,0,0,0-6.1,8.31,8.44,8.44,0,0,0,8.38,8.38A1,1,0,0,1,12,23Z">
       <animateTransform attributeName="transform" type="rotate" dur="0.75s" from="0 12 12" to="360 12 12" repeatCount="indefinite" />
     </path>
@@ -24,10 +19,25 @@ const Spinner = (props) => (
 );
 
 const Notification = ({ message, type, show }) => {
-  const bgColor = type === "success" ? "bg-green-700" : "bg-[#d94b3d]";
+  const isSuccess = type === "success";
   return (
-    <div className={`fixed top-5 right-0 p-4 rounded-none text-white shadow-lg transition-transform transform ${show ? "translate-x-0" : "translate-x-full"} ${bgColor}`} style={{ zIndex: 1000, fontFamily: FONT_STACK }}>
-      {message}
+    <div
+      className={`fixed top-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-xl text-white shadow-2xl transition-all duration-300 transform ${
+        show ? "translate-x-0 opacity-100 scale-100" : "translate-x-10 opacity-0 scale-95"
+      } ${isSuccess ? "bg-emerald-600 border border-emerald-500" : "bg-rose-600 border border-rose-500"}`}
+    >
+      <div className="p-1 rounded-full bg-white/20">
+        {isSuccess ? (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+          </svg>
+        ) : (
+          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        )}
+      </div>
+      <span className="text-xs font-medium">{message}</span>
     </div>
   );
 };
@@ -36,44 +46,45 @@ const ValidationModal = ({ isOpen, warnings, onConfirm, onCancel }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-[#16140e]/50 backdrop-blur-sm z-50 flex items-center justify-center p-4" style={{ fontFamily: FONT_STACK }}>
-      <div className="bg-[#fffcf0] rounded-md max-w-lg w-full p-6 shadow-lg border border-[#e5e7eb] space-y-4">
-        <div className="flex items-center gap-3 text-amber-600">
-          <svg className="w-7 h-7 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-          <h3 className="text-lg font-medium tracking-tight text-[#16140e]">Peringatan Pre-Flight Validation</h3>
+    <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
+      <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 text-slate-200">
+        <div className="flex items-center gap-3 text-amber-500">
+          <div className="p-2 bg-amber-500/10 rounded-xl border border-amber-500/20">
+            <svg className="w-6 h-6 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+            </svg>
+          </div>
+          <div>
+            <h3 className="text-base font-bold text-white">Pre-Flight Validation Warning</h3>
+            <p className="text-xs text-slate-400">Pemeriksaan otomatis mendeteksi masalah berikut</p>
+          </div>
         </div>
 
-        <p className="text-xs text-[#8f8677]">
-          Sistem menemukan beberapa potensi masalah pada template atau data CSV kamu sebelum proses cetak dimulai:
-        </p>
-
-        <div className="max-h-60 overflow-y-auto space-y-2 text-xs bg-amber-50 p-3 rounded-md border border-amber-200">
+        <div className="max-h-56 overflow-y-auto space-y-2 text-xs bg-slate-950 p-3.5 rounded-xl border border-slate-800 text-amber-300">
           {warnings.map((warn, idx) => (
-            <div key={idx} className="flex items-start gap-2 text-amber-900">
-              <span className="font-bold text-amber-600">•</span>
-              <span>{warn}</span>
+            <div key={idx} className="flex items-start gap-2">
+              <span className="font-bold text-amber-500 mt-0.5">•</span>
+              <span className="leading-relaxed">{warn}</span>
             </div>
           ))}
         </div>
 
-        <p className="text-xs text-[#8f8677] font-medium">
-          Apakah kamu ingin tetap melanjutkan proses pencetakan sertifikat?
+        <p className="text-xs text-slate-400 font-medium">
+          Apakah Anda yakin ingin tetap melanjutkan proses pencetakan sertifikat?
         </p>
 
-        <div className="flex justify-end gap-3 pt-2">
+        <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-800">
           <button
             onClick={onCancel}
-            className="px-4 py-2 text-xs font-semibold text-[#16140e] bg-[#fbf7e6] hover:bg-[#d9d2c0]/60 rounded-none transition-colors"
+            className="px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition-all"
           >
             Batal & Perbaiki
           </button>
           <button
             onClick={onConfirm}
-            className="px-4 py-2 text-xs font-semibold text-[#16140e] bg-[#f3b44a] hover:bg-[#e6a53d] rounded-none transition-colors"
+            className="px-4 py-2 text-xs font-semibold text-white bg-[#8C2F39] hover:bg-[#742531] rounded-xl shadow-lg transition-all"
           >
-            Tetap Lanjutkan Cetak
+            Lanjutkan Cetak
           </button>
         </div>
       </div>
@@ -84,6 +95,9 @@ const ValidationModal = ({ isOpen, warnings, onConfirm, onCancel }) => {
 export default function CetakLokal() {
   const { user, loading } = useAuth();
   const router = useRouter();
+
+  // Tab Active State untuk Left Toolbar Dock
+  const [activeTab, setActiveTab] = useState("files");
 
   const [csvFile, setCsvFile] = useState(null);
   const [csvHeaders, setCsvHeaders] = useState([]);
@@ -131,7 +145,7 @@ export default function CetakLokal() {
       }
     } catch (err) {
       if (err.name === "NotAllowedError" || err.name === "SecurityError") {
-        setFontDetectionError("Akses ke font lokal ditolak. Anda bisa mengizinkannya lewat pengaturan situs di browser.");
+        setFontDetectionError("Akses ke font lokal ditolak. Izinkan lewat pengaturan browser.");
       } else {
         setFontDetectionError(`Gagal mendeteksi font: ${err.message}`);
       }
@@ -157,7 +171,6 @@ export default function CetakLokal() {
       const arrayBuffer = await blob.arrayBuffer();
       const bytes = new Uint8Array(arrayBuffer);
 
-      // Load font ke DOM Browser untuk Live Preview Canvas
       const fontFace = new FontFace(family, arrayBuffer);
       await fontFace.load();
       document.fonts.add(fontFace);
@@ -176,7 +189,6 @@ export default function CetakLokal() {
   const [totalPages, setTotalPages] = useState(1);
   const [currentPage, setCurrentPage] = useState(1);
   const [pdfPreviewSize, setPdfPreviewSize] = useState({ width: 842, height: 595 });
-  // Ukuran (pt) setiap halaman template: { 1: {width, height}, 2: {...} }
   const [pageSizes, setPageSizes] = useState({});
 
   const [configs, setConfigs] = useState([]);
@@ -592,9 +604,6 @@ export default function CetakLokal() {
     return warnings;
   };
 
-  // Kirim koordinat MENTAH dari preview (pojok kiri-atas kotak, satuan pt).
-  // Flip sumbu Y + penentuan baseline dilakukan di Rust dengan metrik font yang
-  // sama dengan yang dipakai untuk wrap/align, sehingga hasil = preview.
   const buildFormattedConfigs = () =>
     configs
       .filter((c) => c.enabled)
@@ -615,7 +624,6 @@ export default function CetakLokal() {
         };
       });
 
-  // Unduh 1 Sampel Sertifikat (Preview Data Terpanjang)
   const handleDownloadPreview = async () => {
     if (!templateFile) {
       setNotification({
@@ -759,8 +767,8 @@ export default function CetakLokal() {
 
   if (loading || !user) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#fffcf0]" style={{ fontFamily: FONT_STACK }}>
-        <Spinner className="w-8 h-8 text-[#f3b44a]" />
+      <div className="flex items-center justify-center min-h-screen bg-slate-950">
+        <Spinner className="w-10 h-10 text-rose-500" />
       </div>
     );
   }
@@ -772,7 +780,7 @@ export default function CetakLokal() {
   const estimatedTotalBytes = estimatedCertCount * estimatedPerFileBytes;
 
   return (
-    <>
+    <div className="h-screen w-screen bg-slate-950 text-slate-100 flex flex-col overflow-hidden font-sans antialiased">
       <Notification {...notification} />
       <ValidationModal
         isOpen={isValidationModalOpen}
@@ -781,514 +789,420 @@ export default function CetakLokal() {
         onCancel={() => setIsValidationModalOpen(false)}
       />
 
-      <header className="w-full bg-[#fffcf0] border-b border-[#16140e]/10 sticky top-0 z-40" style={{ fontFamily: FONT_STACK }}>
-        <div className="container mx-auto flex justify-between items-center px-6 py-3">
-          <h1 className="text-xl font-medium tracking-tight text-[#16140e]">SertiGen — Visual Layout Generator</h1>
-          <Link href="/dashboard" className="px-[22px] py-[13px] text-sm font-medium text-[#16140e] bg-[#f3b44a] rounded-none hover:bg-[#e6a53d] transition-colors">
-            Kembali ke Dashboard
+      {/* TOP HEADER STUDIO BAR */}
+      <header className="h-14 bg-slate-900 border-b border-slate-800/80 px-4 flex items-center justify-between shrink-0 z-30">
+        <div className="flex items-center gap-3">
+          <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-[#8C2F39] to-rose-500 flex items-center justify-center text-white font-bold text-xs shadow-md">
+            S
+          </div>
+          <span className="text-sm font-bold tracking-wide text-white">SertiGen Studio</span>
+          <span className="text-slate-700">|</span>
+          <span className="text-xs text-slate-400 font-medium">
+            {templateFile ? templateFile.name : "Certificate_Template.pdf"}
+          </span>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleDownloadPreview}
+            disabled={isProcessing || !templateFile}
+            className="px-3 py-1.5 text-xs font-semibold text-slate-200 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl transition-all disabled:opacity-50 flex items-center gap-1.5"
+          >
+            <svg className="w-3.5 h-3.5 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            </svg>
+            Preview 1 PDF
+          </button>
+
+          <button
+            onClick={handleStartGenerate}
+            disabled={isProcessing || !csvFile || !templateFile}
+            className="px-4 py-1.5 text-xs font-bold text-white bg-[#8C2F39] hover:bg-[#742531] disabled:bg-slate-800 disabled:text-slate-500 rounded-xl shadow-md transition-all flex items-center gap-1.5"
+          >
+            {isProcessing ? (
+              <>
+                <Spinner className="w-3.5 h-3.5" />
+                <span>Memproses...</span>
+              </>
+            ) : (
+              `⚡ Generate ZIP (${estimatedCertCount})`
+            )}
+          </button>
+
+          <Link
+            href="/dashboard"
+            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all ml-2"
+            title="Keluar ke Dashboard"
+          >
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+            </svg>
           </Link>
         </div>
       </header>
 
-      {/* Main Layout dengan items-start agar Sticky Panel Kanan bekerja */}
-      <main className="flex flex-col lg:flex-row items-start gap-6 p-6 min-h-screen bg-[#fffcf0] text-[#16140e]" style={{ fontFamily: FONT_STACK }}>
-        {/* Panel Kontrol Kiri */}
-        <div className="w-full lg:w-1/3 space-y-6 bg-[#fbf7e6] p-6 rounded-md border border-[#16140e]/10">
-          <h2 className="text-xl font-medium tracking-tight">1. Unggah File</h2>
+      {/* STUDIO BODY WORKSPACE */}
+      <div className="flex-1 flex overflow-hidden">
+        
+        {/* 1. LEFT TOOLBAR DOCK (Ikon Akses Cepat) */}
+        <aside className="w-14 bg-slate-900 border-r border-slate-800 flex flex-col items-center py-3 gap-3 shrink-0 z-20">
+          {[
+            { id: "files", label: "Files", icon: "📁" },
+            { id: "elements", label: "Elements", icon: "✏️" },
+            { id: "fonts", label: "Fonts", icon: "🔤" },
+            { id: "presets", label: "Presets", icon: "🎨" },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center transition-all ${
+                activeTab === tab.id
+                  ? "bg-[#8C2F39] text-white shadow-lg"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+              }`}
+              title={tab.label}
+            >
+              <span className="text-base">{tab.icon}</span>
+              <span className="text-[9px] font-semibold mt-0.5">{tab.label}</span>
+            </button>
+          ))}
+        </aside>
 
-          <div>
-            <label className="block text-sm font-semibold mb-1">Upload CSV Peserta</label>
-            <input type="file" accept=".csv" onChange={handleCsvChange} className="w-full text-sm p-2 border rounded-none bg-[#fffcf0]" />
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold mb-1">Upload Template PDF</label>
-            <input type="file" accept="application/pdf" onChange={handleTemplateChange} className="w-full text-sm p-2 border rounded-none bg-[#fffcf0]" />
-          </div>
-
-          {templateFile && (
-            <div className="bg-[#16140e]/5 border border-[#16140e]/10 rounded-md p-3 space-y-3">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-[#16140e]">Pengaturan Kompresi Template</span>
-                <span className="text-[10px] text-[#8f8677]">
-                  {formatBytes(originalTemplateSize)} → <span className="font-semibold text-[#16140e]">{formatBytes(templateFile.size)}</span>
-                </span>
-              </div>
-
-              <div>
-                <div className="flex justify-between text-[11px] font-medium text-[#8f8677] mb-1">
-                  <span>Resolusi (≈{Math.round(compressionScale * 100)} DPI)</span>
-                  <span>{compressionScale.toFixed(1)}x</span>
+        {/* 2. CONTEXTUAL INSPECTOR PANEL (Sidebar Kiri) */}
+        <div className="w-80 bg-slate-900/90 border-r border-slate-800/80 flex flex-col shrink-0 z-10 overflow-y-auto">
+          <div className="p-4 space-y-5">
+            
+            {/* PANEL: FILES */}
+            {activeTab === "files" && (
+              <div className="space-y-4 animate-in fade-in duration-150">
+                <div className="border-b border-slate-800 pb-2">
+                  <h2 className="text-xs font-bold text-white uppercase tracking-wider">Data & Template</h2>
+                  <p className="text-[11px] text-slate-400">Unggah sumber file CSV dan PDF</p>
                 </div>
-                <input
-                  type="range"
-                  min="0.5"
-                  max="3"
-                  step="0.1"
-                  value={compressionScale}
-                  onChange={(e) => setCompressionScale(Number(e.target.value))}
-                  className="w-full accent-[#f3b44a]"
-                />
-                <div className="flex justify-between text-[9px] text-[#8f8677]/70">
-                  <span>Kecil (buram)</span>
-                  <span>Besar (tajam)</span>
-                </div>
-              </div>
 
-              <div>
-                <div className="flex justify-between text-[11px] font-medium text-[#8f8677] mb-1">
-                  <span>Kualitas JPEG</span>
-                  <span>{Math.round(compressionQuality * 100)}%</span>
-                </div>
-                <input
-                  type="range"
-                  min="0.1"
-                  max="1"
-                  step="0.05"
-                  value={compressionQuality}
-                  onChange={(e) => setCompressionQuality(Number(e.target.value))}
-                  className="w-full accent-[#f3b44a]"
-                />
-                <div className="flex justify-between text-[9px] text-[#8f8677]/70">
-                  <span>Kecil (buram)</span>
-                  <span>Besar (tajam)</span>
-                </div>
-              </div>
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">CSV Peserta</label>
+                    <input
+                      type="file"
+                      accept=".csv"
+                      onChange={handleCsvChange}
+                      className="block w-full text-xs text-slate-400 file:mr-2 file:py-1.5 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700 border border-slate-800 rounded-xl p-1 bg-slate-950"
+                    />
+                    {csvRows.length > 0 && (
+                      <p className="text-[11px] text-emerald-400 font-medium mt-1">
+                        ✓ {csvRows.length} baris ({csvHeaders.length} kolom)
+                      </p>
+                    )}
+                  </div>
 
-              <div className="grid grid-cols-3 gap-1.5">
-                {[
-                  { label: "Hemat", scale: 1.0, quality: 0.6 },
-                  { label: "Seimbang", scale: 1.5, quality: 0.8 },
-                  { label: "Tajam", scale: 2.0, quality: 0.9 },
-                ].map((preset) => (
-                  <button
-                    key={preset.label}
-                    type="button"
-                    onClick={() => {
-                      setCompressionScale(preset.scale);
-                      setCompressionQuality(preset.quality);
-                    }}
-                    className={`py-1.5 text-[11px] font-semibold rounded-none border transition-colors ${
-                      compressionScale === preset.scale && compressionQuality === preset.quality
-                        ? "bg-[#f3b44a] text-[#16140e] border-[#f3b44a]"
-                        : "bg-[#fffcf0] text-[#16140e] hover:bg-[#fbf7e6] border-[#e5e7eb]"
-                    }`}
-                  >
-                    {preset.label}
-                  </button>
-                ))}
-              </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Template PDF</label>
+                    <input
+                      type="file"
+                      accept="application/pdf"
+                      onChange={handleTemplateChange}
+                      className="block w-full text-xs text-slate-400 file:mr-2 file:py-1.5 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700 border border-slate-800 rounded-xl p-1 bg-slate-950"
+                    />
+                  </div>
+                </div>
 
-              <button
-                type="button"
-                onClick={handleRecompress}
-                disabled={isRecompressing || !originalTemplateRawFile}
-                className="w-full py-2 text-xs font-semibold text-[#fffcf0] bg-[#16140e] rounded-none hover:bg-[#16140e]/85 disabled:bg-[#d9d2c0] disabled:text-[#8f8677] disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-              >
-                {isRecompressing ? (
-                  <>
-                    <Spinner className="w-3.5 h-3.5" />
-                    Mengompres Ulang...
-                  </>
-                ) : (
-                  "Terapkan Kompresi"
+                {templateFile && (
+                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-bold text-slate-300">Kompresi PDF</span>
+                      <span className="text-[10px] text-slate-400">
+                        {formatBytes(originalTemplateSize)} → <span className="font-bold text-rose-400">{formatBytes(templateFile.size)}</span>
+                      </span>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div>
+                        <div className="flex justify-between text-[10px] font-semibold text-slate-400 mb-1">
+                          <span>Resolusi (≈{Math.round(compressionScale * 100)} DPI)</span>
+                          <span>{compressionScale.toFixed(1)}x</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0.5"
+                          max="3"
+                          step="0.1"
+                          value={compressionScale}
+                          onChange={(e) => setCompressionScale(Number(e.target.value))}
+                          className="w-full accent-[#8C2F39]"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex justify-between text-[10px] font-semibold text-slate-400 mb-1">
+                          <span>Kualitas JPEG</span>
+                          <span>{Math.round(compressionQuality * 100)}%</span>
+                        </div>
+                        <input
+                          type="range"
+                          min="0.1"
+                          max="1"
+                          step="0.05"
+                          value={compressionQuality}
+                          onChange={(e) => setCompressionQuality(Number(e.target.value))}
+                          className="w-full accent-[#8C2F39]"
+                        />
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleRecompress}
+                      disabled={isRecompressing || !originalTemplateRawFile}
+                      className="w-full py-1.5 text-xs font-semibold text-white bg-slate-800 hover:bg-slate-700 disabled:bg-slate-900 rounded-lg transition-all"
+                    >
+                      {isRecompressing ? "Mengompres..." : "Terapkan Kompresi"}
+                    </button>
+                  </div>
                 )}
-              </button>
-              <p className="text-[10px] text-[#8f8677]">
-                Ubah resolusi/kualitas lalu tekan "Terapkan Kompresi" untuk memperbarui ukuran template dan estimasi hasil ekspor. Perubahan tidak otomatis diterapkan saat slider digeser.
-              </p>
-            </div>
-          )}
+              </div>
+            )}
 
-          {/* Panel Deteksi & Seleksi Font Lokal */}
-          <div className="p-4 rounded-none border border-dashed border-[#16140e]/20 bg-[#16140e]/[0.03] space-y-3">
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-xs font-semibold text-[#16140e]">Font dari Komputer Lokal (Opsional)</span>
-              {localFontApiSupported ? (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">
-                  Didukung
-                </span>
-              ) : (
-                <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#e5e7eb] text-[#8f8677] font-medium">
-                  Tidak Didukung
-                </span>
-              )}
-            </div>
+            {/* PANEL: ELEMENTS */}
+            {activeTab === "elements" && (
+              <div className="space-y-4 animate-in fade-in duration-150">
+                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+                  <h2 className="text-xs font-bold text-white uppercase tracking-wider">Tata Letak Elemen</h2>
+                  <button
+                    type="button"
+                    onClick={handleAddStaticText}
+                    className="px-2.5 py-1 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-all"
+                  >
+                    + Static
+                  </button>
+                </div>
 
-            {!localFontApiSupported ? (
-              <p className="text-[10px] text-[#8f8677]">
-                Hanya tersedia di Chrome/Edge desktop. Browser ini akan memakai font Helvetica-Bold bawaan.
-              </p>
-            ) : (
-              <>
+                {configs.length > 0 && (
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">Pilih Elemen Aktif</label>
+                    <select
+                      value={activeColumn}
+                      onChange={(e) => setActiveColumn(e.target.value)}
+                      className="w-full p-2 text-xs border border-slate-800 rounded-xl bg-slate-950 text-slate-200 font-medium"
+                    >
+                      {configs.filter((c) => c.enabled).map((c) => (
+                        <option key={c.column_name} value={c.column_name}>
+                          {c.static_text !== undefined && c.static_text !== ""
+                            ? `[Static] ${c.static_text}`
+                            : `[CSV] ${c.column_name}`}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+
+                {/* Form Editor Elemen Aktif */}
+                {configs
+                  .filter((c) => c.column_name === activeColumn)
+                  .map((cfg) => (
+                    <div key={cfg.column_name} className="space-y-3 bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+                      {cfg.static_text !== undefined && (
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-300 mb-1">Isi Teks Statis</label>
+                          <input
+                            type="text"
+                            value={cfg.static_text}
+                            onChange={(e) => updateConfig(cfg.column_name, { static_text: e.target.value })}
+                            className="w-full p-2 text-xs border border-slate-800 rounded-lg bg-slate-900 text-white"
+                          />
+                        </div>
+                      )}
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">Perataan Teks</label>
+                        <div className="grid grid-cols-3 gap-1">
+                          {[
+                            { id: "left", label: "Kiri" },
+                            { id: "center", label: "Tengah" },
+                            { id: "right", label: "Kanan" },
+                          ].map((item) => (
+                            <button
+                              key={item.id}
+                              type="button"
+                              onClick={() => updateConfig(cfg.column_name, { align: item.id })}
+                              className={`py-1 text-xs font-semibold rounded-lg border transition-all ${
+                                cfg.align === item.id
+                                  ? "bg-[#8C2F39] text-white border-[#8C2F39]"
+                                  : "bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800"
+                              }`}
+                            >
+                              {item.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-300 mb-1">Size (pt)</label>
+                          <input
+                            type="number"
+                            value={cfg.font_size}
+                            onChange={(e) => updateConfig(cfg.column_name, { font_size: Number(e.target.value) })}
+                            className="w-full p-1.5 text-xs border border-slate-800 rounded-lg bg-slate-900 text-white"
+                          />
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-300 mb-1">Width (pt)</label>
+                          <input
+                            type="number"
+                            value={cfg.max_width}
+                            onChange={(e) => updateConfig(cfg.column_name, { max_width: Number(e.target.value) })}
+                            className="w-full p-1.5 text-xs border border-slate-800 rounded-lg bg-slate-900 text-white"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">Warna Teks</label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="color"
+                            value={cfg.color || DEFAULT_TEXT_COLOR}
+                            onChange={(e) => updateConfig(cfg.column_name, { color: e.target.value })}
+                            className="h-8 w-10 p-0.5 bg-slate-900 border border-slate-800 rounded-lg cursor-pointer"
+                          />
+                          <span className="text-xs font-mono text-slate-400 uppercase">
+                            {cfg.color || DEFAULT_TEXT_COLOR}
+                          </span>
+                        </div>
+                      </div>
+
+                      {cfg.static_text !== undefined && (
+                        <button
+                          type="button"
+                          onClick={() => handleHideElement(cfg.column_name)}
+                          className="w-full py-1 text-xs font-semibold text-rose-400 hover:bg-rose-950/40 border border-rose-900/50 rounded-lg transition-all"
+                        >
+                          Hapus Elemen
+                        </button>
+                      )}
+                    </div>
+                  ))}
+              </div>
+            )}
+
+            {/* PANEL: FONTS */}
+            {activeTab === "fonts" && (
+              <div className="space-y-4 animate-in fade-in duration-150">
+                <div className="border-b border-slate-800 pb-2">
+                  <h2 className="text-xs font-bold text-white uppercase tracking-wider">Font Perangkat</h2>
+                  <p className="text-[11px] text-slate-400">Deteksi & terapkan font lokal</p>
+                </div>
+
                 <button
                   type="button"
                   onClick={handleDetectLocalFonts}
-                  disabled={isDetectingFonts}
-                  className="w-full py-2 text-xs font-semibold text-[#16140e] bg-[#fffcf0] border border-[#16140e]/20 rounded-none hover:bg-[#16140e]/5 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
+                  disabled={isDetectingFonts || !localFontApiSupported}
+                  className="w-full py-2 text-xs font-semibold text-slate-200 bg-slate-800 hover:bg-slate-700 disabled:bg-slate-900 border border-slate-700 rounded-xl transition-all"
                 >
-                  {isDetectingFonts ? (
-                    <>
-                      <Spinner className="w-3.5 h-3.5" />
-                      Memindai Font...
-                    </>
-                  ) : (
-                    "Deteksi Font di Perangkat Saya"
-                  )}
+                  {isDetectingFonts ? "Memindai..." : "Pindai System Fonts"}
                 </button>
-
-                {fontDetectionError && <p className="text-[10px] text-[#d94b3d]">{fontDetectionError}</p>}
 
                 {localFontFamilies.length > 0 && (
                   <div>
-                    <label className="block text-[11px] font-medium text-[#8f8677] mb-1">
-                      Pilih Font ({localFontFamilies.length} ditemukan)
+                    <label className="block text-xs font-semibold text-slate-300 mb-1">
+                      Pilih Font ({localFontFamilies.length})
                     </label>
                     <select
                       value={selectedLocalFontFamily}
                       onChange={(e) => handleSelectLocalFont(e.target.value)}
                       disabled={isLoadingFontBytes}
-                      className="w-full p-2 text-sm border rounded-none bg-[#fffcf0]"
+                      className="w-full p-2 text-xs border border-slate-800 rounded-xl bg-slate-950 text-slate-200"
                     >
-                      <option value="">-- Pakai font bawaan (Helvetica-Bold) --</option>
+                      <option value="">-- Standard (Helvetica-Bold) --</option>
                       {localFontFamilies.map((family) => (
                         <option key={family} value={family}>
                           {family}
                         </option>
                       ))}
                     </select>
-                    {isLoadingFontBytes && (
-                      <p className="text-[10px] text-[#8f8677]/70 mt-1 flex items-center gap-1">
-                        <Spinner className="w-3 h-3" /> Memuat data font...
-                      </p>
-                    )}
-                    {selectedFontBytes && !isLoadingFontBytes && (
-                      <p className="text-[10px] text-green-600 mt-1">
-                        Font "{selectedLocalFontFamily}" siap dipakai ({formatBytes(selectedFontBytes.length)}).
-                      </p>
-                    )}
                   </div>
                 )}
-              </>
-            )}
-          </div>
-
-          {/* Preset Manager Section */}
-          <div className="pt-4 border-t border-[#16140e]/10 space-y-3">
-            <h2 className="text-sm font-medium tracking-tight">Preset Layout Manager</h2>
-
-            <div className="flex gap-2">
-              <input
-                type="text"
-                placeholder="Nama Preset..."
-                value={presetName}
-                onChange={(e) => setPresetName(e.target.value)}
-                className="w-full p-1.5 text-xs border rounded-none bg-[#fffcf0]"
-              />
-              <button
-                type="button"
-                onClick={handleSavePreset}
-                className="px-3 py-1.5 text-xs font-semibold text-[#fffcf0] bg-[#16140e] hover:bg-[#16140e]/85 rounded-none shrink-0"
-              >
-                Simpan
-              </button>
-            </div>
-
-            {savedPresets.length > 0 && (
-              <select
-                onChange={(e) => handleLoadPreset(e.target.value)}
-                defaultValue=""
-                className="w-full p-1.5 text-xs border rounded-none bg-[#fffcf0]"
-              >
-                <option value="" disabled>-- Muat Preset Tersimpan --</option>
-                {savedPresets.map((p) => (
-                  <option key={p.id} value={p.id}>{p.name}</option>
-                ))}
-              </select>
-            )}
-
-            <div className="flex gap-2 pt-1">
-              <button
-                type="button"
-                onClick={handleExportJson}
-                className="w-1/2 py-1 text-xs font-semibold text-[#16140e] bg-[#e5e7eb] hover:bg-[#d9d2c0] rounded-none"
-              >
-                Export JSON
-              </button>
-              <label className="w-1/2 py-1 text-xs font-semibold text-center text-[#16140e] bg-[#e5e7eb] hover:bg-[#d9d2c0] rounded-none cursor-pointer">
-                Import JSON
-                <input type="file" accept=".json" onChange={handleImportJson} className="hidden" />
-              </label>
-            </div>
-          </div>
-
-          {/* Tata Letak Elemen */}
-          <div className="space-y-4 pt-4 border-t border-[#16140e]/10">
-            <div className="flex justify-between items-center">
-              <h2 className="text-xl font-medium tracking-tight">2. Tata Letak Elemen</h2>
-              <button
-                type="button"
-                onClick={handleAddStaticText}
-                className="px-3 py-1.5 text-xs font-semibold text-[#fffcf0] bg-[#16140e] hover:bg-[#16140e]/85 rounded-none transition-colors"
-              >
-                + Teks Statis
-              </button>
-            </div>
-
-            {configs.length > 0 && (
-              <div>
-                <label className="block text-xs font-semibold mb-1">Pilih Elemen Aktif</label>
-                <select
-                  value={activeColumn}
-                  onChange={(e) => setActiveColumn(e.target.value)}
-                  className="w-full p-2 text-sm border rounded-none bg-[#fffcf0] font-medium"
-                >
-                  {configs.filter((c) => c.enabled).map((c) => (
-                    <option key={c.column_name} value={c.column_name}>
-                      {c.static_text !== undefined && c.static_text !== ""
-                        ? `[Teks Statis] ${c.static_text}`
-                        : `[CSV] Kolom: ${c.column_name}`}
-                    </option>
-                  ))}
-                </select>
               </div>
             )}
 
-            {/* Daftar Elemen Nonaktif / Tersedia untuk Dipanggil */}
-            {configs.some((c) => !c.enabled) && (
-              <div className="bg-amber-50/50 p-3 rounded-md border border-amber-200 space-y-2">
-                <label className="block text-xs font-bold text-amber-900">
-                  Elemen/Kolom yang Disembunyikan ({configs.filter((c) => !c.enabled).length})
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  {configs
-                    .filter((c) => !c.enabled)
-                    .map((cfg) => (
-                      <button
-                        key={cfg.column_name}
-                        type="button"
-                        onClick={() => handleRestoreElement(cfg.column_name)}
-                        className="px-2.5 py-1 text-xs font-semibold bg-[#fffcf0] text-[#16140e] hover:bg-amber-100 border border-amber-300 rounded-none flex items-center gap-1 transition-colors"
-                      >
-                        <span>+</span>
-                        <span>
-                          {cfg.static_text !== undefined && cfg.static_text !== ""
-                            ? cfg.static_text
-                            : cfg.column_name}
-                        </span>
-                      </button>
-                    ))}
+            {/* PANEL: PRESETS */}
+            {activeTab === "presets" && (
+              <div className="space-y-4 animate-in fade-in duration-150">
+                <div className="border-b border-slate-800 pb-2">
+                  <h2 className="text-xs font-bold text-white uppercase tracking-wider">Preset Layout</h2>
+                  <p className="text-[11px] text-slate-400">Simpan atau impor konfigurasi</p>
                 </div>
-              </div>
-            )}
 
-            {configs
-              .filter((c) => c.column_name === activeColumn)
-              .map((cfg) => (
-                <div key={cfg.column_name} className="space-y-4 bg-[#fffcf0] p-4 rounded-md border border-[#e5e7eb]">
-                  {cfg.static_text !== undefined && (
-                    <div>
-                      <div className="flex justify-between items-center mb-1">
-                        <label className="block text-xs font-semibold">Isi Teks Statis</label>
-                        <span className="text-[10px] text-[#8f8677]">Gunakan {"{Nama}"}</span>
-                      </div>
-                      <input
-                        type="text"
-                        value={cfg.static_text}
-                        onChange={(e) => updateConfig(cfg.column_name, { static_text: e.target.value })}
-                        className="w-full p-2 text-sm border rounded-none font-medium"
-                      />
-                    </div>
-                  )}
-
-                  {totalPages > 1 && (
-                    <div>
-                      <label className="block text-xs font-semibold mb-1">Ditempatkan di Halaman Target</label>
-                      <select
-                        value={cfg.page_number || 1}
-                        onChange={(e) => updateConfig(cfg.column_name, { page_number: Number(e.target.value) })}
-                        className="w-full p-2 text-sm border rounded-none bg-[#fffcf0]"
-                      >
-                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((num) => (
-                          <option key={num} value={num}>Halaman {num}</option>
-                        ))}
-                      </select>
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="block text-xs font-semibold mb-1">Perataan Teks (Alignment)</label>
-                    <div className="grid grid-cols-3 gap-2">
-                      {[
-                        { id: "left", label: "Kiri" },
-                        { id: "center", label: "Tengah" },
-                        { id: "right", label: "Kanan" },
-                      ].map((item) => (
-                        <button
-                          key={item.id}
-                          type="button"
-                          onClick={() => updateConfig(cfg.column_name, { align: item.id })}
-                          className={`py-1.5 text-xs font-semibold rounded-none border transition-colors ${
-                            cfg.align === item.id
-                              ? "bg-[#f3b44a] text-[#16140e] border-[#f3b44a]"
-                              : "bg-[#fffcf0] text-[#16140e] hover:bg-[#fbf7e6] border-[#e5e7eb]"
-                          }`}
-                        >
-                          {item.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-semibold mb-1">Ukuran Font (pt)</label>
-                      <input
-                        type="number"
-                        value={cfg.font_size}
-                        onChange={(e) => updateConfig(cfg.column_name, { font_size: Number(e.target.value) })}
-                        className="w-full p-2 text-sm border rounded-none"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold mb-1">Lebar Box (pt)</label>
-                      <input
-                        type="number"
-                        value={cfg.max_width}
-                        onChange={(e) => updateConfig(cfg.column_name, { max_width: Number(e.target.value) })}
-                        className="w-full p-2 text-sm border rounded-none"
-                      />
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold mb-1">Warna Teks</label>
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="color"
-                        value={cfg.color || DEFAULT_TEXT_COLOR}
-                        onChange={(e) => updateConfig(cfg.column_name, { color: e.target.value })}
-                        className="h-9 w-12 p-0.5 bg-[#fffcf0] border rounded-none cursor-pointer"
-                      />
-                      <span className="text-xs font-mono text-[#8f8677] uppercase">
-                        {cfg.color || DEFAULT_TEXT_COLOR}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => updateConfig(cfg.column_name, { color: DEFAULT_TEXT_COLOR })}
-                        className="ml-auto px-2 py-1 text-[11px] font-semibold text-[#8f8677] bg-[#fbf7e6] hover:bg-[#d9d2c0]/60 rounded-none"
-                      >
-                        Reset
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const picked = cfg.color || DEFAULT_TEXT_COLOR;
-                          setConfigs((prev) => prev.map((c) => ({ ...c, color: picked })));
-                        }}
-                        className="px-2 py-1 text-[11px] font-semibold text-[#16140e] bg-[#f3b44a]/20 hover:bg-[#f3b44a]/30 rounded-none"
-                      >
-                        Samakan semua
-                      </button>
-                    </div>
-                  </div>
-
-                  {cfg.static_text !== undefined && (
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      placeholder="Nama Preset..."
+                      value={presetName}
+                      onChange={(e) => setPresetName(e.target.value)}
+                      className="w-full p-1.5 text-xs border border-slate-800 rounded-lg bg-slate-950 text-white"
+                    />
                     <button
                       type="button"
-                      onClick={() => handleHideElement(cfg.column_name)}
-                      className="w-full py-1.5 text-xs font-semibold text-[#d94b3d] hover:bg-[#d94b3d]/10 border border-[#d94b3d]/30 rounded-none transition-colors"
+                      onClick={handleSavePreset}
+                      className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shrink-0"
                     >
-                      Hapus Elemen Ini
+                      Simpan
                     </button>
+                  </div>
+
+                  {savedPresets.length > 0 && (
+                    <select
+                      onChange={(e) => handleLoadPreset(e.target.value)}
+                      defaultValue=""
+                      className="w-full p-2 text-xs border border-slate-800 rounded-xl bg-slate-950 text-slate-200"
+                    >
+                      <option value="" disabled>-- Load Preset --</option>
+                      {savedPresets.map((p) => (
+                        <option key={p.id} value={p.id}>{p.name}</option>
+                      ))}
+                    </select>
                   )}
-                </div>
-              ))}
-          </div>
 
-          {progress && (
-            <div>
-              <div className="flex justify-between text-xs mb-1 font-medium">
-                <span>Memproses sertifikat (Web Worker)...</span>
-                <span>{progress.current} / {progress.total}</span>
-              </div>
-              <div className="w-full h-2 bg-[#16140e]/10 rounded-full overflow-hidden">
-                <div className="h-full bg-[#f3b44a] transition-all duration-300" style={{ width: `${(progress.current / progress.total) * 100}%` }} />
-              </div>
-            </div>
-          )}
-
-          {!isProcessing && csvFile && templateFile && estimatedCertCount > 0 && (
-            <div className="bg-[#16140e]/5 border border-[#16140e]/10 rounded-md p-3 space-y-1.5">
-              <div className="flex items-center gap-2 text-xs font-semibold text-[#16140e]">
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
-                </svg>
-                <span>Ringkasan Sebelum Cetak</span>
-              </div>
-              <div className="grid grid-cols-3 gap-2 text-xs text-[#16140e]">
-                <div>
-                  <div className="text-[10px] text-[#8f8677] uppercase tracking-wide">Sertifikat</div>
-                  <div className="font-semibold">{estimatedCertCount.toLocaleString("id-ID")} berkas</div>
-                </div>
-                <div>
-                  <div className="text-[10px] text-[#8f8677] uppercase tracking-wide">File ZIP</div>
-                  <div className="font-semibold">{estimatedZipParts} bagian</div>
-                </div>
-                <div>
-                  <div className="text-[10px] text-[#8f8677] uppercase tracking-wide">Estimasi Ukuran</div>
-                  <div className="font-semibold">≈ {formatBytes(estimatedTotalBytes)}</div>
+                  <div className="grid grid-cols-2 gap-2 pt-2">
+                    <button
+                      type="button"
+                      onClick={handleExportJson}
+                      className="py-1.5 text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg"
+                    >
+                      Export JSON
+                    </button>
+                    <label className="py-1.5 text-xs font-semibold text-center text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg cursor-pointer">
+                      Import JSON
+                      <input type="file" accept=".json" onChange={handleImportJson} className="hidden" />
+                    </label>
+                  </div>
                 </div>
               </div>
-              <p className="text-[10px] text-[#8f8677] pt-1">
-                Estimasi berdasarkan ukuran template terkompresi × jumlah baris data. Ukuran aktual bisa sedikit berbeda tergantung panjang teks.
-              </p>
-            </div>
-          )}
-
-          {/* Group Tombol Aksi Cetak & Download Sampel */}
-          <div className="space-y-2 pt-2">
-            <button
-              type="button"
-              onClick={handleDownloadPreview}
-              disabled={isProcessing || !templateFile}
-              className="w-full py-2.5 text-xs font-semibold text-[#16140e] bg-[#fffcf0] border border-[#16140e]/20 hover:bg-[#16140e]/5 rounded-none disabled:bg-[#e5e7eb] disabled:cursor-not-allowed transition-colors flex items-center justify-center gap-2"
-            >
-              <svg className="w-4 h-4 text-[#f3b44a]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-              </svg>
-              Download Preview Sampel (1 PDF)
-            </button>
-
-            <button
-              onClick={handleStartGenerate}
-              disabled={isProcessing || !csvFile || !templateFile}
-              className="w-full py-3 text-sm font-semibold text-[#16140e] bg-[#f3b44a] rounded-none hover:bg-[#e6a53d] disabled:bg-[#d9d2c0] disabled:text-[#8f8677] disabled:cursor-not-allowed transition-colors"
-            >
-              {isProcessing ? "Memproses dalam Worker..." : "Cetak & Download ZIP (Semua Peserta)"}
-            </button>
+            )}
           </div>
         </div>
 
-        {/* Panel Preview Layout Canvas (STICKY TOP-20) */}
-        <div className="w-full lg:w-2/3 sticky top-20 flex flex-col items-center bg-[#fbf7e6] p-6 rounded-md border border-[#16140e]/10 overflow-auto max-h-[calc(100vh-6rem)]">
-          {/* Header Preview & Multi-Page Switcher */}
-          <div className="w-full flex justify-between items-center mb-3">
-            <span className="text-xs font-semibold text-[#8f8677]">
-              💡 Drag elemen untuk mengatur posisi. Kotak akan otomatis snap ke tengah canvas.
-            </span>
-
+        {/* 3. DARK WORKSPACE STAGE (Canvas Area Utama) */}
+        <div className="flex-1 bg-slate-950 p-6 flex flex-col items-center justify-start overflow-auto relative">
+          
+          {/* Header Bar Canvas */}
+          <div className="w-full max-w-5xl flex items-center justify-between mb-3 text-xs text-slate-400">
+            <span>💡 Tarik kotak teks di atas Canvas untuk menyesuaikan posisi</span>
             {totalPages > 1 && (
-              <div className="flex items-center gap-2 bg-[#fffcf0] px-3 py-1 rounded-none border border-[#e5e7eb] shrink-0">
-                <span className="text-xs font-bold text-[#16140e]">Halaman:</span>
+              <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-xl">
+                <span>Halaman:</span>
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
                   <button
                     key={pageNum}
                     onClick={() => setCurrentPage(pageNum)}
-                    className={`px-2 py-0.5 text-xs font-semibold rounded-none ${
-                      currentPage === pageNum ? "bg-[#f3b44a] text-[#16140e]" : "bg-[#fbf7e6] text-[#16140e] hover:bg-[#d9d2c0]/60"
+                    className={`px-2 py-0.5 font-bold rounded ${
+                      currentPage === pageNum ? "bg-[#8C2F39] text-white" : "text-slate-400 hover:text-white"
                     }`}
                   >
                     {pageNum}
@@ -1298,34 +1212,35 @@ export default function CetakLokal() {
             )}
           </div>
 
+          {/* Canvas Container */}
           <div
             ref={containerRef}
-            className="relative border border-[#16140e]/30 bg-[#fffcf0] shadow-lg rounded-sm overflow-hidden shrink-0"
+            className="relative bg-white shadow-2xl rounded-xs overflow-hidden shrink-0 border border-slate-800"
             style={{ width: pdfPreviewSize.width, height: pdfPreviewSize.height }}
           >
             <canvas ref={canvasRef} className="absolute top-0 left-0 z-0 pointer-events-none" />
 
-            {/* Center Snap Guides (Visual Only) */}
+            {/* Snap Guides */}
             {activeSnapGuides.x && (
-              <div className="absolute top-0 bottom-0 left-1/2 w-[1px] bg-red-500 border-r border-dashed border-red-500 z-20 pointer-events-none" />
+              <div className="absolute top-0 bottom-0 left-1/2 w-[1px] bg-rose-500 border-r border-dashed border-rose-500 z-20 pointer-events-none" />
             )}
             {activeSnapGuides.y && (
-              <div className="absolute left-0 right-0 top-1/2 h-[1px] bg-red-500 border-b border-dashed border-red-500 z-20 pointer-events-none" />
+              <div className="absolute left-0 right-0 top-1/2 h-[1px] bg-rose-500 border-b border-dashed border-rose-500 z-20 pointer-events-none" />
             )}
 
-            {/* Render Elemen Khusus Halaman Aktif */}
+            {/* Elements */}
             {configs
               .filter((cfg) => cfg.enabled && (cfg.page_number || 1) === currentPage)
               .map((cfg) => {
                 const displayText = renderPreviewText(cfg);
                 const isSelected = activeColumn === cfg.column_name;
                 const isStatic = cfg.static_text !== undefined;
-                const outlineColor = isSelected ? "#f3b44a" : isStatic ? "#22c55e" : "#60a5fa";
+                const outlineColor = isSelected ? "#8C2F39" : isStatic ? "#10b981" : "#3b82f6";
                 const boxBg = isSelected
-                  ? "rgba(243,180,74,0.20)"
+                  ? "rgba(140,47,57,0.15)"
                   : isStatic
-                  ? "rgba(34,197,94,0.10)"
-                  : "rgba(96,165,250,0.10)";
+                  ? "rgba(16,185,129,0.10)"
+                  : "rgba(59,130,246,0.10)";
 
                 return (
                   <Rnd
@@ -1356,7 +1271,6 @@ export default function CetakLokal() {
                       style={{
                         display: "block",
                         width: "100%",
-                        // 1 px preview = 1 pt PDF, jadi ukuran font TIDAK dikali 0.75
                         fontSize: `${cfg.font_size}px`,
                         lineHeight: 1.2,
                         textAlign: cfg.align || "left",
@@ -1365,7 +1279,6 @@ export default function CetakLokal() {
                         fontKerning: "none",
                         fontVariantLigatures: "none",
                         color: cfg.color || DEFAULT_TEXT_COLOR,
-                        // Font kustom: Regular (sama dengan yang di-embed). Fallback: Helvetica-Bold.
                         fontWeight: selectedLocalFontFamily ? 400 : 700,
                         fontFamily: selectedLocalFontFamily
                           ? `"${selectedLocalFontFamily}", Helvetica, Arial, sans-serif`
@@ -1379,7 +1292,28 @@ export default function CetakLokal() {
               })}
           </div>
         </div>
-      </main>
-    </>
+      </div>
+
+      {/* FOOTER REAL-TIME STATUS BAR */}
+      <footer className="h-8 bg-slate-900 border-t border-slate-800 px-4 flex items-center justify-between text-[11px] text-slate-400 shrink-0 z-30">
+        <div className="flex items-center gap-4">
+          <span className="flex items-center gap-1.5">
+            <span className={`w-2 h-2 rounded-full ${csvRows.length > 0 ? "bg-emerald-500" : "bg-slate-600"}`} />
+            CSV: <strong className="text-slate-200">{csvRows.length} Baris</strong>
+          </span>
+          <span className="text-slate-700">|</span>
+          <span className="flex items-center gap-1.5">
+            <span className={`w-2 h-2 rounded-full ${templateFile ? "bg-emerald-500" : "bg-slate-600"}`} />
+            Template: <strong className="text-slate-200">{templateFile ? formatBytes(templateFile.size) : "Kosong"}</strong>
+          </span>
+        </div>
+
+        <div className="flex items-center gap-4">
+          <span>Worker Engine: <strong className="text-emerald-400">Ready</strong></span>
+          <span className="text-slate-700">|</span>
+          <span>Estimasi ZIP: <strong className="text-rose-400">≈ {formatBytes(estimatedTotalBytes)}</strong></span>
+        </div>
+      </footer>
+    </div>
   );
 }
