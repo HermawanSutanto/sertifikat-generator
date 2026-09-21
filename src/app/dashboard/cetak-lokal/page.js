@@ -250,7 +250,6 @@ export default function CetakLokal() {
     }
   }, [user, loading, router]);
 
-  // Muat Preset dan Config tersimpan dari LocalStorage saat mount
   useEffect(() => {
     const localPresets = localStorage.getItem("sertigen_presets");
     if (localPresets) {
@@ -276,7 +275,6 @@ export default function CetakLokal() {
     setIsInitialConfigLoaded(true);
   }, []);
 
-  // Simpan otomatis configs setiap kali terjadi perubahan
   useEffect(() => {
     if (isInitialConfigLoaded) {
       localStorage.setItem(LOCAL_STORAGE_KEY_CONFIGS, JSON.stringify(configs));
@@ -372,7 +370,6 @@ export default function CetakLokal() {
           const scannedLongest = scanLongestRowSample(rows, fields);
           setLongestRowSample(scannedLongest);
 
-          // Jika configs belum ada dari LocalStorage, buat default dari header CSV
           if (configs.length === 0) {
             const initialConfigs = fields.map((header, idx) => ({
               column_name: header,
@@ -449,6 +446,28 @@ export default function CetakLokal() {
     }
   };
 
+  const handleUseDefaultTemplate = async () => {
+    try {
+      setNotification({ show: true, message: "Memuat template sistem...", type: "success" });
+      
+      const response = await fetch("/templates/default_template.pdf");
+      
+      if (!response.ok) {
+        throw new Error("File template bawaan tidak ditemukan di folder public.");
+      }
+
+      const blob = await response.blob();
+      const defaultFile = new File([blob], "default_template.pdf", { type: "application/pdf" });
+
+      await handleTemplateChange({ target: { files: [defaultFile] } });
+      
+      setNotification({ show: true, message: "Template sistem berhasil dimuat!", type: "success" });
+    } catch (err) {
+      console.error("Gagal memuat template sistem:", err);
+      setNotification({ show: true, message: `Gagal memuat template: ${err.message}`, type: "error" });
+    }
+  };
+
   const handleRecompress = async () => {
     if (!originalTemplateRawFile) return;
 
@@ -515,7 +534,7 @@ export default function CetakLokal() {
     localStorage.removeItem(LOCAL_STORAGE_KEY_CONFIGS);
     setConfigs([]);
     setActiveColumn("");
-    setNotification({ show: true, message: "Pengaturan telah direset.", type: "success" });
+    setNotification({ show: true, message: "Pengaturan tata letak telah direset.", type: "success" });
   };
 
   const handleDrag = (colName, x, y, width) => {
@@ -939,6 +958,19 @@ export default function CetakLokal() {
                       onChange={handleTemplateChange}
                       className="block w-full text-[11px] text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:font-medium file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700 border border-slate-800 rounded-lg p-1 bg-slate-950/50"
                     />
+                    
+                    <div className="mt-2">
+                      <button
+                        type="button"
+                        onClick={handleUseDefaultTemplate}
+                        className="w-full py-1.5 px-2 text-xs font-medium text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"
+                      >
+                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                        </svg>
+                        Gunakan Template Sistem
+                      </button>
+                    </div>
                   </div>
                 </div>
 
