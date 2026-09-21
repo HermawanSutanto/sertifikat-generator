@@ -1,0 +1,123 @@
+[
+  {
+    "column_name": "Nama Lengkap",
+    "static_text": "",
+    "x": 36.18499755859375,
+    "y": 296.947998046875,
+    "font_size": 28,
+    "max_width": 762,
+    "align": "center",
+    "enabled": true,
+    "page_number": 1
+  },
+  {
+    "column_name": "Fakultas",
+    "static_text": "",
+    "x": 37.18499755859375,
+    "y": 375.9479675292969,
+    "font_size": 28,
+    "max_width": 761,
+    "align": "center",
+    "enabled": true,
+    "page_number": 1
+  },
+  {
+    "column_name": "Prodi",
+    "static_text": "",
+    "x": 216.185,
+    "y": 416.947998046875,
+    "font_size": 28,
+    "max_width": 400,
+    "align": "center",
+    "enabled": true,
+    "page_number": 1
+  },
+  {
+    "column_name": "Nomor Induk Mahasiswa",
+    "static_text": "",
+    "x": 216.185,
+    "y": 337,
+    "font_size": 28,
+    "max_width": 400,
+    "align": "center",
+    "enabled": true,
+    "page_number": 1
+  },
+  {
+    "column_name": "Nilai Akhir",
+    "static_text": "",
+    "x": 216.185,
+    "y": 362,
+    "font_size": 28,
+    "max_width": 400,
+    "align": "center",
+    "enabled": true,
+    "page_number": 2
+  },
+  {
+    "column_name": "Keterangan Lulus",
+    "static_text": "",
+    "x": 216.185,
+    "y": 458,
+    "font_size": 28,
+    "max_width": 400,
+    "align": "center",
+    "enabled": true,
+    "page_number": 1
+  },
+  {
+    "column_name": "static_text_1789879977009",
+    "static_text": "UNIVERSITAS INDONESIA MAJU",
+    "x": 266.185,
+    "y": 25,
+    "font_size": 24,
+    "max_width": 300,
+    "align": "center",
+    "enabled": true,
+    "page_number": 1
+  },
+  {
+    "column_name": "static_text_1789880011313",
+    "static_text": "Jl. Pendidikan Bangsa No. 45, Jakarta Selatan",
+    "x": 213.685,
+    "y": 63,
+    "font_size": 24,
+    "max_width": 405,
+    "align": "center",
+    "enabled": true,
+    "page_number": 1
+  },
+  {
+    "column_name": "static_text_1789880021168",
+    "static_text": "Website: www.uinimaju.ac.id",
+    "x": 266.185,
+    "y": 97,
+    "font_size": 24,
+    "max_width": 300,
+    "align": "center",
+    "enabled": true,
+    "page_number": 1
+  },
+  {
+    "column_name": "static_text_1789880072047",
+    "static_text": " Nomor: 800/UIM/SERT-LULUS/{Nomor Induk Mahasiswa}/2026",
+    "x": 193.685,
+    "y": 197,
+    "font_size": 24,
+    "max_width": 445,
+    "align": "center",
+    "enabled": true,
+    "page_number": 1
+  },
+  {
+    "column_name": "static_text_1789880115967",
+    "static_text": "Rektor Universitas Indonesia Maju, berdasarkan Keputusan Senat Akademik,  dengan ini menyatakan bahwa:",
+    "x": 42.685,
+    "y": 234,
+    "font_size": 24,
+    "max_width": 747,
+    "align": "center",
+    "enabled": true,
+    "page_number": 1
+  }
+]

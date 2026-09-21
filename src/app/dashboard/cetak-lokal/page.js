@@ -11,12 +11,18 @@ import { PDFDocument } from "pdf-lib";
 const DEFAULT_TEXT_COLOR = "#1A1A1A";
 const LOCAL_STORAGE_KEY_CONFIGS = "sertigen_active_configs";
 
-// Daftar Template Sistem (Tambahkan template baru di sini)
-// Pastikan file PDF terkait sudah disimpan di folder public/templates/
+// Daftar Template PDF Sistem
 const SYSTEM_TEMPLATES = [
-  { id: "default", name: "Template Sertifikat Standard", path: "/templates/default_template.pdf" },
+  { id: "default", name: "Template Sertifikat Standard", path: "/templates/preset1.pdf" },
   { id: "formal", name: "Template Formal / Resmi", path: "/templates/formal_template.pdf" },
   { id: "modern", name: "Template Modern Minimalis", path: "/templates/modern_template.pdf" },
+];
+
+// Daftar Template Layout JSON Bawaan Sistem
+const SYSTEM_LAYOUT_TEMPLATES = [
+  { id: "seminar", name: "Layout Seminar Standard", path: "/layout-templates/seminar.json" },
+  { id: "pelatihan", name: "Layout Pelatihan / Workshop", path: "/layout-templates/pelatihan.json" },
+  { id: "penghargaan", name: "Layout Sertifikat Penghargaan", path: "/layout-templates/penghargaan.json" },
 ];
 
 const Spinner = ({ className = "w-4 h-4 text-current", ...props }) => (
@@ -143,6 +149,7 @@ export default function CetakLokal() {
   const [longestRowSample, setLongestRowSample] = useState({});
   const [templateFile, setTemplateFile] = useState(null);
   const [selectedSystemTemplatePath, setSelectedSystemTemplatePath] = useState("");
+  const [selectedSystemLayoutPath, setSelectedSystemLayoutPath] = useState("");
   const [originalTemplateRawFile, setOriginalTemplateRawFile] = useState(null);
   const [originalTemplateSize, setOriginalTemplateSize] = useState(0);
   const [compressionScale, setCompressionScale] = useState(1.5);
@@ -481,6 +488,41 @@ export default function CetakLokal() {
     }
   };
 
+  const handleSelectSystemLayout = async (path) => {
+    setSelectedSystemLayoutPath(path);
+    if (!path) return;
+
+    try {
+      const selected = SYSTEM_LAYOUT_TEMPLATES.find((t) => t.path === path);
+      setNotification({ show: true, message: `Memuat layout "${selected?.name || 'Layout'}"...`, type: "success" });
+
+      const response = await fetch(path);
+      if (!response.ok) {
+        throw new Error("File template layout tidak ditemukan di server.");
+      }
+
+      const importedConfigs = await response.json();
+
+      if (Array.isArray(importedConfigs)) {
+        setConfigs(importedConfigs);
+        if (importedConfigs.length > 0) {
+          setActiveColumn(importedConfigs[0].column_name);
+        }
+        setNotification({
+          show: true,
+          message: `Layout "${selected?.name}" berhasil diterapkan!`,
+          type: "success",
+        });
+      } else {
+        throw new Error("Format file JSON layout tidak valid.");
+      }
+    } catch (err) {
+      console.error("Gagal memuat layout sistem:", err);
+      setNotification({ show: true, message: `Gagal memuat layout: ${err.message}`, type: "error" });
+      setSelectedSystemLayoutPath("");
+    }
+  };
+
   const handleRecompress = async () => {
     if (!originalTemplateRawFile) return;
 
@@ -547,6 +589,7 @@ export default function CetakLokal() {
     localStorage.removeItem(LOCAL_STORAGE_KEY_CONFIGS);
     setConfigs([]);
     setActiveColumn("");
+    setSelectedSystemLayoutPath("");
     setNotification({ show: true, message: "Pengaturan tata letak telah direset.", type: "success" });
   };
 
@@ -1337,10 +1380,33 @@ export default function CetakLokal() {
               <div className="space-y-4">
                 <div className="border-b border-slate-800/80 pb-2">
                   <h2 className="text-xs font-semibold text-slate-200">Preset Tata Letak</h2>
-                  <p className="text-[11px] text-slate-400">Simpan atau ekspor konfigurasi</p>
+                  <p className="text-[11px] text-slate-400">Pilih layout bawaan atau simpan konfigurasi</p>
                 </div>
 
-                <div className="space-y-2">
+                {/* DROPDOWN TEMPLATE LAYOUT BAWAAN SISTEM */}
+                <div className="space-y-1.5 bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/80">
+                  <label className="block text-[10px] font-medium text-slate-300">
+                    Template Layout Sistem
+                  </label>
+                  <select
+                    value={selectedSystemLayoutPath}
+                    onChange={(e) => handleSelectSystemLayout(e.target.value)}
+                    className="w-full p-1.5 text-xs border border-slate-800 rounded-lg bg-slate-950 text-slate-200 focus:outline-none focus:border-slate-700"
+                  >
+                    <option value="">-- Pilih dari galeri layout --</option>
+                    {SYSTEM_LAYOUT_TEMPLATES.map((tmpl) => (
+                      <option key={tmpl.id} value={tmpl.path}>
+                        {tmpl.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div className="space-y-2 pt-1 border-t border-slate-800/80">
+                  <label className="block text-[10px] font-medium text-slate-400 uppercase tracking-wider">
+                    Preset Lokal & Kustom
+                  </label>
+
                   <div className="flex gap-1.5">
                     <input
                       type="text"
@@ -1364,7 +1430,7 @@ export default function CetakLokal() {
                       defaultValue=""
                       className="w-full p-1.5 text-xs border border-slate-800 rounded-lg bg-slate-950 text-slate-200"
                     >
-                      <option value="" disabled>-- Muat Preset --</option>
+                      <option value="" disabled>-- Muat Preset Tersimpan --</option>
                       {savedPresets.map((p) => (
                         <option key={p.id} value={p.id}>{p.name}</option>
                       ))}
