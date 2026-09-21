@@ -10,7 +10,7 @@ import { PDFDocument } from "pdf-lib";
 
 const DEFAULT_TEXT_COLOR = "#1A1A1A";
 
-const Spinner = ({ className = "w-5 h-5 text-current", ...props }) => (
+const Spinner = ({ className = "w-4 h-4 text-current", ...props }) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className={className} {...props}>
     <path fill="currentColor" d="M12,23a9.63,9.63,0,0,1-8-9.5,9.51,9.51,0,0,1,6.79-9.1A1,1,0,0,1,12,5.19a8.4,8.4,0,0,0-6.1,8.31,8.44,8.44,0,0,0,8.38,8.38A1,1,0,0,1,12,23Z">
       <animateTransform attributeName="transform" type="rotate" dur="0.75s" from="0 12 12" to="360 12 12" repeatCount="indefinite" />
@@ -18,62 +18,45 @@ const Spinner = ({ className = "w-5 h-5 text-current", ...props }) => (
   </svg>
 );
 
-/* Ikon vektor bawaan aplikasi — pengganti emoji sistem, konsisten satu bahasa visual (stroke 1.8–2, viewBox 24x24) */
 const IconFolder = (props) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 7a1 1 0 011-1h4.4l1.6 1.6H19a1 1 0 011 1V17a1 1 0 01-1 1H5a1 1 0 01-1-1V7z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M3.75 7.5A1.5 1.5 0 015.25 6h4.19a1.5 1.5 0 011.06.44l1.5 1.5h6.75a1.5 1.5 0 011.5 1.5v8.25a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5V7.5z" />
   </svg>
 );
 
 const IconEdit = (props) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M4 20l.9-3.6L15.3 6c.8-.8 2.2-.8 3 0 .8.8.8 2.2 0 3L7.9 19.4 4 20z" />
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M13.5 7.5l3 3" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
   </svg>
 );
 
 const IconType = (props) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M5 19L9.6 6h.8L15 19M6.6 14.5h6.8" />
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15.5 19v-5.8a2.2 2.2 0 014.5 0V19" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M7.5 4.5h9M12 4.5v15M8.25 19.5h7.5" />
   </svg>
 );
 
 const IconBookmark = (props) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M6.5 4.5h11a1 1 0 011 1V20l-6.5-3.7L5.5 20V5.5a1 1 0 011-1z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M17.25 6.75v13.5l-5.25-3-5.25 3V6.75a2.25 2.25 0 012.25-2.25h6a2.25 2.25 0 012.25 2.25z" />
   </svg>
 );
 
 const IconBolt = (props) => (
   <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
-    <path d="M13 2L4 14h6.2l-1.1 8L20 10h-6.2l-.8-8z" />
-  </svg>
-);
-
-const IconLightbulb = (props) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6} d="M9 18.5a5 5 0 116 0c-.6.5-1 1.2-1 2v.5h-4v-.5c0-.8-.4-1.5-1-2z" />
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6} d="M10.3 21.5h3.4M12 3v1.4M4.5 6.5l1 1M19.5 6.5l-1 1M3 12h1.4M19.6 12H21" />
+    <path d="M12.75 3L4.5 13.5h6l-1.5 7.5 8.25-10.5h-6l1.5-7.5z" />
   </svg>
 );
 
 const IconCheck = (props) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4.5 12.75l6 6 9-13.5" />
   </svg>
 );
 
 const IconAlertTriangle = (props) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M12 9v4m0 3.5h.01M10.3 4.3a2 2 0 013.4 0l7.7 12.9a2 2 0 01-1.7 3H4.3a2 2 0 01-1.7-3L10.3 4.3z" />
-  </svg>
-);
-
-const IconInfo = (props) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
-    <circle cx="12" cy="12" r="9" strokeWidth={1.6} />
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6} d="M12 11v5.5M12 8v.01" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
   </svg>
 );
 
@@ -81,21 +64,11 @@ const Notification = ({ message, type, show }) => {
   const isSuccess = type === "success";
   return (
     <div
-      className={`fixed top-5 right-5 z-50 flex items-center gap-3 px-4 py-3 rounded-xl text-white shadow-2xl transition-all duration-300 transform ${
-        show ? "translate-x-0 opacity-100 scale-100" : "translate-x-10 opacity-0 scale-95"
-      } ${isSuccess ? "bg-emerald-600 border border-emerald-500" : "bg-rose-600 border border-rose-500"}`}
+      className={`fixed top-4 right-4 z-50 flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg text-slate-100 shadow-xl border backdrop-blur-md transition-all duration-200 transform ${
+        show ? "translate-y-0 opacity-100 scale-100" : "-translate-y-2 opacity-0 scale-95 pointer-events-none"
+      } ${isSuccess ? "bg-slate-900/90 border-emerald-500/40" : "bg-slate-900/90 border-rose-500/40"}`}
     >
-      <div className="p-1 rounded-full bg-white/20">
-        {isSuccess ? (
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-          </svg>
-        ) : (
-          <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        )}
-      </div>
+      <div className={`w-2 h-2 rounded-full ${isSuccess ? "bg-emerald-400" : "bg-rose-400"}`} />
       <span className="text-xs font-medium">{message}</span>
     </div>
   );
@@ -105,43 +78,43 @@ const ValidationModal = ({ isOpen, warnings, onConfirm, onCancel }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md z-50 flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-lg w-full p-6 shadow-2xl space-y-4 text-slate-200">
-        <div className="flex items-center gap-3 text-amber-500">
-          <div className="p-2 bg-amber-500/10 rounded-xl border border-amber-500/20">
-            <IconAlertTriangle className="w-6 h-6 shrink-0" />
+    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-5 shadow-2xl space-y-4">
+        <div className="flex items-start gap-3">
+          <div className="p-2 bg-amber-500/10 rounded-lg text-amber-400 border border-amber-500/20 shrink-0">
+            <IconAlertTriangle className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-base font-bold text-white">Pre-Flight Validation Warning</h3>
-            <p className="text-xs text-slate-400">Pemeriksaan otomatis mendeteksi masalah berikut</p>
+            <h3 className="text-sm font-semibold text-slate-100">Peringatan Validasi</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Ditemukan beberapa potensi masalah sebelum pencetakan</p>
           </div>
         </div>
 
-        <div className="max-h-56 overflow-y-auto space-y-2 text-xs bg-slate-950 p-3.5 rounded-xl border border-slate-800 text-amber-300">
+        <div className="max-h-48 overflow-y-auto space-y-1.5 text-xs bg-slate-950/80 p-3 rounded-lg border border-slate-800/80 text-slate-300">
           {warnings.map((warn, idx) => (
             <div key={idx} className="flex items-start gap-2">
-              <span className="font-bold text-amber-500 mt-0.5">•</span>
-              <span className="leading-relaxed">{warn}</span>
+              <span className="text-amber-400 font-bold">•</span>
+              <span className="leading-normal">{warn}</span>
             </div>
           ))}
         </div>
 
-        <p className="text-xs text-slate-400 font-medium">
-          Apakah Anda yakin ingin tetap melanjutkan proses pencetakan sertifikat?
+        <p className="text-xs text-slate-400">
+          Apakah Anda ingin tetap melanjutkan proses pencetakan sertifikat?
         </p>
 
-        <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-800">
+        <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
           <button
             onClick={onCancel}
-            className="px-4 py-2 text-xs font-semibold text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-xl transition-all"
+            className="px-3.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors"
           >
             Batal & Perbaiki
           </button>
           <button
             onClick={onConfirm}
-            className="px-4 py-2 text-xs font-semibold text-white bg-[#8C2F39] hover:bg-[#742531] rounded-xl shadow-lg transition-all"
+            className="px-3.5 py-1.5 text-xs font-medium text-white bg-rose-700 hover:bg-rose-600 rounded-lg shadow transition-colors"
           >
-            Lanjutkan Cetak
+            Tetap Cetak
           </button>
         </div>
       </div>
@@ -153,7 +126,6 @@ export default function CetakLokal() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
-  // Tab Active State untuk Left Toolbar Dock
   const [activeTab, setActiveTab] = useState("files");
 
   const [csvFile, setCsvFile] = useState(null);
@@ -167,7 +139,6 @@ export default function CetakLokal() {
   const [compressionQuality, setCompressionQuality] = useState(0.8);
   const [isRecompressing, setIsRecompressing] = useState(false);
 
-  // Deteksi & Seleksi Font Lokal
   const [localFontApiSupported, setLocalFontApiSupported] = useState(false);
   const [isDetectingFonts, setIsDetectingFonts] = useState(false);
   const [localFontsRaw, setLocalFontsRaw] = useState([]);
@@ -196,17 +167,16 @@ export default function CetakLokal() {
       } else {
         setNotification({
           show: true,
-          message: `Ditemukan ${uniqueFamilies.length} font terinstal di perangkat Anda.`,
+          message: `Terdeteksi ${uniqueFamilies.length} font lokal.`,
           type: "success",
         });
       }
     } catch (err) {
       if (err.name === "NotAllowedError" || err.name === "SecurityError") {
-        setFontDetectionError("Akses ke font lokal ditolak. Izinkan lewat pengaturan browser.");
+        setFontDetectionError("Akses font lokal ditolak oleh browser.");
       } else {
         setFontDetectionError(`Gagal mendeteksi font: ${err.message}`);
       }
-      console.error("Gagal query local fonts:", err);
     } finally {
       setIsDetectingFonts(false);
     }
@@ -222,7 +192,7 @@ export default function CetakLokal() {
     try {
       const candidates = localFontsRaw.filter((f) => f.family === family);
       const chosen = candidates.find((f) => f.style === "Regular") || candidates[0];
-      if (!chosen) throw new Error("Font tidak ditemukan di hasil deteksi.");
+      if (!chosen) throw new Error("Font tidak ditemukan.");
 
       const blob = await chosen.blob();
       const arrayBuffer = await blob.arrayBuffer();
@@ -234,14 +204,13 @@ export default function CetakLokal() {
 
       setSelectedFontBytes(bytes);
     } catch (err) {
-      setFontDetectionError(`Gagal memuat data font "${family}": ${err.message}`);
+      setFontDetectionError(`Gagal memuat font "${family}": ${err.message}`);
       setSelectedLocalFontFamily("");
     } finally {
       setIsLoadingFontBytes(false);
     }
   };
 
-  // PDF Preview & Multi-Page States
   const [pdfDoc, setPdfDoc] = useState(null);
   const [totalPages, setTotalPages] = useState(1);
   const [currentPage, setCurrentPage] = useState(1);
@@ -267,7 +236,7 @@ export default function CetakLokal() {
 
   useEffect(() => {
     if (notification.show) {
-      const timer = setTimeout(() => setNotification((n) => ({ ...n, show: false })), 4000);
+      const timer = setTimeout(() => setNotification((n) => ({ ...n, show: false })), 3500);
       return () => clearTimeout(timer);
     }
   }, [notification.show]);
@@ -284,7 +253,7 @@ export default function CetakLokal() {
       try {
         setSavedPresets(JSON.parse(local));
       } catch (e) {
-        console.error("Gagal membaca presets:", e);
+        console.error("Gagal membaca preset:", e);
       }
     }
   }, []);
@@ -447,16 +416,13 @@ export default function CetakLokal() {
 
       await renderPdfPage(pdf, 1);
     } catch (err) {
-      console.error("Gagal memuat preview PDF:", err);
-      setNotification({ show: true, message: `Gagal memuat preview PDF: ${err.message}`, type: "error" });
+      console.error("Gagal memuat PDF:", err);
+      setNotification({ show: true, message: `Gagal memuat PDF: ${err.message}`, type: "error" });
     }
   };
 
   const handleRecompress = async () => {
-    if (!originalTemplateRawFile) {
-      setNotification({ show: true, message: "Unggah template PDF terlebih dahulu.", type: "error" });
-      return;
-    }
+    if (!originalTemplateRawFile) return;
 
     setIsRecompressing(true);
     try {
@@ -468,12 +434,11 @@ export default function CetakLokal() {
       setTemplateFile(recompressedFile);
       setNotification({
         show: true,
-        message: `Template dikompres ulang: ${formatBytes(recompressedFile.size)} (dari ${formatBytes(originalTemplateSize)} asli)`,
+        message: `Template dikompresi: ${formatBytes(recompressedFile.size)}`,
         type: "success",
       });
     } catch (err) {
-      console.error("Gagal mengompres ulang template:", err);
-      setNotification({ show: true, message: `Gagal mengompres ulang template: ${err.message}`, type: "error" });
+      setNotification({ show: true, message: `Gagal kompresi: ${err.message}`, type: "error" });
     } finally {
       setIsRecompressing(false);
     }
@@ -546,21 +511,16 @@ export default function CetakLokal() {
 
   const handleSavePreset = () => {
     if (!presetName.trim()) {
-      setNotification({ show: true, message: "Masukkan nama preset terlebih dahulu.", type: "error" });
+      setNotification({ show: true, message: "Masukkan nama preset.", type: "error" });
       return;
     }
 
-    const newPreset = {
-      id: Date.now(),
-      name: presetName.trim(),
-      configs,
-    };
-
+    const newPreset = { id: Date.now(), name: presetName.trim(), configs };
     const updated = [...savedPresets.filter((p) => p.name !== presetName.trim()), newPreset];
     setSavedPresets(updated);
     localStorage.setItem("sertigen_presets", JSON.stringify(updated));
     setPresetName("");
-    setNotification({ show: true, message: `Preset "${newPreset.name}" berhasil disimpan!`, type: "success" });
+    setNotification({ show: true, message: `Preset "${newPreset.name}" disimpan.`, type: "success" });
   };
 
   const handleLoadPreset = (presetId) => {
@@ -568,7 +528,7 @@ export default function CetakLokal() {
     if (target) {
       setConfigs(target.configs);
       if (target.configs.length > 0) setActiveColumn(target.configs[0].column_name);
-      setNotification({ show: true, message: `Preset "${target.name}" dimuat!`, type: "success" });
+      setNotification({ show: true, message: `Preset "${target.name}" dimuat.`, type: "success" });
     }
   };
 
@@ -593,10 +553,10 @@ export default function CetakLokal() {
         if (Array.isArray(imported)) {
           setConfigs(imported);
           if (imported.length > 0) setActiveColumn(imported[0].column_name);
-          setNotification({ show: true, message: "Preset JSON berhasil diimpor!", type: "success" });
+          setNotification({ show: true, message: "Preset JSON berhasil diimpor.", type: "success" });
         }
       } catch (err) {
-        setNotification({ show: true, message: "File JSON preset tidak valid.", type: "error" });
+        setNotification({ show: true, message: "File JSON tidak valid.", type: "error" });
       }
     };
     reader.readAsText(file);
@@ -636,9 +596,7 @@ export default function CetakLokal() {
             const key = rawKey.endsWith(":uppercase") ? rawKey.replace(":uppercase", "") : rawKey;
 
             if (!csvHeaders.includes(key)) {
-              warnings.push(
-                `Placeholder "${match}" di Teks Statis tidak ditemukan pada header CSV. (Headers CSV: ${csvHeaders.join(", ")})`
-              );
+              warnings.push(`Placeholder "${match}" tidak ditemukan pada CSV.`);
             }
           });
         }
@@ -653,7 +611,7 @@ export default function CetakLokal() {
         });
 
         if (emptyCount > 0) {
-          warnings.push(`Terdapat ${emptyCount} baris data kosong di kolom "${cfg.column_name}".`);
+          warnings.push(`Ada ${emptyCount} baris data kosong di kolom "${cfg.column_name}".`);
         }
       }
     });
@@ -683,26 +641,16 @@ export default function CetakLokal() {
 
   const handleDownloadPreview = async () => {
     if (!templateFile) {
-      setNotification({
-        show: true,
-        message: "Harap unggah template PDF terlebih dahulu.",
-        type: "error",
-      });
+      setNotification({ show: true, message: "Unggah template PDF terlebih dahulu.", type: "error" });
       return;
     }
 
     try {
-      setNotification({
-        show: true,
-        message: "Menyusun sertifikat preview...",
-        type: "success",
-      });
+      setNotification({ show: true, message: "Menyusun pratinjau...", type: "success" });
 
       const templateArrayBuffer = await templateFile.arrayBuffer();
       const templateUint8 = new Uint8Array(templateArrayBuffer);
-
       const sampleCsvRow = [longestRowSample];
-
       const formattedConfigs = buildFormattedConfigs();
 
       const wasm = await import("@/rust_wasm/pkg/pdf_cert_wasm.js");
@@ -720,30 +668,21 @@ export default function CetakLokal() {
       const downloadUrl = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = downloadUrl;
-      link.download = `preview_sertifikat_sampel_${Date.now()}.zip`;
+      link.download = `preview_sampel_${Date.now()}.zip`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(downloadUrl);
 
-      setNotification({
-        show: true,
-        message: "Berhasil mengunduh sampel preview sertifikat!",
-        type: "success",
-      });
+      setNotification({ show: true, message: "Sampel pratinjau diunduh.", type: "success" });
     } catch (err) {
-      console.error("Gagal mendownload preview:", err);
-      setNotification({
-        show: true,
-        message: `Gagal mendownload preview: ${err.message || String(err)}`,
-        type: "error",
-      });
+      setNotification({ show: true, message: `Gagal pratinjau: ${err.message || String(err)}`, type: "error" });
     }
   };
 
   const handleStartGenerate = () => {
     if (!csvFile || !templateFile || configs.length === 0) {
-      setNotification({ show: true, message: "Harap unggah CSV, template PDF, dan atur tata letak terlebih dahulu.", type: "error" });
+      setNotification({ show: true, message: "Unggah CSV, PDF, dan atur tata letak.", type: "error" });
       return;
     }
 
@@ -764,7 +703,6 @@ export default function CetakLokal() {
     try {
       const templateArrayBuffer = await templateFile.arrayBuffer();
       const templateUint8 = new Uint8Array(templateArrayBuffer);
-
       const formattedConfigs = buildFormattedConfigs();
 
       const worker = new Worker(new URL("./pdfWorker.js", import.meta.url));
@@ -782,7 +720,6 @@ export default function CetakLokal() {
 
         if (type === "CHUNK_COMPLETE") {
           setProgress(workerProgress);
-
           const blob = new Blob([zipBytes], { type: "application/zip" });
           const downloadUrl = URL.createObjectURL(blob);
           const link = document.createElement("a");
@@ -797,7 +734,7 @@ export default function CetakLokal() {
         if (type === "ALL_COMPLETE") {
           setIsProcessing(false);
           setProgress(null);
-          setNotification({ show: true, message: `Berhasil mencetak seluruh sertifikat!`, type: "success" });
+          setNotification({ show: true, message: "Proses pencetakan selesai.", type: "success" });
           worker.terminate();
         }
 
@@ -825,7 +762,7 @@ export default function CetakLokal() {
   if (loading || !user) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-slate-950">
-        <Spinner className="w-10 h-10 text-rose-500" />
+        <Spinner className="w-8 h-8 text-rose-500" />
       </div>
     );
   }
@@ -837,7 +774,7 @@ export default function CetakLokal() {
   const estimatedTotalBytes = estimatedCertCount * estimatedPerFileBytes;
 
   return (
-    <div className="h-screen w-screen bg-slate-950 text-slate-100 flex flex-col overflow-hidden font-sans antialiased">
+    <div className="h-screen w-screen bg-slate-950 text-slate-100 flex flex-col overflow-hidden font-sans antialiased selection:bg-rose-500/30 selection:text-rose-200">
       <Notification {...notification} />
       <ValidationModal
         isOpen={isValidationModalOpen}
@@ -847,36 +784,36 @@ export default function CetakLokal() {
       />
 
       {/* TOP HEADER STUDIO BAR */}
-      <header className="h-14 bg-slate-900 border-b border-slate-800/80 px-4 flex items-center justify-between shrink-0 z-30">
+      <header className="h-13 border-b border-slate-800/80 bg-slate-950/90 px-4 flex items-center justify-between shrink-0 z-30 backdrop-blur-md">
         <div className="flex items-center gap-3">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-[#8C2F39] to-rose-500 flex items-center justify-center text-white font-bold text-xs shadow-md">
+          <div className="w-6 h-6 rounded-md bg-gradient-to-tr from-rose-700 to-rose-500 flex items-center justify-center text-white font-bold text-xs shadow-sm">
             S
           </div>
-          <span className="text-sm font-bold tracking-wide text-white">SertiGen Studio</span>
-          <span className="text-slate-700">|</span>
-          <span className="text-xs text-slate-400 font-medium">
-            {templateFile ? templateFile.name : "Belum ada template diunggah"}
+          <span className="text-xs font-semibold tracking-wide text-slate-200">SertiGen Studio</span>
+          <span className="text-slate-800">|</span>
+          <span className="text-xs text-slate-400 font-normal truncate max-w-xs">
+            {templateFile ? templateFile.name : "Belum ada template"}
           </span>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={handleDownloadPreview}
             disabled={isProcessing || !templateFile}
-            className="px-3 py-1.5 text-xs font-semibold text-slate-200 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl transition-all disabled:opacity-50 flex items-center gap-1.5"
+            className="px-3 py-1.5 text-xs font-medium text-slate-300 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg transition-colors disabled:opacity-40 flex items-center gap-1.5"
           >
-            <svg className="w-3.5 h-3.5 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M2.036 12c1.07-4.516 5.03-8 9.964-8s8.894 3.484 9.964 8c-1.07 4.516-5.03 8-9.964 8s-8.894-3.484-9.964-8z" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
-            Pratinjau 1 PDF
+            Pratinjau
           </button>
 
           <button
             onClick={handleStartGenerate}
             disabled={isProcessing || !csvFile || !templateFile}
-            className="px-4 py-1.5 text-xs font-bold text-white bg-[#8C2F39] hover:bg-[#742531] disabled:bg-slate-800 disabled:text-slate-500 rounded-xl shadow-md transition-all flex items-center gap-1.5"
+            className="px-3.5 py-1.5 text-xs font-medium text-white bg-rose-700 hover:bg-rose-600 disabled:bg-slate-900 disabled:text-slate-600 border border-rose-600/30 rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
           >
             {isProcessing ? (
               <>
@@ -886,18 +823,18 @@ export default function CetakLokal() {
             ) : (
               <>
                 <IconBolt className="w-3.5 h-3.5" />
-                <span>Generate ZIP ({estimatedCertCount})</span>
+                <span>Cetak ZIP ({estimatedCertCount})</span>
               </>
             )}
           </button>
 
           <Link
             href="/dashboard"
-            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-800 rounded-lg transition-all ml-2"
-            title="Keluar ke Dashboard"
+            className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-900 rounded-lg transition-colors ml-1"
+            title="Kembali ke Dashboard"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
             </svg>
           </Link>
         </div>
@@ -906,83 +843,83 @@ export default function CetakLokal() {
       {/* STUDIO BODY WORKSPACE */}
       <div className="flex-1 flex overflow-hidden">
         
-        {/* 1. LEFT TOOLBAR DOCK (Ikon Akses Cepat) */}
-        <aside className="w-14 bg-slate-900 border-r border-slate-800 flex flex-col items-center py-3 gap-3 shrink-0 z-20">
+        {/* 1. LEFT TOOLBAR DOCK */}
+        <aside className="w-13 bg-slate-950 border-r border-slate-800/80 flex flex-col items-center py-3 gap-2 shrink-0 z-20">
           {[
-            { id: "files", label: "Files", Icon: IconFolder },
-            { id: "elements", label: "Elements", Icon: IconEdit },
-            { id: "fonts", label: "Fonts", Icon: IconType },
-            { id: "presets", label: "Presets", Icon: IconBookmark },
+            { id: "files", label: "Berkas", Icon: IconFolder },
+            { id: "elements", label: "Elemen", Icon: IconEdit },
+            { id: "fonts", label: "Font", Icon: IconType },
+            { id: "presets", label: "Preset", Icon: IconBookmark },
           ].map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center transition-all ${
+              className={`w-9 h-9 rounded-lg flex flex-col items-center justify-center transition-colors ${
                 activeTab === tab.id
-                  ? "bg-[#8C2F39] text-white shadow-lg"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800"
+                  ? "bg-slate-800/90 text-rose-400 border border-slate-700/80"
+                  : "text-slate-500 hover:text-slate-300 hover:bg-slate-900"
               }`}
               title={tab.label}
             >
               <tab.Icon className="w-4 h-4" />
-              <span className="text-[9px] font-semibold mt-0.5">{tab.label}</span>
+              <span className="text-[9px] font-medium mt-0.5">{tab.label}</span>
             </button>
           ))}
         </aside>
 
-        {/* 2. CONTEXTUAL INSPECTOR PANEL (Sidebar Kiri) */}
-        <div className="w-80 bg-slate-900/90 border-r border-slate-800/80 flex flex-col shrink-0 z-10 overflow-y-auto">
-          <div className="p-4 space-y-5">
+        {/* 2. CONTEXTUAL INSPECTOR PANEL */}
+        <div className="w-72 bg-slate-900/60 border-r border-slate-800/80 flex flex-col shrink-0 z-10 overflow-y-auto">
+          <div className="p-3.5 space-y-4">
             
             {/* PANEL: FILES */}
             {activeTab === "files" && (
-              <div className="space-y-4 animate-in fade-in duration-150">
-                <div className="border-b border-slate-800 pb-2">
-                  <h2 className="text-xs font-bold text-white uppercase tracking-wider">Data & Template</h2>
-                  <p className="text-[11px] text-slate-400">Unggah sumber file CSV dan PDF</p>
+              <div className="space-y-4">
+                <div className="border-b border-slate-800/80 pb-2">
+                  <h2 className="text-xs font-semibold text-slate-200">Sumber Berkas</h2>
+                  <p className="text-[11px] text-slate-400">Unggah CSV data dan PDF template</p>
                 </div>
 
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">CSV Peserta</label>
+                    <label className="block text-[11px] font-medium text-slate-300 mb-1">Data Peserta (.csv)</label>
                     <input
                       type="file"
                       accept=".csv"
                       onChange={handleCsvChange}
-                      className="block w-full text-xs text-slate-400 file:mr-2 file:py-1.5 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700 border border-slate-800 rounded-xl p-1 bg-slate-950"
+                      className="block w-full text-[11px] text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:font-medium file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700 border border-slate-800 rounded-lg p-1 bg-slate-950/50"
                     />
                     {csvRows.length > 0 && (
-                      <p className="text-[11px] text-emerald-400 font-medium mt-1 flex items-center gap-1">
+                      <p className="text-[10px] text-emerald-400 font-medium mt-1 flex items-center gap-1">
                         <IconCheck className="w-3 h-3 shrink-0" />
-                        {csvRows.length} baris ({csvHeaders.length} kolom) siap diproses
+                        {csvRows.length} baris ({csvHeaders.length} kolom)
                       </p>
                     )}
                   </div>
 
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">Template PDF</label>
+                    <label className="block text-[11px] font-medium text-slate-300 mb-1">Template Sertifikat (.pdf)</label>
                     <input
                       type="file"
                       accept="application/pdf"
                       onChange={handleTemplateChange}
-                      className="block w-full text-xs text-slate-400 file:mr-2 file:py-1.5 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700 border border-slate-800 rounded-xl p-1 bg-slate-950"
+                      className="block w-full text-[11px] text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:font-medium file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700 border border-slate-800 rounded-lg p-1 bg-slate-950/50"
                     />
                   </div>
                 </div>
 
                 {templateFile && (
-                  <div className="bg-slate-950 border border-slate-800 rounded-xl p-3 space-y-2.5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs font-bold text-slate-300">Kompresi PDF</span>
-                      <span className="text-[10px] text-slate-400">
-                        {formatBytes(originalTemplateSize)} → <span className="font-bold text-rose-400">{formatBytes(templateFile.size)}</span>
+                  <div className="bg-slate-950/60 border border-slate-800/80 rounded-lg p-3 space-y-2.5">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="font-semibold text-slate-300">Kompresi PDF</span>
+                      <span className="text-slate-400 font-mono text-[10px]">
+                        {formatBytes(originalTemplateSize)} → <span className="text-rose-400">{formatBytes(templateFile.size)}</span>
                       </span>
                     </div>
 
                     <div className="space-y-2">
                       <div>
-                        <div className="flex justify-between text-[10px] font-semibold text-slate-400 mb-1">
-                          <span>Resolusi (≈{Math.round(compressionScale * 100)} DPI)</span>
+                        <div className="flex justify-between text-[10px] text-slate-400 mb-1">
+                          <span>Skala Resample</span>
                           <span>{compressionScale.toFixed(1)}x</span>
                         </div>
                         <input
@@ -992,12 +929,12 @@ export default function CetakLokal() {
                           step="0.1"
                           value={compressionScale}
                           onChange={(e) => setCompressionScale(Number(e.target.value))}
-                          className="w-full accent-[#8C2F39]"
+                          className="w-full accent-rose-600 h-1 bg-slate-800 rounded"
                         />
                       </div>
 
                       <div>
-                        <div className="flex justify-between text-[10px] font-semibold text-slate-400 mb-1">
+                        <div className="flex justify-between text-[10px] text-slate-400 mb-1">
                           <span>Kualitas JPEG</span>
                           <span>{Math.round(compressionQuality * 100)}%</span>
                         </div>
@@ -1008,16 +945,16 @@ export default function CetakLokal() {
                           step="0.05"
                           value={compressionQuality}
                           onChange={(e) => setCompressionQuality(Number(e.target.value))}
-                          className="w-full accent-[#8C2F39]"
+                          className="w-full accent-rose-600 h-1 bg-slate-800 rounded"
                         />
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-1.5">
+                    <div className="grid grid-cols-3 gap-1 pt-1">
                       {[
-                        { label: "Hemat", scale: 1.0, quality: 0.6 },
-                        { label: "Seimbang", scale: 1.5, quality: 0.8 },
-                        { label: "Tajam", scale: 2.0, quality: 0.9 },
+                        { label: "Ringan", scale: 1.0, quality: 0.6 },
+                        { label: "Sedang", scale: 1.5, quality: 0.8 },
+                        { label: "Tinggi", scale: 2.0, quality: 0.9 },
                       ].map((preset) => (
                         <button
                           key={preset.label}
@@ -1026,10 +963,10 @@ export default function CetakLokal() {
                             setCompressionScale(preset.scale);
                             setCompressionQuality(preset.quality);
                           }}
-                          className={`py-1 text-[10px] font-semibold rounded-lg border transition-all ${
+                          className={`py-1 text-[10px] font-medium rounded border transition-colors ${
                             compressionScale === preset.scale && compressionQuality === preset.quality
-                              ? "bg-[#8C2F39] text-white border-[#8C2F39]"
-                              : "bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800"
+                              ? "bg-slate-800 text-rose-400 border-slate-700"
+                              : "bg-slate-900/50 text-slate-400 border-slate-800/80 hover:bg-slate-800"
                           }`}
                         >
                           {preset.label}
@@ -1041,20 +978,10 @@ export default function CetakLokal() {
                       type="button"
                       onClick={handleRecompress}
                       disabled={isRecompressing || !originalTemplateRawFile}
-                      className="w-full py-1.5 text-xs font-semibold text-white bg-slate-800 hover:bg-slate-700 disabled:bg-slate-900 disabled:text-slate-600 rounded-lg transition-all flex items-center justify-center gap-2"
+                      className="w-full py-1.5 text-xs font-medium text-slate-200 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 rounded transition-colors flex items-center justify-center gap-1.5 mt-1"
                     >
-                      {isRecompressing ? (
-                        <>
-                          <Spinner className="w-3.5 h-3.5" />
-                          Mengompres Ulang...
-                        </>
-                      ) : (
-                        "Terapkan Kompresi"
-                      )}
+                      {isRecompressing ? <Spinner /> : "Terapkan Kompresi"}
                     </button>
-                    <p className="text-[10px] text-slate-500 leading-relaxed">
-                      Ubah preset atau geser slider, lalu tekan "Terapkan Kompresi" untuk memperbarui ukuran file dan estimasi hasil ekspor.
-                    </p>
                   </div>
                 )}
               </div>
@@ -1062,24 +989,24 @@ export default function CetakLokal() {
 
             {/* PANEL: ELEMENTS */}
             {activeTab === "elements" && (
-              <div className="space-y-4 animate-in fade-in duration-150">
-                <div className="flex items-center justify-between border-b border-slate-800 pb-2">
-                  <h2 className="text-xs font-bold text-white uppercase tracking-wider">Tata Letak Elemen</h2>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                  <h2 className="text-xs font-semibold text-slate-200">Tata Letak Teks</h2>
                   <button
                     type="button"
                     onClick={handleAddStaticText}
-                    className="px-2.5 py-1 text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-lg transition-all"
+                    className="px-2 py-0.5 text-[11px] font-medium text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded transition-colors"
                   >
                     + Teks Statis
                   </button>
                 </div>
 
                 {configs.some((c) => !c.enabled) && (
-                  <div className="bg-amber-500/5 border border-amber-500/20 rounded-xl p-2.5 space-y-2">
-                    <label className="block text-[11px] font-bold text-amber-400">
-                      Elemen Disembunyikan ({configs.filter((c) => !c.enabled).length})
+                  <div className="bg-slate-950/60 border border-slate-800/80 rounded-lg p-2.5 space-y-1.5">
+                    <label className="block text-[10px] font-medium text-slate-400 uppercase tracking-wider">
+                      Elemen Tersembunyi ({configs.filter((c) => !c.enabled).length})
                     </label>
-                    <div className="flex flex-wrap gap-1.5">
+                    <div className="flex flex-wrap gap-1">
                       {configs
                         .filter((c) => !c.enabled)
                         .map((cfg) => (
@@ -1087,9 +1014,9 @@ export default function CetakLokal() {
                             key={cfg.column_name}
                             type="button"
                             onClick={() => handleRestoreElement(cfg.column_name)}
-                            className="px-2 py-1 text-[11px] font-semibold bg-slate-950 text-slate-300 hover:text-white hover:bg-slate-800 border border-slate-800 rounded-lg flex items-center gap-1 transition-all"
+                            className="px-2 py-0.5 text-[10px] font-medium bg-slate-900 text-slate-300 hover:text-white border border-slate-800 rounded transition-colors flex items-center gap-1"
                           >
-                            <span className="text-amber-400">+</span>
+                            <span>+</span>
                             {cfg.static_text !== undefined && cfg.static_text !== ""
                               ? cfg.static_text
                               : cfg.column_name}
@@ -1101,47 +1028,47 @@ export default function CetakLokal() {
 
                 {configs.length > 0 && (
                   <div>
-                    <label className="block text-xs font-semibold text-slate-300 mb-1">Pilih Elemen Aktif</label>
+                    <label className="block text-[11px] font-medium text-slate-300 mb-1">Pilih Elemen</label>
                     <select
                       value={activeColumn}
                       onChange={(e) => setActiveColumn(e.target.value)}
-                      className="w-full p-2 text-xs border border-slate-800 rounded-xl bg-slate-950 text-slate-200 font-medium"
+                      className="w-full p-1.5 text-xs border border-slate-800 rounded-lg bg-slate-950 text-slate-200"
                     >
                       {configs.filter((c) => c.enabled).map((c) => (
                         <option key={c.column_name} value={c.column_name}>
                           {c.static_text !== undefined && c.static_text !== ""
-                            ? `[Teks Statis] ${c.static_text}`
-                            : `[CSV] Kolom: ${c.column_name}`}
+                            ? `[Statis] ${c.static_text}`
+                            : `[CSV] ${c.column_name}`}
                         </option>
                       ))}
                     </select>
                   </div>
                 )}
 
-                {/* Form Editor Elemen Aktif */}
+                {/* Form Editor Elemen */}
                 {configs
                   .filter((c) => c.column_name === activeColumn)
                   .map((cfg) => (
-                    <div key={cfg.column_name} className="space-y-3 bg-slate-950 p-3.5 rounded-xl border border-slate-800">
+                    <div key={cfg.column_name} className="space-y-3 bg-slate-950/60 p-3 rounded-lg border border-slate-800/80">
                       {cfg.static_text !== undefined && (
                         <div>
-                          <label className="block text-xs font-semibold text-slate-300 mb-1">Isi Teks Statis</label>
+                          <label className="block text-[10px] font-medium text-slate-400 mb-1">Konten Teks Statis</label>
                           <input
                             type="text"
                             value={cfg.static_text}
                             onChange={(e) => updateConfig(cfg.column_name, { static_text: e.target.value })}
-                            className="w-full p-2 text-xs border border-slate-800 rounded-lg bg-slate-900 text-white"
+                            className="w-full p-1.5 text-xs border border-slate-800 rounded bg-slate-900 text-slate-100"
                           />
                         </div>
                       )}
 
                       {totalPages > 1 && (
                         <div>
-                          <label className="block text-xs font-semibold text-slate-300 mb-1">Halaman Target</label>
+                          <label className="block text-[10px] font-medium text-slate-400 mb-1">Target Halaman</label>
                           <select
                             value={cfg.page_number || 1}
                             onChange={(e) => updateConfig(cfg.column_name, { page_number: Number(e.target.value) })}
-                            className="w-full p-2 text-xs border border-slate-800 rounded-xl bg-slate-950 text-slate-200"
+                            className="w-full p-1.5 text-xs border border-slate-800 rounded bg-slate-900 text-slate-200"
                           >
                             {Array.from({ length: totalPages }, (_, i) => i + 1).map((num) => (
                               <option key={num} value={num}>Halaman {num}</option>
@@ -1151,7 +1078,7 @@ export default function CetakLokal() {
                       )}
 
                       <div>
-                        <label className="block text-xs font-semibold text-slate-300 mb-1">Perataan Teks</label>
+                        <label className="block text-[10px] font-medium text-slate-400 mb-1">Perataan Teks</label>
                         <div className="grid grid-cols-3 gap-1">
                           {[
                             { id: "left", label: "Kiri" },
@@ -1162,10 +1089,10 @@ export default function CetakLokal() {
                               key={item.id}
                               type="button"
                               onClick={() => updateConfig(cfg.column_name, { align: item.id })}
-                              className={`py-1 text-xs font-semibold rounded-lg border transition-all ${
+                              className={`py-1 text-[10px] font-medium rounded border transition-colors ${
                                 cfg.align === item.id
-                                  ? "bg-[#8C2F39] text-white border-[#8C2F39]"
-                                  : "bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-800"
+                                  ? "bg-slate-800 text-rose-400 border-slate-700"
+                                  : "bg-slate-900 text-slate-400 border-slate-800/80 hover:bg-slate-800"
                               }`}
                             >
                               {item.label}
@@ -1176,54 +1103,44 @@ export default function CetakLokal() {
 
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="block text-xs font-semibold text-slate-300 mb-1">Ukuran (pt)</label>
+                          <label className="block text-[10px] font-medium text-slate-400 mb-1">Ukuran (pt)</label>
                           <input
                             type="number"
                             value={cfg.font_size}
                             onChange={(e) => updateConfig(cfg.column_name, { font_size: Number(e.target.value) })}
-                            className="w-full p-1.5 text-xs border border-slate-800 rounded-lg bg-slate-900 text-white"
+                            className="w-full p-1.5 text-xs border border-slate-800 rounded bg-slate-900 text-slate-100"
                           />
                         </div>
 
                         <div>
-                          <label className="block text-xs font-semibold text-slate-300 mb-1">Lebar (pt)</label>
+                          <label className="block text-[10px] font-medium text-slate-400 mb-1">Lebar (pt)</label>
                           <input
                             type="number"
                             value={cfg.max_width}
                             onChange={(e) => updateConfig(cfg.column_name, { max_width: Number(e.target.value) })}
-                            className="w-full p-1.5 text-xs border border-slate-800 rounded-lg bg-slate-900 text-white"
+                            className="w-full p-1.5 text-xs border border-slate-800 rounded bg-slate-900 text-slate-100"
                           />
                         </div>
                       </div>
 
                       <div>
-                        <label className="block text-xs font-semibold text-slate-300 mb-1">Warna Teks</label>
+                        <label className="block text-[10px] font-medium text-slate-400 mb-1">Warna Teks</label>
                         <div className="flex items-center gap-2">
                           <input
                             type="color"
                             value={cfg.color || DEFAULT_TEXT_COLOR}
                             onChange={(e) => updateConfig(cfg.column_name, { color: e.target.value })}
-                            className="h-8 w-10 p-0.5 bg-slate-900 border border-slate-800 rounded-lg cursor-pointer"
+                            className="h-7 w-8 p-0.5 bg-slate-900 border border-slate-800 rounded cursor-pointer"
                           />
-                          <span className="text-xs font-mono text-slate-400 uppercase">
+                          <span className="text-[11px] font-mono text-slate-400 uppercase">
                             {cfg.color || DEFAULT_TEXT_COLOR}
                           </span>
                           <button
                             type="button"
                             onClick={() => updateConfig(cfg.column_name, { color: DEFAULT_TEXT_COLOR })}
-                            className="ml-auto px-2 py-1 text-[10px] font-semibold text-slate-400 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg transition-all"
+                            className="ml-auto px-2 py-0.5 text-[10px] font-medium text-slate-400 hover:text-slate-200 bg-slate-900 border border-slate-800 rounded transition-colors"
                           >
                             Reset
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              const picked = cfg.color || DEFAULT_TEXT_COLOR;
-                              setConfigs((prev) => prev.map((c) => ({ ...c, color: picked })));
-                            }}
-                            className="px-2 py-1 text-[10px] font-semibold text-[#e8a0a8] bg-[#8C2F39]/10 hover:bg-[#8C2F39]/20 border border-[#8C2F39]/20 rounded-lg transition-all"
-                          >
-                            Samakan Semua
                           </button>
                         </div>
                       </div>
@@ -1232,7 +1149,7 @@ export default function CetakLokal() {
                         <button
                           type="button"
                           onClick={() => handleHideElement(cfg.column_name)}
-                          className="w-full py-1 text-xs font-semibold text-rose-400 hover:bg-rose-950/40 border border-rose-900/50 rounded-lg transition-all"
+                          className="w-full py-1 text-[11px] font-medium text-rose-400 hover:bg-rose-950/30 border border-rose-900/40 rounded transition-colors"
                         >
                           Hapus Elemen
                         </button>
@@ -1244,29 +1161,28 @@ export default function CetakLokal() {
 
             {/* PANEL: FONTS */}
             {activeTab === "fonts" && (
-              <div className="space-y-4 animate-in fade-in duration-150">
-                <div className="border-b border-slate-800 pb-2">
-                  <h2 className="text-xs font-bold text-white uppercase tracking-wider">Font Perangkat</h2>
-                  <p className="text-[11px] text-slate-400">Deteksi & terapkan font lokal</p>
+              <div className="space-y-4">
+                <div className="border-b border-slate-800/80 pb-2">
+                  <h2 className="text-xs font-semibold text-slate-200">Font Sistem Perangkat</h2>
+                  <p className="text-[11px] text-slate-400">Pindai dan gunakan font lokal</p>
                 </div>
 
-                <div className="flex items-center justify-between gap-2 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2">
-                  <span className="text-[11px] font-medium text-slate-300">Local Font Access API</span>
+                <div className="flex items-center justify-between gap-2 bg-slate-950/60 border border-slate-800/80 rounded-lg px-2.5 py-2">
+                  <span className="text-[10px] font-medium text-slate-400">Local Font API</span>
                   {localFontApiSupported ? (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 font-semibold border border-emerald-500/20">
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium border border-emerald-500/20">
                       Didukung
                     </span>
                   ) : (
-                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-400 font-semibold border border-slate-700">
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-medium border border-slate-700/80">
                       Tidak Didukung
                     </span>
                   )}
                 </div>
 
                 {!localFontApiSupported ? (
-                  <p className="text-[11px] text-slate-400 flex items-start gap-1.5 leading-relaxed">
-                    <IconInfo className="w-3.5 h-3.5 mt-0.5 shrink-0 text-slate-500" />
-                    Fitur ini hanya tersedia di Chrome/Edge desktop. Sertifikat akan tetap dicetak memakai font bawaan Helvetica-Bold.
+                  <p className="text-[11px] text-slate-400 leading-normal">
+                    Fitur pemindaian font lokal tersedia di browser berbasis Chromium (Chrome/Edge Desktop).
                   </p>
                 ) : (
                   <>
@@ -1274,55 +1190,42 @@ export default function CetakLokal() {
                       type="button"
                       onClick={handleDetectLocalFonts}
                       disabled={isDetectingFonts}
-                      className="w-full py-2 text-xs font-semibold text-slate-200 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 border border-slate-700 rounded-xl transition-all flex items-center justify-center gap-2"
+                      className="w-full py-1.5 text-xs font-medium text-slate-200 bg-slate-800 hover:bg-slate-700 border border-slate-700/80 rounded-lg transition-colors flex items-center justify-center gap-1.5"
                     >
-                      {isDetectingFonts ? (
-                        <>
-                          <Spinner className="w-3.5 h-3.5" />
-                          Memindai Font...
-                        </>
-                      ) : (
-                        "Pindai Font Sistem"
-                      )}
+                      {isDetectingFonts ? <Spinner /> : "Pindai Font Lokal"}
                     </button>
 
                     {fontDetectionError && (
-                      <p className="text-[11px] text-rose-400 flex items-start gap-1.5 leading-relaxed">
-                        <IconAlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
-                        {fontDetectionError}
-                      </p>
+                      <p className="text-[11px] text-rose-400 leading-normal">{fontDetectionError}</p>
                     )}
 
                     {localFontFamilies.length > 0 && (
                       <div>
-                        <label className="block text-xs font-semibold text-slate-300 mb-1">
-                          Pilih Font ({localFontFamilies.length} ditemukan)
+                        <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                          Pilih Font ({localFontFamilies.length})
                         </label>
                         <select
                           value={selectedLocalFontFamily}
                           onChange={(e) => handleSelectLocalFont(e.target.value)}
                           disabled={isLoadingFontBytes}
-                          className="w-full p-2 text-xs border border-slate-800 rounded-xl bg-slate-950 text-slate-200"
+                          className="w-full p-1.5 text-xs border border-slate-800 rounded-lg bg-slate-950 text-slate-200"
                         >
-                          <option value="">-- Bawaan (Helvetica-Bold) --</option>
+                          <option value="">-- Standard (Helvetica-Bold) --</option>
                           {localFontFamilies.map((family) => (
-                            <option key={family} value={family}>
-                              {family}
-                            </option>
+                            <option key={family} value={family}>{family}</option>
                           ))}
                         </select>
 
                         {isLoadingFontBytes && (
-                          <p className="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1.5">
-                            <Spinner className="w-3 h-3" />
-                            Memuat data font...
+                          <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                            <Spinner /> Memuat data font...
                           </p>
                         )}
 
                         {selectedFontBytes && !isLoadingFontBytes && (
-                          <p className="text-[11px] text-emerald-400 mt-1.5 flex items-center gap-1.5">
+                          <p className="text-[10px] text-emerald-400 mt-1 flex items-center gap-1">
                             <IconCheck className="w-3 h-3 shrink-0" />
-                            "{selectedLocalFontFamily}" siap dipakai ({formatBytes(selectedFontBytes.length)})
+                            "{selectedLocalFontFamily}" Siap digunakan
                           </p>
                         )}
                       </div>
@@ -1334,25 +1237,25 @@ export default function CetakLokal() {
 
             {/* PANEL: PRESETS */}
             {activeTab === "presets" && (
-              <div className="space-y-4 animate-in fade-in duration-150">
-                <div className="border-b border-slate-800 pb-2">
-                  <h2 className="text-xs font-bold text-white uppercase tracking-wider">Preset Layout</h2>
-                  <p className="text-[11px] text-slate-400">Simpan atau impor konfigurasi</p>
+              <div className="space-y-4">
+                <div className="border-b border-slate-800/80 pb-2">
+                  <h2 className="text-xs font-semibold text-slate-200">Preset Tata Letak</h2>
+                  <p className="text-[11px] text-slate-400">Simpan atau ekspor konfigurasi</p>
                 </div>
 
                 <div className="space-y-2">
-                  <div className="flex gap-2">
+                  <div className="flex gap-1.5">
                     <input
                       type="text"
                       placeholder="Nama Preset..."
                       value={presetName}
                       onChange={(e) => setPresetName(e.target.value)}
-                      className="w-full p-1.5 text-xs border border-slate-800 rounded-lg bg-slate-950 text-white"
+                      className="w-full p-1.5 text-xs border border-slate-800 rounded-lg bg-slate-950 text-slate-100"
                     />
                     <button
                       type="button"
                       onClick={handleSavePreset}
-                      className="px-3 py-1.5 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shrink-0"
+                      className="px-3 py-1.5 text-xs font-medium text-white bg-rose-700 hover:bg-rose-600 rounded-lg shrink-0 transition-colors"
                     >
                       Simpan
                     </button>
@@ -1362,56 +1265,49 @@ export default function CetakLokal() {
                     <select
                       onChange={(e) => handleLoadPreset(e.target.value)}
                       defaultValue=""
-                      className="w-full p-2 text-xs border border-slate-800 rounded-xl bg-slate-950 text-slate-200"
+                      className="w-full p-1.5 text-xs border border-slate-800 rounded-lg bg-slate-950 text-slate-200"
                     >
-                      <option value="" disabled>-- Muat Preset Tersimpan --</option>
+                      <option value="" disabled>-- Muat Preset --</option>
                       {savedPresets.map((p) => (
                         <option key={p.id} value={p.id}>{p.name}</option>
                       ))}
                     </select>
                   )}
 
-                  <div className="grid grid-cols-2 gap-2 pt-2">
+                  <div className="grid grid-cols-2 gap-1.5 pt-1">
                     <button
                       type="button"
                       onClick={handleExportJson}
-                      className="py-1.5 text-xs font-semibold text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg"
+                      className="py-1.5 text-xs font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors"
                     >
-                      Export JSON
+                      Ekspor JSON
                     </button>
-                    <label className="py-1.5 text-xs font-semibold text-center text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg cursor-pointer">
-                      Import JSON
+                    <label className="py-1.5 text-xs font-medium text-center text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg cursor-pointer transition-colors">
+                      Impor JSON
                       <input type="file" accept=".json" onChange={handleImportJson} className="hidden" />
                     </label>
                   </div>
                 </div>
 
                 {csvFile && templateFile && estimatedCertCount > 0 && (
-                  <div className="border-t border-slate-800 pt-3.5 space-y-2">
-                    <label className="block text-xs font-bold text-white uppercase tracking-wider">
-                      Ringkasan Sebelum Cetak
+                  <div className="border-t border-slate-800/80 pt-3 space-y-2">
+                    <label className="block text-[10px] font-medium text-slate-400 uppercase tracking-wider">
+                      Ringkasan Ekspor
                     </label>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5">
-                        <div className="text-[10px] text-slate-500 uppercase tracking-wide">Sertifikat</div>
-                        <div className="text-sm font-bold text-white">{estimatedCertCount.toLocaleString("id-ID")}</div>
+                    <div className="grid grid-cols-2 gap-1.5 text-xs">
+                      <div className="bg-slate-950/60 border border-slate-800/80 rounded-lg p-2">
+                        <div className="text-[10px] text-slate-500">Sertifikat</div>
+                        <div className="font-semibold text-slate-200">{estimatedCertCount.toLocaleString("id-ID")}</div>
                       </div>
-                      <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5">
-                        <div className="text-[10px] text-slate-500 uppercase tracking-wide">File ZIP</div>
-                        <div className="text-sm font-bold text-white">{estimatedZipParts} bagian</div>
+                      <div className="bg-slate-950/60 border border-slate-800/80 rounded-lg p-2">
+                        <div className="text-[10px] text-slate-500">Berkas ZIP</div>
+                        <div className="font-semibold text-slate-200">{estimatedZipParts} Bagian</div>
                       </div>
-                      <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5">
-                        <div className="text-[10px] text-slate-500 uppercase tracking-wide">Per Berkas</div>
-                        <div className="text-sm font-bold text-white">{formatBytes(estimatedPerFileBytes)}</div>
-                      </div>
-                      <div className="bg-slate-950 border border-slate-800 rounded-xl p-2.5">
-                        <div className="text-[10px] text-slate-500 uppercase tracking-wide">Estimasi Total</div>
-                        <div className="text-sm font-bold text-rose-400">{formatBytes(estimatedTotalBytes)}</div>
+                      <div className="bg-slate-950/60 border border-slate-800/80 rounded-lg p-2 col-span-2">
+                        <div className="text-[10px] text-slate-500">Estimasi Ukuran</div>
+                        <div className="font-semibold text-rose-400">{formatBytes(estimatedTotalBytes)}</div>
                       </div>
                     </div>
-                    <p className="text-[10px] text-slate-500 leading-relaxed">
-                      Dihitung dari ukuran template terkompresi × jumlah baris CSV. Ukuran akhir bisa sedikit berbeda tergantung panjang teks tiap sertifikat.
-                    </p>
                   </div>
                 )}
               </div>
@@ -1419,24 +1315,23 @@ export default function CetakLokal() {
           </div>
         </div>
 
-        {/* 3. DARK WORKSPACE STAGE (Canvas Area Utama) */}
-        <div className="flex-1 bg-slate-950 p-6 flex flex-col items-center justify-start overflow-auto relative">
+        {/* 3. WORKSPACE CANVAS STAGE */}
+        <div className="flex-1 bg-slate-950 p-6 flex flex-col items-center justify-start overflow-auto relative bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:16px_16px]">
           
-          {/* Header Bar Canvas */}
-          <div className="w-full max-w-5xl flex items-center justify-between mb-3 text-xs text-slate-400">
-            <span className="flex items-center gap-1.5">
-              <IconLightbulb className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              Tarik kotak teks di atas canvas untuk menyesuaikan posisi
+          {/* Top Canvas Toolbar */}
+          <div className="w-full max-w-4xl flex items-center justify-between mb-3 text-xs text-slate-400">
+            <span className="text-[11px] text-slate-400">
+              Geser elemen teks di atas canvas untuk mengatur tata letak
             </span>
             {totalPages > 1 && (
-              <div className="flex items-center gap-1.5 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-xl">
-                <span>Halaman:</span>
+              <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 px-2 py-1 rounded-lg">
+                <span className="text-[11px] mr-1">Halaman:</span>
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
                   <button
                     key={pageNum}
                     onClick={() => setCurrentPage(pageNum)}
-                    className={`px-2 py-0.5 font-bold rounded ${
-                      currentPage === pageNum ? "bg-[#8C2F39] text-white" : "text-slate-400 hover:text-white"
+                    className={`px-2 py-0.5 text-xs rounded transition-colors ${
+                      currentPage === pageNum ? "bg-rose-700 text-white font-medium" : "text-slate-400 hover:text-white"
                     }`}
                   >
                     {pageNum}
@@ -1449,32 +1344,32 @@ export default function CetakLokal() {
           {/* Canvas Container */}
           <div
             ref={containerRef}
-            className="relative bg-white shadow-2xl rounded-xs overflow-hidden shrink-0 border border-slate-800"
+            className="relative bg-white shadow-xl rounded overflow-hidden shrink-0 border border-slate-800"
             style={{ width: pdfPreviewSize.width, height: pdfPreviewSize.height }}
           >
             <canvas ref={canvasRef} className="absolute top-0 left-0 z-0 pointer-events-none" />
 
             {/* Snap Guides */}
             {activeSnapGuides.x && (
-              <div className="absolute top-0 bottom-0 left-1/2 w-[1px] bg-rose-500 border-r border-dashed border-rose-500 z-20 pointer-events-none" />
+              <div className="absolute top-0 bottom-0 left-1/2 w-[1px] bg-rose-500 z-20 pointer-events-none opacity-80" />
             )}
             {activeSnapGuides.y && (
-              <div className="absolute left-0 right-0 top-1/2 h-[1px] bg-rose-500 border-b border-dashed border-rose-500 z-20 pointer-events-none" />
+              <div className="absolute left-0 right-0 top-1/2 h-[1px] bg-rose-500 z-20 pointer-events-none opacity-80" />
             )}
 
-            {/* Elements */}
+            {/* Render Dynamic Elements */}
             {configs
               .filter((cfg) => cfg.enabled && (cfg.page_number || 1) === currentPage)
               .map((cfg) => {
                 const displayText = renderPreviewText(cfg);
                 const isSelected = activeColumn === cfg.column_name;
                 const isStatic = cfg.static_text !== undefined;
-                const outlineColor = isSelected ? "#8C2F39" : isStatic ? "#10b981" : "#3b82f6";
+                const outlineColor = isSelected ? "#be123c" : isStatic ? "#059669" : "#2563eb";
                 const boxBg = isSelected
-                  ? "rgba(140,47,57,0.15)"
+                  ? "rgba(190,18,60,0.08)"
                   : isStatic
-                  ? "rgba(16,185,129,0.10)"
-                  : "rgba(59,130,246,0.10)";
+                  ? "rgba(5,150,105,0.06)"
+                  : "rgba(37,99,235,0.06)";
 
                 return (
                   <Rnd
@@ -1497,8 +1392,8 @@ export default function CetakLokal() {
                       setActiveColumn(cfg.column_name);
                     }}
                     onClick={() => setActiveColumn(cfg.column_name)}
-                    className="absolute cursor-move z-10"
-                    style={{ outline: `2px dashed ${outlineColor}`, backgroundColor: boxBg }}
+                    className="absolute cursor-move z-10 transition-shadow"
+                    style={{ outline: `1.5px dashed ${outlineColor}`, backgroundColor: boxBg }}
                   >
                     <span
                       className="select-none"
@@ -1529,23 +1424,23 @@ export default function CetakLokal() {
       </div>
 
       {/* FOOTER REAL-TIME STATUS BAR */}
-      <footer className="h-8 bg-slate-900 border-t border-slate-800 px-4 flex items-center justify-between text-[11px] text-slate-400 shrink-0 z-30">
-        <div className="flex items-center gap-4">
+      <footer className="h-7 bg-slate-950 border-t border-slate-800/80 px-4 flex items-center justify-between text-[10px] text-slate-400 shrink-0 z-30">
+        <div className="flex items-center gap-3">
           <span className="flex items-center gap-1.5">
-            <span className={`w-2 h-2 rounded-full ${csvRows.length > 0 ? "bg-emerald-500" : "bg-slate-600"}`} />
-            CSV: <strong className="text-slate-200">{csvRows.length} Baris</strong>
+            <span className={`w-1.5 h-1.5 rounded-full ${csvRows.length > 0 ? "bg-emerald-400" : "bg-slate-600"}`} />
+            CSV: <strong className="text-slate-200 font-medium">{csvRows.length} Baris</strong>
           </span>
-          <span className="text-slate-700">|</span>
+          <span className="text-slate-800">|</span>
           <span className="flex items-center gap-1.5">
-            <span className={`w-2 h-2 rounded-full ${templateFile ? "bg-emerald-500" : "bg-slate-600"}`} />
-            Template: <strong className="text-slate-200">{templateFile ? formatBytes(templateFile.size) : "Kosong"}</strong>
+            <span className={`w-1.5 h-1.5 rounded-full ${templateFile ? "bg-emerald-400" : "bg-slate-600"}`} />
+            Template: <strong className="text-slate-200 font-medium">{templateFile ? formatBytes(templateFile.size) : "Kosong"}</strong>
           </span>
         </div>
 
-        <div className="flex items-center gap-4">
-          <span>Worker Engine: <strong className="text-emerald-400">Ready</strong></span>
-          <span className="text-slate-700">|</span>
-          <span>Estimasi ZIP: <strong className="text-rose-400">≈ {formatBytes(estimatedTotalBytes)}</strong></span>
+        <div className="flex items-center gap-3">
+          <span>Worker Engine: <strong className="text-emerald-400 font-medium">Siap</strong></span>
+          <span className="text-slate-800">|</span>
+          <span>Estimasi Output: <strong className="text-rose-400 font-medium">≈ {formatBytes(estimatedTotalBytes)}</strong></span>
         </div>
       </footer>
     </div>
