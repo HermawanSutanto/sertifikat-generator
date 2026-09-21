@@ -11,6 +11,14 @@ import { PDFDocument } from "pdf-lib";
 const DEFAULT_TEXT_COLOR = "#1A1A1A";
 const LOCAL_STORAGE_KEY_CONFIGS = "sertigen_active_configs";
 
+// Daftar Template Sistem (Tambahkan template baru di sini)
+// Pastikan file PDF terkait sudah disimpan di folder public/templates/
+const SYSTEM_TEMPLATES = [
+  { id: "default", name: "Template Sertifikat Standard", path: "/templates/default_template.pdf" },
+  { id: "formal", name: "Template Formal / Resmi", path: "/templates/formal_template.pdf" },
+  { id: "modern", name: "Template Modern Minimalis", path: "/templates/modern_template.pdf" },
+];
+
 const Spinner = ({ className = "w-4 h-4 text-current", ...props }) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className={className} {...props}>
     <path fill="currentColor" d="M12,23a9.63,9.63,0,0,1-8-9.5,9.51,9.51,0,0,1,6.79-9.1A1,1,0,0,1,12,5.19a8.4,8.4,0,0,0-6.1,8.31,8.44,8.44,0,0,0,8.38,8.38A1,1,0,0,1,12,23Z">
@@ -134,6 +142,7 @@ export default function CetakLokal() {
   const [csvRows, setCsvRows] = useState([]);
   const [longestRowSample, setLongestRowSample] = useState({});
   const [templateFile, setTemplateFile] = useState(null);
+  const [selectedSystemTemplatePath, setSelectedSystemTemplatePath] = useState("");
   const [originalTemplateRawFile, setOriginalTemplateRawFile] = useState(null);
   const [originalTemplateSize, setOriginalTemplateSize] = useState(0);
   const [compressionScale, setCompressionScale] = useState(1.5);
@@ -346,7 +355,7 @@ export default function CetakLokal() {
     }
 
     const compressedPdfBytes = await compressedPdfDoc.save();
-    return new File([compressedPdfBytes], "compressed_template.pdf", {
+    return new File([compressedPdfBytes], originalFile.name || "compressed_template.pdf", {
       type: "application/pdf",
     });
   };
@@ -446,25 +455,29 @@ export default function CetakLokal() {
     }
   };
 
-  const handleUseDefaultTemplate = async () => {
+  const handleSelectSystemTemplate = async (path) => {
+    setSelectedSystemTemplatePath(path);
+    if (!path) return;
+
     try {
-      setNotification({ show: true, message: "Memuat template sistem...", type: "success" });
-      
-      const response = await fetch("/templates/default_template.pdf");
-      
+      const selected = SYSTEM_TEMPLATES.find((t) => t.path === path);
+      setNotification({ show: true, message: `Memuat "${selected?.name || 'Template'}"...`, type: "success" });
+
+      const response = await fetch(path);
       if (!response.ok) {
-        throw new Error("File template bawaan tidak ditemukan di folder public.");
+        throw new Error("File template tidak ditemukan di repository.");
       }
 
       const blob = await response.blob();
-      const defaultFile = new File([blob], "default_template.pdf", { type: "application/pdf" });
+      const fileName = path.split("/").pop() || "template_system.pdf";
+      const file = new File([blob], fileName, { type: "application/pdf" });
 
-      await handleTemplateChange({ target: { files: [defaultFile] } });
-      
-      setNotification({ show: true, message: "Template sistem berhasil dimuat!", type: "success" });
+      await handleTemplateChange({ target: { files: [file] } });
+      setNotification({ show: true, message: `Berhasil memuat ${selected?.name}`, type: "success" });
     } catch (err) {
       console.error("Gagal memuat template sistem:", err);
       setNotification({ show: true, message: `Gagal memuat template: ${err.message}`, type: "error" });
+      setSelectedSystemTemplatePath("");
     }
   };
 
@@ -955,21 +968,28 @@ export default function CetakLokal() {
                     <input
                       type="file"
                       accept="application/pdf"
-                      onChange={handleTemplateChange}
+                      onChange={(e) => {
+                        setSelectedSystemTemplatePath("");
+                        handleTemplateChange(e);
+                      }}
                       className="block w-full text-[11px] text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:font-medium file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700 border border-slate-800 rounded-lg p-1 bg-slate-950/50"
                     />
                     
-                    <div className="mt-2">
-                      <button
-                        type="button"
-                        onClick={handleUseDefaultTemplate}
-                        className="w-full py-1.5 px-2 text-xs font-medium text-rose-400 hover:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 rounded-lg transition-colors flex items-center justify-center gap-1.5"
+                    {/* DROPDOWN TEMPLATE SISTEM */}
+                    <div className="mt-2.5">
+                      <label className="block text-[10px] font-medium text-slate-400 mb-1">Atau Pilih Template Sistem</label>
+                      <select
+                        value={selectedSystemTemplatePath}
+                        onChange={(e) => handleSelectSystemTemplate(e.target.value)}
+                        className="w-full p-1.5 text-xs border border-slate-800 rounded-lg bg-slate-950 text-slate-200 focus:outline-none focus:border-slate-700"
                       >
-                        <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-                        </svg>
-                        Gunakan Template Sistem
-                      </button>
+                        <option value="">-- Pilih dari galeri sistem --</option>
+                        {SYSTEM_TEMPLATES.map((tmpl) => (
+                          <option key={tmpl.id} value={tmpl.path}>
+                            {tmpl.name}
+                          </option>
+                        ))}
+                      </select>
                     </div>
                   </div>
                 </div>
