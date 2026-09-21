@@ -140,7 +140,7 @@ const ValidationModal = ({ isOpen, warnings, onConfirm, onCancel }) => {
 export default function CetakLokal() {
   const { user, loading } = useAuth();
   const router = useRouter();
-
+  const renderTaskRef = useRef(null);
   const [activeTab, setActiveTab] = useState("files");
 
   const [csvFile, setCsvFile] = useState(null);
@@ -409,24 +409,56 @@ export default function CetakLokal() {
     });
   };
 
-  const renderPdfPage = async (pdf, pageNum) => {
-    try {
-      const page = await pdf.getPage(pageNum);
-      const viewport = page.getViewport({ scale: 1.0 });
-      setPdfPreviewSize({ width: viewport.width, height: viewport.height });
+const renderPdfPage = async (pdf, pageNum) => {
+  if (!pdf) return;
 
-      const canvas = canvasRef.current;
-      if (canvas) {
-        const context = canvas.getContext("2d");
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
+  try {
+    const page = await pdf.getPage(pageNum);
+    
+    // 1. Ambil DPR untuk mendukung layar Retina / High-DPI agar tidak blur
+    const outputScale = window.devicePixelRatio || 1;
+    const viewport = page.getViewport({ scale: 1.0 });
 
-        await page.render({ canvasContext: context, viewport }).promise;
-      }
-    } catch (err) {
-      console.error("Gagal merender halaman PDF:", err);
+    setPdfPreviewSize({ width: viewport.width, height: viewport.height });
+
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const context = canvas.getContext("2d");
+
+    // Adjust canvas resolution internal vs CSS display size
+    canvas.width = Math.floor(viewport.width * outputScale);
+    canvas.height = Math.floor(viewport.height * outputScale);
+    canvas.style.width = `${viewport.width}px`;
+    canvas.style.height = `${viewport.height}px`;
+
+    const transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null;
+
+    // 2. Batalkan render sebelumnya jika masih berjalan (mencegah collision/race condition)
+    if (renderTaskRef.current) {
+      renderTaskRef.current.cancel();
     }
-  };
+
+    // 3. Jalankan render task baru
+    const renderContext = {
+      canvasContext: context,
+      viewport: viewport,
+      transform: transform,
+    };
+
+    const renderTask = page.render(renderContext);
+    renderTaskRef.current = renderTask;
+
+    await renderTask.promise;
+    renderTaskRef.current = null;
+  } catch (err) {
+    // Abaikan error pembatalan render karena ini adalah perilaku normal saat berpindah halaman cepat
+    if (err?.name === "RenderingCancelledException") {
+      return;
+    }
+    console.error("Gagal merender halaman PDF:", err);
+  }
+};
 
   const handleTemplateChange = async (e) => {
     const file = e.target.files?.[0];
