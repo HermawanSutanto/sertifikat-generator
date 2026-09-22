@@ -7,6 +7,22 @@ import { useAuth } from "../../../context/AuthContext";
 import Papa from "papaparse";
 import { Rnd } from "react-rnd";
 import { PDFDocument } from "pdf-lib";
+import { Fraunces, Public_Sans } from "next/font/google";
+
+// Font yang sama dengan landing page, biar identitas brand konsisten
+// di seluruh produk (landing page <-> studio editor).
+const fraunces = Fraunces({
+  subsets: ["latin"],
+  weight: ["600", "700", "900"],
+  style: ["normal", "italic"],
+  variable: "--font-display",
+});
+
+const publicSans = Public_Sans({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-body",
+});
 
 const DEFAULT_TEXT_COLOR = "#1A1A1A";
 const LOCAL_STORAGE_KEY_CONFIGS = "sertigen_active_configs";
@@ -79,11 +95,11 @@ const Notification = ({ message, type, show }) => {
   const isSuccess = type === "success";
   return (
     <div
-      className={`fixed top-4 right-4 z-50 flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg text-slate-100 shadow-xl border backdrop-blur-md transition-all duration-200 transform ${
+      className={`fixed top-4 right-4 z-50 flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg text-[#F2EAD3] shadow-xl border backdrop-blur-md transition-all duration-200 transform ${
         show ? "translate-y-0 opacity-100 scale-100" : "-translate-y-2 opacity-0 scale-95 pointer-events-none"
-      } ${isSuccess ? "bg-slate-900/90 border-emerald-500/40" : "bg-slate-900/90 border-rose-500/40"}`}
+      } ${isSuccess ? "bg-[#17233D]/90 border-emerald-500/40" : "bg-[#17233D]/90 border-[#8C2F39]/40"}`}
     >
-      <div className={`w-2 h-2 rounded-full ${isSuccess ? "bg-emerald-400" : "bg-rose-400"}`} />
+      <div className={`w-2 h-2 rounded-full ${isSuccess ? "bg-emerald-400" : "bg-[#C97C84]"}`} />
       <span className="text-xs font-medium">{message}</span>
     </div>
   );
@@ -93,41 +109,41 @@ const ValidationModal = ({ isOpen, warnings, onConfirm, onCancel }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-5 shadow-2xl space-y-4">
+    <div className="fixed inset-0 bg-[#0D1424]/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-[#17233D] border border-[#F2EAD3]/10 rounded-xl max-w-md w-full p-5 shadow-2xl space-y-4">
         <div className="flex items-start gap-3">
-          <div className="p-2 bg-amber-500/10 rounded-lg text-amber-400 border border-amber-500/20 shrink-0">
+          <div className="p-2 bg-[#A9822E]/10 rounded-lg text-[#A9822E] border border-[#A9822E]/20 shrink-0">
             <IconAlertTriangle className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-slate-100">Peringatan Validasi</h3>
-            <p className="text-xs text-slate-400 mt-0.5">Ditemukan beberapa potensi masalah sebelum pencetakan</p>
+            <h3 className="text-sm font-semibold text-[#F2EAD3]">Peringatan Validasi</h3>
+            <p className="text-xs text-[#F2EAD3]/55 mt-0.5">Ditemukan beberapa potensi masalah sebelum pencetakan</p>
           </div>
         </div>
 
-        <div className="max-h-48 overflow-y-auto space-y-1.5 text-xs bg-slate-950/80 p-3 rounded-lg border border-slate-800/80 text-slate-300">
+        <div className="max-h-48 overflow-y-auto space-y-1.5 text-xs bg-[#0D1424]/80 p-3 rounded-lg border border-[#F2EAD3]/10 text-[#F2EAD3]/75">
           {warnings.map((warn, idx) => (
             <div key={idx} className="flex items-start gap-2">
-              <span className="text-amber-400 font-bold">•</span>
+              <span className="text-[#A9822E] font-bold">•</span>
               <span className="leading-normal">{warn}</span>
             </div>
           ))}
         </div>
 
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-[#F2EAD3]/55">
           Apakah Anda ingin tetap melanjutkan proses pencetakan sertifikat?
         </p>
 
-        <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+        <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#F2EAD3]/10">
           <button
             onClick={onCancel}
-            className="px-3.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors"
+            className="px-3.5 py-1.5 text-xs font-medium text-[#F2EAD3]/75 hover:text-[#F2EAD3] bg-[#22304F] hover:bg-[#2E3F63] rounded-lg transition-colors"
           >
             Batal & Perbaiki
           </button>
           <button
             onClick={onConfirm}
-            className="px-3.5 py-1.5 text-xs font-medium text-white bg-rose-700 hover:bg-rose-600 rounded-lg shadow transition-colors"
+            className="px-3.5 py-1.5 text-xs font-medium text-[#F2EAD3] bg-[#8C2F39] hover:bg-[#A23744] rounded-lg shadow transition-colors"
           >
             Tetap Cetak
           </button>
@@ -920,8 +936,8 @@ const renderPdfPage = async (pdf, pageNum) => {
 
   if (loading || !user) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-slate-950">
-        <Spinner className="w-8 h-8 text-rose-500" />
+      <div className="flex items-center justify-center min-h-screen bg-[#0D1424]">
+        <Spinner className="w-8 h-8 text-[#A9822E]" />
       </div>
     );
   }
@@ -933,7 +949,10 @@ const renderPdfPage = async (pdf, pageNum) => {
   const estimatedTotalBytes = estimatedCertCount * estimatedPerFileBytes;
 
   return (
-    <div className="h-screen w-screen bg-slate-950 text-slate-100 flex flex-col overflow-hidden font-sans antialiased selection:bg-rose-500/30 selection:text-rose-200">
+    <div
+      className={`${fraunces.variable} ${publicSans.variable} h-screen w-screen bg-[#0D1424] text-[#F2EAD3] flex flex-col overflow-hidden antialiased selection:bg-[#8C2F39]/30 selection:text-[#F2EAD3]`}
+      style={{ fontFamily: "var(--font-body)" }}
+    >
       <Notification {...notification} />
       <ValidationModal
         isOpen={isValidationModalOpen}
@@ -943,14 +962,19 @@ const renderPdfPage = async (pdf, pageNum) => {
       />
 
       {/* TOP HEADER STUDIO BAR */}
-      <header className="h-13 border-b border-slate-800/80 bg-slate-950/90 px-4 flex items-center justify-between shrink-0 z-30 backdrop-blur-md">
+      <header className="h-13 border-b border-[#F2EAD3]/10 bg-[#0D1424]/90 px-4 flex items-center justify-between shrink-0 z-30 backdrop-blur-md">
         <div className="flex items-center gap-3">
-          <div className="w-6 h-6 rounded-md bg-gradient-to-tr from-rose-700 to-rose-500 flex items-center justify-center text-white font-bold text-xs shadow-sm">
-            S
+          <div className="w-6 h-6 rounded-full border-2 border-[#A9822E] flex items-center justify-center text-[#A9822E] font-bold text-[10px]">
+            SG
           </div>
-          <span className="text-xs font-semibold tracking-wide text-slate-200">SertiGen Studio</span>
-          <span className="text-slate-800">|</span>
-          <span className="text-xs text-slate-400 font-normal truncate max-w-xs">
+          <span
+            className="text-xs font-semibold tracking-wide text-[#F2EAD3]"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            SertiGen Studio
+          </span>
+          <span className="text-[#F2EAD3]/15">|</span>
+          <span className="text-xs text-[#F2EAD3]/55 font-normal truncate max-w-xs">
             {templateFile ? templateFile.name : "Belum ada template"}
           </span>
         </div>
@@ -960,9 +984,9 @@ const renderPdfPage = async (pdf, pageNum) => {
             type="button"
             onClick={handleDownloadPreview}
             disabled={isProcessing || !templateFile}
-            className="px-3 py-1.5 text-xs font-medium text-slate-300 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg transition-colors disabled:opacity-40 flex items-center gap-1.5"
+            className="px-3 py-1.5 text-xs font-medium text-[#F2EAD3]/75 bg-[#17233D] hover:bg-[#22304F] border border-[#F2EAD3]/10 rounded-lg transition-colors disabled:opacity-40 flex items-center gap-1.5"
           >
-            <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-3.5 h-3.5 text-[#F2EAD3]/55" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M2.036 12c1.07-4.516 5.03-8 9.964-8s8.894 3.484 9.964 8c-1.07 4.516-5.03 8-9.964 8s-8.894-3.484-9.964-8z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
@@ -972,7 +996,7 @@ const renderPdfPage = async (pdf, pageNum) => {
           <button
             onClick={handleStartGenerate}
             disabled={isProcessing || !csvFile || !templateFile}
-            className="px-3.5 py-1.5 text-xs font-medium text-white bg-rose-700 hover:bg-rose-600 disabled:bg-slate-900 disabled:text-slate-600 border border-rose-600/30 rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
+            className="px-3.5 py-1.5 text-xs font-medium text-[#F2EAD3] bg-[#8C2F39] hover:bg-[#A23744] disabled:bg-[#17233D] disabled:text-[#F2EAD3]/35 border border-[#8C2F39]/30 rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
           >
             {isProcessing ? (
               <>
@@ -989,7 +1013,7 @@ const renderPdfPage = async (pdf, pageNum) => {
 
           <Link
             href="/dashboard"
-            className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-900 rounded-lg transition-colors ml-1"
+            className="p-1.5 text-[#F2EAD3]/55 hover:text-[#F2EAD3]/90 hover:bg-[#17233D] rounded-lg transition-colors ml-1"
             title="Kembali ke Dashboard"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1003,7 +1027,7 @@ const renderPdfPage = async (pdf, pageNum) => {
       <div className="flex-1 flex overflow-hidden">
         
         {/* 1. LEFT TOOLBAR DOCK */}
-        <aside className="w-13 bg-slate-950 border-r border-slate-800/80 flex flex-col items-center py-3 gap-2 shrink-0 z-20">
+        <aside className="w-13 bg-[#0D1424] border-r border-[#F2EAD3]/10 flex flex-col items-center py-3 gap-2 shrink-0 z-20">
           {[
             { id: "files", label: "Berkas", Icon: IconFolder },
             { id: "elements", label: "Elemen", Icon: IconEdit },
@@ -1015,8 +1039,8 @@ const renderPdfPage = async (pdf, pageNum) => {
               onClick={() => setActiveTab(tab.id)}
               className={`w-9 h-9 rounded-lg flex flex-col items-center justify-center transition-colors ${
                 activeTab === tab.id
-                  ? "bg-slate-800/90 text-rose-400 border border-slate-700/80"
-                  : "text-slate-500 hover:text-slate-300 hover:bg-slate-900"
+                  ? "bg-[#22304F]/90 text-[#A9822E] border border-[#F2EAD3]/15"
+                  : "text-[#F2EAD3]/45 hover:text-[#F2EAD3]/75 hover:bg-[#17233D]"
               }`}
               title={tab.label}
             >
@@ -1027,25 +1051,25 @@ const renderPdfPage = async (pdf, pageNum) => {
         </aside>
 
         {/* 2. CONTEXTUAL INSPECTOR PANEL */}
-        <div className="w-72 bg-slate-900/60 border-r border-slate-800/80 flex flex-col shrink-0 z-10 overflow-y-auto">
+        <div className="w-72 bg-[#17233D]/60 border-r border-[#F2EAD3]/10 flex flex-col shrink-0 z-10 overflow-y-auto">
           <div className="p-3.5 space-y-4">
             
             {/* PANEL: FILES */}
             {activeTab === "files" && (
               <div className="space-y-4">
-                <div className="border-b border-slate-800/80 pb-2">
-                  <h2 className="text-xs font-semibold text-slate-200">Sumber Berkas</h2>
-                  <p className="text-[11px] text-slate-400">Unggah CSV data dan PDF template</p>
+                <div className="border-b border-[#F2EAD3]/10 pb-2">
+                  <h2 className="text-xs font-semibold text-[#F2EAD3]/90">Sumber Berkas</h2>
+                  <p className="text-[11px] text-[#F2EAD3]/55">Unggah CSV data dan PDF template</p>
                 </div>
 
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-[11px] font-medium text-slate-300 mb-1">Data Peserta (.csv)</label>
+                    <label className="block text-[11px] font-medium text-[#F2EAD3]/75 mb-1">Data Peserta (.csv)</label>
                     <input
                       type="file"
                       accept=".csv"
                       onChange={handleCsvChange}
-                      className="block w-full text-[11px] text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:font-medium file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700 border border-slate-800 rounded-lg p-1 bg-slate-950/50"
+                      className="block w-full text-[11px] text-[#F2EAD3]/55 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:font-medium file:bg-[#22304F] file:text-[#F2EAD3]/90 hover:file:bg-[#2E3F63] border border-[#F2EAD3]/10 rounded-lg p-1 bg-[#0D1424]/50"
                     />
                     {csvRows.length > 0 && (
                       <p className="text-[10px] text-emerald-400 font-medium mt-1 flex items-center gap-1">
@@ -1056,7 +1080,7 @@ const renderPdfPage = async (pdf, pageNum) => {
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-medium text-slate-300 mb-1">Template Sertifikat (.pdf)</label>
+                    <label className="block text-[11px] font-medium text-[#F2EAD3]/75 mb-1">Template Sertifikat (.pdf)</label>
                     <input
                       type="file"
                       accept="application/pdf"
@@ -1064,16 +1088,16 @@ const renderPdfPage = async (pdf, pageNum) => {
                         setSelectedSystemTemplatePath("");
                         handleTemplateChange(e);
                       }}
-                      className="block w-full text-[11px] text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:font-medium file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700 border border-slate-800 rounded-lg p-1 bg-slate-950/50"
+                      className="block w-full text-[11px] text-[#F2EAD3]/55 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:font-medium file:bg-[#22304F] file:text-[#F2EAD3]/90 hover:file:bg-[#2E3F63] border border-[#F2EAD3]/10 rounded-lg p-1 bg-[#0D1424]/50"
                     />
                     
                     {/* DROPDOWN TEMPLATE SISTEM */}
                     <div className="mt-2.5">
-                      <label className="block text-[10px] font-medium text-slate-400 mb-1">Atau Pilih Template Sistem</label>
+                      <label className="block text-[10px] font-medium text-[#F2EAD3]/55 mb-1">Atau Pilih Template Sistem</label>
                       <select
                         value={selectedSystemTemplatePath}
                         onChange={(e) => handleSelectSystemTemplate(e.target.value)}
-                        className="w-full p-1.5 text-xs border border-slate-800 rounded-lg bg-slate-950 text-slate-200 focus:outline-none focus:border-slate-700"
+                        className="w-full p-1.5 text-xs border border-[#F2EAD3]/10 rounded-lg bg-[#0D1424] text-[#F2EAD3]/90 focus:outline-none focus:border-[#F2EAD3]/15"
                       >
                         <option value="">-- Pilih dari galeri sistem --</option>
                         {SYSTEM_TEMPLATES.map((tmpl) => (
@@ -1087,17 +1111,17 @@ const renderPdfPage = async (pdf, pageNum) => {
                 </div>
 
                 {templateFile && (
-                  <div className="bg-slate-950/60 border border-slate-800/80 rounded-lg p-3 space-y-2.5">
+                  <div className="bg-[#0D1424]/60 border border-[#F2EAD3]/10 rounded-lg p-3 space-y-2.5">
                     <div className="flex items-center justify-between text-[11px]">
-                      <span className="font-semibold text-slate-300">Kompresi PDF</span>
-                      <span className="text-slate-400 font-mono text-[10px]">
-                        {formatBytes(originalTemplateSize)} → <span className="text-rose-400">{formatBytes(templateFile.size)}</span>
+                      <span className="font-semibold text-[#F2EAD3]/75">Kompresi PDF</span>
+                      <span className="text-[#F2EAD3]/55 font-mono text-[10px]">
+                        {formatBytes(originalTemplateSize)} → <span className="text-[#A9822E]">{formatBytes(templateFile.size)}</span>
                       </span>
                     </div>
 
                     <div className="space-y-2">
                       <div>
-                        <div className="flex justify-between text-[10px] text-slate-400 mb-1">
+                        <div className="flex justify-between text-[10px] text-[#F2EAD3]/55 mb-1">
                           <span>Skala Resample</span>
                           <span>{compressionScale.toFixed(1)}x</span>
                         </div>
@@ -1108,12 +1132,12 @@ const renderPdfPage = async (pdf, pageNum) => {
                           step="0.1"
                           value={compressionScale}
                           onChange={(e) => setCompressionScale(Number(e.target.value))}
-                          className="w-full accent-rose-600 h-1 bg-slate-800 rounded"
+                          className="w-full accent-[#8C2F39] h-1 bg-[#22304F] rounded"
                         />
                       </div>
 
                       <div>
-                        <div className="flex justify-between text-[10px] text-slate-400 mb-1">
+                        <div className="flex justify-between text-[10px] text-[#F2EAD3]/55 mb-1">
                           <span>Kualitas JPEG</span>
                           <span>{Math.round(compressionQuality * 100)}%</span>
                         </div>
@@ -1124,7 +1148,7 @@ const renderPdfPage = async (pdf, pageNum) => {
                           step="0.05"
                           value={compressionQuality}
                           onChange={(e) => setCompressionQuality(Number(e.target.value))}
-                          className="w-full accent-rose-600 h-1 bg-slate-800 rounded"
+                          className="w-full accent-[#8C2F39] h-1 bg-[#22304F] rounded"
                         />
                       </div>
                     </div>
@@ -1144,8 +1168,8 @@ const renderPdfPage = async (pdf, pageNum) => {
                           }}
                           className={`py-1 text-[10px] font-medium rounded border transition-colors ${
                             compressionScale === preset.scale && compressionQuality === preset.quality
-                              ? "bg-slate-800 text-rose-400 border-slate-700"
-                              : "bg-slate-900/50 text-slate-400 border-slate-800/80 hover:bg-slate-800"
+                              ? "bg-[#22304F] text-[#A9822E] border-[#F2EAD3]/15"
+                              : "bg-[#17233D]/50 text-[#F2EAD3]/55 border-[#F2EAD3]/10 hover:bg-[#22304F]"
                           }`}
                         >
                           {preset.label}
@@ -1157,7 +1181,7 @@ const renderPdfPage = async (pdf, pageNum) => {
                       type="button"
                       onClick={handleRecompress}
                       disabled={isRecompressing || !originalTemplateRawFile}
-                      className="w-full py-1.5 text-xs font-medium text-slate-200 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 rounded transition-colors flex items-center justify-center gap-1.5 mt-1"
+                      className="w-full py-1.5 text-xs font-medium text-[#F2EAD3]/90 bg-[#22304F] hover:bg-[#2E3F63] disabled:opacity-40 rounded transition-colors flex items-center justify-center gap-1.5 mt-1"
                     >
                       {isRecompressing ? <Spinner /> : "Terapkan Kompresi"}
                     </button>
@@ -1169,13 +1193,13 @@ const renderPdfPage = async (pdf, pageNum) => {
             {/* PANEL: ELEMENTS */}
             {activeTab === "elements" && (
               <div className="space-y-4">
-                <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
-                  <h2 className="text-xs font-semibold text-slate-200">Tata Letak Teks</h2>
+                <div className="flex items-center justify-between border-b border-[#F2EAD3]/10 pb-2">
+                  <h2 className="text-xs font-semibold text-[#F2EAD3]/90">Tata Letak Teks</h2>
                   <div className="flex items-center gap-1">
                     <button
                       type="button"
                       onClick={handleResetConfigs}
-                      className="px-2 py-0.5 text-[10px] font-medium text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/20 rounded transition-colors"
+                      className="px-2 py-0.5 text-[10px] font-medium text-[#A9822E] bg-[#8C2F39]/10 hover:bg-[#8C2F39]/20 border border-[#8C2F39]/20 rounded transition-colors"
                       title="Reset tata letak ke posisi awal"
                     >
                       Reset
@@ -1191,8 +1215,8 @@ const renderPdfPage = async (pdf, pageNum) => {
                 </div>
 
                 {configs.some((c) => !c.enabled) && (
-                  <div className="bg-slate-950/60 border border-slate-800/80 rounded-lg p-2.5 space-y-1.5">
-                    <label className="block text-[10px] font-medium text-slate-400 uppercase tracking-wider">
+                  <div className="bg-[#0D1424]/60 border border-[#F2EAD3]/10 rounded-lg p-2.5 space-y-1.5">
+                    <label className="block text-[10px] font-medium text-[#F2EAD3]/55 uppercase tracking-wider">
                       Elemen Tersembunyi ({configs.filter((c) => !c.enabled).length})
                     </label>
                     <div className="flex flex-wrap gap-1">
@@ -1203,7 +1227,7 @@ const renderPdfPage = async (pdf, pageNum) => {
                             key={cfg.column_name}
                             type="button"
                             onClick={() => handleRestoreElement(cfg.column_name)}
-                            className="px-2 py-0.5 text-[10px] font-medium bg-slate-900 text-slate-300 hover:text-white border border-slate-800 rounded transition-colors flex items-center gap-1"
+                            className="px-2 py-0.5 text-[10px] font-medium bg-[#17233D] text-[#F2EAD3]/75 hover:text-[#F2EAD3] border border-[#F2EAD3]/10 rounded transition-colors flex items-center gap-1"
                           >
                             <span>+</span>
                             {cfg.static_text !== undefined && cfg.static_text !== ""
@@ -1217,11 +1241,11 @@ const renderPdfPage = async (pdf, pageNum) => {
 
                 {configs.length > 0 && (
                   <div>
-                    <label className="block text-[11px] font-medium text-slate-300 mb-1">Pilih Elemen</label>
+                    <label className="block text-[11px] font-medium text-[#F2EAD3]/75 mb-1">Pilih Elemen</label>
                     <select
                       value={activeColumn}
                       onChange={(e) => setActiveColumn(e.target.value)}
-                      className="w-full p-1.5 text-xs border border-slate-800 rounded-lg bg-slate-950 text-slate-200"
+                      className="w-full p-1.5 text-xs border border-[#F2EAD3]/10 rounded-lg bg-[#0D1424] text-[#F2EAD3]/90"
                     >
                       {configs.filter((c) => c.enabled).map((c) => (
                         <option key={c.column_name} value={c.column_name}>
@@ -1238,26 +1262,26 @@ const renderPdfPage = async (pdf, pageNum) => {
                 {configs
                   .filter((c) => c.column_name === activeColumn)
                   .map((cfg) => (
-                    <div key={cfg.column_name} className="space-y-3 bg-slate-950/60 p-3 rounded-lg border border-slate-800/80">
+                    <div key={cfg.column_name} className="space-y-3 bg-[#0D1424]/60 p-3 rounded-lg border border-[#F2EAD3]/10">
                       {cfg.static_text !== undefined && (
                         <div>
-                          <label className="block text-[10px] font-medium text-slate-400 mb-1">Konten Teks Statis</label>
+                          <label className="block text-[10px] font-medium text-[#F2EAD3]/55 mb-1">Konten Teks Statis</label>
                           <input
                             type="text"
                             value={cfg.static_text}
                             onChange={(e) => updateConfig(cfg.column_name, { static_text: e.target.value })}
-                            className="w-full p-1.5 text-xs border border-slate-800 rounded bg-slate-900 text-slate-100"
+                            className="w-full p-1.5 text-xs border border-[#F2EAD3]/10 rounded bg-[#17233D] text-[#F2EAD3]"
                           />
                         </div>
                       )}
 
                       {totalPages > 1 && (
                         <div>
-                          <label className="block text-[10px] font-medium text-slate-400 mb-1">Target Halaman</label>
+                          <label className="block text-[10px] font-medium text-[#F2EAD3]/55 mb-1">Target Halaman</label>
                           <select
                             value={cfg.page_number || 1}
                             onChange={(e) => updateConfig(cfg.column_name, { page_number: Number(e.target.value) })}
-                            className="w-full p-1.5 text-xs border border-slate-800 rounded bg-slate-900 text-slate-200"
+                            className="w-full p-1.5 text-xs border border-[#F2EAD3]/10 rounded bg-[#17233D] text-[#F2EAD3]/90"
                           >
                             {Array.from({ length: totalPages }, (_, i) => i + 1).map((num) => (
                               <option key={num} value={num}>Halaman {num}</option>
@@ -1267,7 +1291,7 @@ const renderPdfPage = async (pdf, pageNum) => {
                       )}
 
                       <div>
-                        <label className="block text-[10px] font-medium text-slate-400 mb-1">Perataan Teks</label>
+                        <label className="block text-[10px] font-medium text-[#F2EAD3]/55 mb-1">Perataan Teks</label>
                         <div className="grid grid-cols-3 gap-1">
                           {[
                             { id: "left", label: "Kiri" },
@@ -1280,8 +1304,8 @@ const renderPdfPage = async (pdf, pageNum) => {
                               onClick={() => updateConfig(cfg.column_name, { align: item.id })}
                               className={`py-1 text-[10px] font-medium rounded border transition-colors ${
                                 cfg.align === item.id
-                                  ? "bg-slate-800 text-rose-400 border-slate-700"
-                                  : "bg-slate-900 text-slate-400 border-slate-800/80 hover:bg-slate-800"
+                                  ? "bg-[#22304F] text-[#A9822E] border-[#F2EAD3]/15"
+                                  : "bg-[#17233D] text-[#F2EAD3]/55 border-[#F2EAD3]/10 hover:bg-[#22304F]"
                               }`}
                             >
                               {item.label}
@@ -1292,42 +1316,42 @@ const renderPdfPage = async (pdf, pageNum) => {
 
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="block text-[10px] font-medium text-slate-400 mb-1">Ukuran (pt)</label>
+                          <label className="block text-[10px] font-medium text-[#F2EAD3]/55 mb-1">Ukuran (pt)</label>
                           <input
                             type="number"
                             value={cfg.font_size}
                             onChange={(e) => updateConfig(cfg.column_name, { font_size: Number(e.target.value) })}
-                            className="w-full p-1.5 text-xs border border-slate-800 rounded bg-slate-900 text-slate-100"
+                            className="w-full p-1.5 text-xs border border-[#F2EAD3]/10 rounded bg-[#17233D] text-[#F2EAD3]"
                           />
                         </div>
 
                         <div>
-                          <label className="block text-[10px] font-medium text-slate-400 mb-1">Lebar (pt)</label>
+                          <label className="block text-[10px] font-medium text-[#F2EAD3]/55 mb-1">Lebar (pt)</label>
                           <input
                             type="number"
                             value={cfg.max_width}
                             onChange={(e) => updateConfig(cfg.column_name, { max_width: Number(e.target.value) })}
-                            className="w-full p-1.5 text-xs border border-slate-800 rounded bg-slate-900 text-slate-100"
+                            className="w-full p-1.5 text-xs border border-[#F2EAD3]/10 rounded bg-[#17233D] text-[#F2EAD3]"
                           />
                         </div>
                       </div>
 
                       <div>
-                        <label className="block text-[10px] font-medium text-slate-400 mb-1">Warna Teks</label>
+                        <label className="block text-[10px] font-medium text-[#F2EAD3]/55 mb-1">Warna Teks</label>
                         <div className="flex items-center gap-2">
                           <input
                             type="color"
                             value={cfg.color || DEFAULT_TEXT_COLOR}
                             onChange={(e) => updateConfig(cfg.column_name, { color: e.target.value })}
-                            className="h-7 w-8 p-0.5 bg-slate-900 border border-slate-800 rounded cursor-pointer"
+                            className="h-7 w-8 p-0.5 bg-[#17233D] border border-[#F2EAD3]/10 rounded cursor-pointer"
                           />
-                          <span className="text-[11px] font-mono text-slate-400 uppercase">
+                          <span className="text-[11px] font-mono text-[#F2EAD3]/55 uppercase">
                             {cfg.color || DEFAULT_TEXT_COLOR}
                           </span>
                           <button
                             type="button"
                             onClick={() => updateConfig(cfg.column_name, { color: DEFAULT_TEXT_COLOR })}
-                            className="ml-auto px-2 py-0.5 text-[10px] font-medium text-slate-400 hover:text-slate-200 bg-slate-900 border border-slate-800 rounded transition-colors"
+                            className="ml-auto px-2 py-0.5 text-[10px] font-medium text-[#F2EAD3]/55 hover:text-[#F2EAD3]/90 bg-[#17233D] border border-[#F2EAD3]/10 rounded transition-colors"
                           >
                             Reset
                           </button>
@@ -1338,7 +1362,7 @@ const renderPdfPage = async (pdf, pageNum) => {
                         <button
                           type="button"
                           onClick={() => handleHideElement(cfg.column_name)}
-                          className="w-full py-1 text-[11px] font-medium text-rose-400 hover:bg-rose-950/30 border border-rose-900/40 rounded transition-colors"
+                          className="w-full py-1 text-[11px] font-medium text-[#A9822E] hover:bg-[#8C2F39]/20 border border-[#8C2F39]/40 rounded transition-colors"
                         >
                           Hapus Elemen
                         </button>
@@ -1351,26 +1375,26 @@ const renderPdfPage = async (pdf, pageNum) => {
             {/* PANEL: FONTS */}
             {activeTab === "fonts" && (
               <div className="space-y-4">
-                <div className="border-b border-slate-800/80 pb-2">
-                  <h2 className="text-xs font-semibold text-slate-200">Font Sistem Perangkat</h2>
-                  <p className="text-[11px] text-slate-400">Pindai dan gunakan font lokal</p>
+                <div className="border-b border-[#F2EAD3]/10 pb-2">
+                  <h2 className="text-xs font-semibold text-[#F2EAD3]/90">Font Sistem Perangkat</h2>
+                  <p className="text-[11px] text-[#F2EAD3]/55">Pindai dan gunakan font lokal</p>
                 </div>
 
-                <div className="flex items-center justify-between gap-2 bg-slate-950/60 border border-slate-800/80 rounded-lg px-2.5 py-2">
-                  <span className="text-[10px] font-medium text-slate-400">Local Font API</span>
+                <div className="flex items-center justify-between gap-2 bg-[#0D1424]/60 border border-[#F2EAD3]/10 rounded-lg px-2.5 py-2">
+                  <span className="text-[10px] font-medium text-[#F2EAD3]/55">Local Font API</span>
                   {localFontApiSupported ? (
                     <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium border border-emerald-500/20">
                       Didukung
                     </span>
                   ) : (
-                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-medium border border-slate-700/80">
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#22304F] text-[#F2EAD3]/55 font-medium border border-[#F2EAD3]/15">
                       Tidak Didukung
                     </span>
                   )}
                 </div>
 
                 {!localFontApiSupported ? (
-                  <p className="text-[11px] text-slate-400 leading-normal">
+                  <p className="text-[11px] text-[#F2EAD3]/55 leading-normal">
                     Fitur pemindaian font lokal tersedia di browser berbasis Chromium (Chrome/Edge Desktop).
                   </p>
                 ) : (
@@ -1379,25 +1403,25 @@ const renderPdfPage = async (pdf, pageNum) => {
                       type="button"
                       onClick={handleDetectLocalFonts}
                       disabled={isDetectingFonts}
-                      className="w-full py-1.5 text-xs font-medium text-slate-200 bg-slate-800 hover:bg-slate-700 border border-slate-700/80 rounded-lg transition-colors flex items-center justify-center gap-1.5"
+                      className="w-full py-1.5 text-xs font-medium text-[#F2EAD3]/90 bg-[#22304F] hover:bg-[#2E3F63] border border-[#F2EAD3]/15 rounded-lg transition-colors flex items-center justify-center gap-1.5"
                     >
                       {isDetectingFonts ? <Spinner /> : "Pindai Font Lokal"}
                     </button>
 
                     {fontDetectionError && (
-                      <p className="text-[11px] text-rose-400 leading-normal">{fontDetectionError}</p>
+                      <p className="text-[11px] text-[#A9822E] leading-normal">{fontDetectionError}</p>
                     )}
 
                     {localFontFamilies.length > 0 && (
                       <div>
-                        <label className="block text-[11px] font-medium text-slate-300 mb-1">
+                        <label className="block text-[11px] font-medium text-[#F2EAD3]/75 mb-1">
                           Pilih Font ({localFontFamilies.length})
                         </label>
                         <select
                           value={selectedLocalFontFamily}
                           onChange={(e) => handleSelectLocalFont(e.target.value)}
                           disabled={isLoadingFontBytes}
-                          className="w-full p-1.5 text-xs border border-slate-800 rounded-lg bg-slate-950 text-slate-200"
+                          className="w-full p-1.5 text-xs border border-[#F2EAD3]/10 rounded-lg bg-[#0D1424] text-[#F2EAD3]/90"
                         >
                           <option value="">-- Standard (Helvetica-Bold) --</option>
                           {localFontFamilies.map((family) => (
@@ -1406,7 +1430,7 @@ const renderPdfPage = async (pdf, pageNum) => {
                         </select>
 
                         {isLoadingFontBytes && (
-                          <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                          <p className="text-[10px] text-[#F2EAD3]/55 mt-1 flex items-center gap-1">
                             <Spinner /> Memuat data font...
                           </p>
                         )}
@@ -1427,20 +1451,20 @@ const renderPdfPage = async (pdf, pageNum) => {
             {/* PANEL: PRESETS */}
             {activeTab === "presets" && (
               <div className="space-y-4">
-                <div className="border-b border-slate-800/80 pb-2">
-                  <h2 className="text-xs font-semibold text-slate-200">Preset Tata Letak</h2>
-                  <p className="text-[11px] text-slate-400">Pilih layout bawaan atau simpan konfigurasi</p>
+                <div className="border-b border-[#F2EAD3]/10 pb-2">
+                  <h2 className="text-xs font-semibold text-[#F2EAD3]/90">Preset Tata Letak</h2>
+                  <p className="text-[11px] text-[#F2EAD3]/55">Pilih layout bawaan atau simpan konfigurasi</p>
                 </div>
 
                 {/* DROPDOWN TEMPLATE LAYOUT BAWAAN SISTEM */}
-                <div className="space-y-1.5 bg-slate-950/60 p-2.5 rounded-lg border border-slate-800/80">
-                  <label className="block text-[10px] font-medium text-slate-300">
+                <div className="space-y-1.5 bg-[#0D1424]/60 p-2.5 rounded-lg border border-[#F2EAD3]/10">
+                  <label className="block text-[10px] font-medium text-[#F2EAD3]/75">
                     Template Layout Sistem
                   </label>
                   <select
                     value={selectedSystemLayoutPath}
                     onChange={(e) => handleSelectSystemLayout(e.target.value)}
-                    className="w-full p-1.5 text-xs border border-slate-800 rounded-lg bg-slate-950 text-slate-200 focus:outline-none focus:border-slate-700"
+                    className="w-full p-1.5 text-xs border border-[#F2EAD3]/10 rounded-lg bg-[#0D1424] text-[#F2EAD3]/90 focus:outline-none focus:border-[#F2EAD3]/15"
                   >
                     <option value="">-- Pilih dari galeri layout --</option>
                     {SYSTEM_LAYOUT_TEMPLATES.map((tmpl) => (
@@ -1451,8 +1475,8 @@ const renderPdfPage = async (pdf, pageNum) => {
                   </select>
                 </div>
 
-                <div className="space-y-2 pt-1 border-t border-slate-800/80">
-                  <label className="block text-[10px] font-medium text-slate-400 uppercase tracking-wider">
+                <div className="space-y-2 pt-1 border-t border-[#F2EAD3]/10">
+                  <label className="block text-[10px] font-medium text-[#F2EAD3]/55 uppercase tracking-wider">
                     Preset Lokal & Kustom
                   </label>
 
@@ -1462,12 +1486,12 @@ const renderPdfPage = async (pdf, pageNum) => {
                       placeholder="Nama Preset..."
                       value={presetName}
                       onChange={(e) => setPresetName(e.target.value)}
-                      className="w-full p-1.5 text-xs border border-slate-800 rounded-lg bg-slate-950 text-slate-100"
+                      className="w-full p-1.5 text-xs border border-[#F2EAD3]/10 rounded-lg bg-[#0D1424] text-[#F2EAD3]"
                     />
                     <button
                       type="button"
                       onClick={handleSavePreset}
-                      className="px-3 py-1.5 text-xs font-medium text-white bg-rose-700 hover:bg-rose-600 rounded-lg shrink-0 transition-colors"
+                      className="px-3 py-1.5 text-xs font-medium text-[#F2EAD3] bg-[#8C2F39] hover:bg-[#A23744] rounded-lg shrink-0 transition-colors"
                     >
                       Simpan
                     </button>
@@ -1477,7 +1501,7 @@ const renderPdfPage = async (pdf, pageNum) => {
                     <select
                       onChange={(e) => handleLoadPreset(e.target.value)}
                       defaultValue=""
-                      className="w-full p-1.5 text-xs border border-slate-800 rounded-lg bg-slate-950 text-slate-200"
+                      className="w-full p-1.5 text-xs border border-[#F2EAD3]/10 rounded-lg bg-[#0D1424] text-[#F2EAD3]/90"
                     >
                       <option value="" disabled>-- Muat Preset Tersimpan --</option>
                       {savedPresets.map((p) => (
@@ -1490,11 +1514,11 @@ const renderPdfPage = async (pdf, pageNum) => {
                     <button
                       type="button"
                       onClick={handleExportJson}
-                      className="py-1.5 text-xs font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors"
+                      className="py-1.5 text-xs font-medium text-[#F2EAD3]/75 bg-[#22304F] hover:bg-[#2E3F63] rounded-lg transition-colors"
                     >
                       Ekspor JSON
                     </button>
-                    <label className="py-1.5 text-xs font-medium text-center text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg cursor-pointer transition-colors">
+                    <label className="py-1.5 text-xs font-medium text-center text-[#F2EAD3]/75 bg-[#22304F] hover:bg-[#2E3F63] rounded-lg cursor-pointer transition-colors">
                       Impor JSON
                       <input type="file" accept=".json" onChange={handleImportJson} className="hidden" />
                     </label>
@@ -1502,22 +1526,22 @@ const renderPdfPage = async (pdf, pageNum) => {
                 </div>
 
                 {csvFile && templateFile && estimatedCertCount > 0 && (
-                  <div className="border-t border-slate-800/80 pt-3 space-y-2">
-                    <label className="block text-[10px] font-medium text-slate-400 uppercase tracking-wider">
+                  <div className="border-t border-[#F2EAD3]/10 pt-3 space-y-2">
+                    <label className="block text-[10px] font-medium text-[#F2EAD3]/55 uppercase tracking-wider">
                       Ringkasan Ekspor
                     </label>
                     <div className="grid grid-cols-2 gap-1.5 text-xs">
-                      <div className="bg-slate-950/60 border border-slate-800/80 rounded-lg p-2">
-                        <div className="text-[10px] text-slate-500">Sertifikat</div>
-                        <div className="font-semibold text-slate-200">{estimatedCertCount.toLocaleString("id-ID")}</div>
+                      <div className="bg-[#0D1424]/60 border border-[#F2EAD3]/10 rounded-lg p-2">
+                        <div className="text-[10px] text-[#F2EAD3]/45">Sertifikat</div>
+                        <div className="font-semibold text-[#F2EAD3]/90">{estimatedCertCount.toLocaleString("id-ID")}</div>
                       </div>
-                      <div className="bg-slate-950/60 border border-slate-800/80 rounded-lg p-2">
-                        <div className="text-[10px] text-slate-500">Berkas ZIP</div>
-                        <div className="font-semibold text-slate-200">{estimatedZipParts} Bagian</div>
+                      <div className="bg-[#0D1424]/60 border border-[#F2EAD3]/10 rounded-lg p-2">
+                        <div className="text-[10px] text-[#F2EAD3]/45">Berkas ZIP</div>
+                        <div className="font-semibold text-[#F2EAD3]/90">{estimatedZipParts} Bagian</div>
                       </div>
-                      <div className="bg-slate-950/60 border border-slate-800/80 rounded-lg p-2 col-span-2">
-                        <div className="text-[10px] text-slate-500">Estimasi Ukuran</div>
-                        <div className="font-semibold text-rose-400">{formatBytes(estimatedTotalBytes)}</div>
+                      <div className="bg-[#0D1424]/60 border border-[#F2EAD3]/10 rounded-lg p-2 col-span-2">
+                        <div className="text-[10px] text-[#F2EAD3]/45">Estimasi Ukuran</div>
+                        <div className="font-semibold text-[#A9822E]">{formatBytes(estimatedTotalBytes)}</div>
                       </div>
                     </div>
                   </div>
@@ -1528,22 +1552,22 @@ const renderPdfPage = async (pdf, pageNum) => {
         </div>
 
         {/* 3. WORKSPACE CANVAS STAGE */}
-        <div className="flex-1 bg-slate-950 p-6 flex flex-col items-center justify-start overflow-auto relative bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:16px_16px]">
+        <div className="flex-1 bg-[#0D1424] p-6 flex flex-col items-center justify-start overflow-auto relative bg-[radial-gradient(#22304F_1px,transparent_1px)] [background-size:16px_16px]">
           
           {/* Top Canvas Toolbar */}
-          <div className="w-full max-w-4xl flex items-center justify-between mb-3 text-xs text-slate-400">
-            <span className="text-[11px] text-slate-400">
+          <div className="w-full max-w-4xl flex items-center justify-between mb-3 text-xs text-[#F2EAD3]/55">
+            <span className="text-[11px] text-[#F2EAD3]/55">
               Geser elemen teks di atas canvas untuk mengatur tata letak
             </span>
             {totalPages > 1 && (
-              <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 px-2 py-1 rounded-lg">
+              <div className="flex items-center gap-1 bg-[#17233D] border border-[#F2EAD3]/10 px-2 py-1 rounded-lg">
                 <span className="text-[11px] mr-1">Halaman:</span>
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
                   <button
                     key={pageNum}
                     onClick={() => setCurrentPage(pageNum)}
                     className={`px-2 py-0.5 text-xs rounded transition-colors ${
-                      currentPage === pageNum ? "bg-rose-700 text-white font-medium" : "text-slate-400 hover:text-white"
+                      currentPage === pageNum ? "bg-[#8C2F39] text-[#F2EAD3] font-medium" : "text-[#F2EAD3]/55 hover:text-[#F2EAD3]"
                     }`}
                   >
                     {pageNum}
@@ -1556,17 +1580,17 @@ const renderPdfPage = async (pdf, pageNum) => {
           {/* Canvas Container */}
           <div
             ref={containerRef}
-            className="relative bg-white shadow-xl rounded overflow-hidden shrink-0 border border-slate-800"
+            className="relative bg-white shadow-xl rounded overflow-hidden shrink-0 border border-[#F2EAD3]/10"
             style={{ width: pdfPreviewSize.width, height: pdfPreviewSize.height }}
           >
             <canvas ref={canvasRef} className="absolute top-0 left-0 z-0 pointer-events-none" />
 
             {/* Snap Guides */}
             {activeSnapGuides.x && (
-              <div className="absolute top-0 bottom-0 left-1/2 w-[1px] bg-rose-500 z-20 pointer-events-none opacity-80" />
+              <div className="absolute top-0 bottom-0 left-1/2 w-[1px] bg-[#B4434F] z-20 pointer-events-none opacity-80" />
             )}
             {activeSnapGuides.y && (
-              <div className="absolute left-0 right-0 top-1/2 h-[1px] bg-rose-500 z-20 pointer-events-none opacity-80" />
+              <div className="absolute left-0 right-0 top-1/2 h-[1px] bg-[#B4434F] z-20 pointer-events-none opacity-80" />
             )}
 
             {/* Render Dynamic Elements */}
@@ -1576,12 +1600,12 @@ const renderPdfPage = async (pdf, pageNum) => {
                 const displayText = renderPreviewText(cfg);
                 const isSelected = activeColumn === cfg.column_name;
                 const isStatic = cfg.static_text !== undefined;
-                const outlineColor = isSelected ? "#be123c" : isStatic ? "#059669" : "#2563eb";
+                const outlineColor = isSelected ? "#8C2F39" : isStatic ? "#059669" : "#3D5A99";
                 const boxBg = isSelected
-                  ? "rgba(190,18,60,0.08)"
+                  ? "rgba(140,47,57,0.08)"
                   : isStatic
                   ? "rgba(5,150,105,0.06)"
-                  : "rgba(37,99,235,0.06)";
+                  : "rgba(61,90,153,0.06)";
 
                 return (
                   <Rnd
@@ -1636,23 +1660,23 @@ const renderPdfPage = async (pdf, pageNum) => {
       </div>
 
       {/* FOOTER REAL-TIME STATUS BAR */}
-      <footer className="h-7 bg-slate-950 border-t border-slate-800/80 px-4 flex items-center justify-between text-[10px] text-slate-400 shrink-0 z-30">
+      <footer className="h-7 bg-[#0D1424] border-t border-[#F2EAD3]/10 px-4 flex items-center justify-between text-[10px] text-[#F2EAD3]/55 shrink-0 z-30">
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1.5">
-            <span className={`w-1.5 h-1.5 rounded-full ${csvRows.length > 0 ? "bg-emerald-400" : "bg-slate-600"}`} />
-            CSV: <strong className="text-slate-200 font-medium">{csvRows.length} Baris</strong>
+            <span className={`w-1.5 h-1.5 rounded-full ${csvRows.length > 0 ? "bg-emerald-400" : "bg-[#3A4E78]"}`} />
+            CSV: <strong className="text-[#F2EAD3]/90 font-medium">{csvRows.length} Baris</strong>
           </span>
-          <span className="text-slate-800">|</span>
+          <span className="text-[#F2EAD3]/15">|</span>
           <span className="flex items-center gap-1.5">
-            <span className={`w-1.5 h-1.5 rounded-full ${templateFile ? "bg-emerald-400" : "bg-slate-600"}`} />
-            Template: <strong className="text-slate-200 font-medium">{templateFile ? formatBytes(templateFile.size) : "Kosong"}</strong>
+            <span className={`w-1.5 h-1.5 rounded-full ${templateFile ? "bg-emerald-400" : "bg-[#3A4E78]"}`} />
+            Template: <strong className="text-[#F2EAD3]/90 font-medium">{templateFile ? formatBytes(templateFile.size) : "Kosong"}</strong>
           </span>
         </div>
 
         <div className="flex items-center gap-3">
           <span>Worker Engine: <strong className="text-emerald-400 font-medium">Siap</strong></span>
-          <span className="text-slate-800">|</span>
-          <span>Estimasi Output: <strong className="text-rose-400 font-medium">≈ {formatBytes(estimatedTotalBytes)}</strong></span>
+          <span className="text-[#F2EAD3]/15">|</span>
+          <span>Estimasi Output: <strong className="text-[#A9822E] font-medium">≈ {formatBytes(estimatedTotalBytes)}</strong></span>
         </div>
       </footer>
     </div>
