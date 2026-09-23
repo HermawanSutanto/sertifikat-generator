@@ -4,39 +4,37 @@ self.onmessage = async (e) => {
   try {
     const {
       templateUint8,
-      csvRows,
+      batchQueue,
       configs,
-      chunkSize = 1000,
       fontBytes,
       filenamePattern,
-      startOffset = 0,
     } = e.data;
 
     await init();
 
-    const total = csvRows.length;
+    const totalRows = batchQueue.reduce((acc, curr) => acc + curr.rows.length, 0);
     let processed = 0;
 
-    for (let i = 0; i < total; i += chunkSize) {
-      const chunkRows = csvRows.slice(i, i + chunkSize);
+    for (let i = 0; i < batchQueue.length; i++) {
+      const { groupName, rows, startOffset } = batchQueue[i];
 
       const zipBytes = wasm.generate_certificates_chunk(
         templateUint8,
-        chunkRows,
+        rows,
         configs,
-        startOffset + i,
+        startOffset,
         fontBytes,
         filenamePattern || undefined
       );
 
-      processed += chunkRows.length;
+      processed += rows.length;
 
       self.postMessage(
         {
-          type: "CHUNK_COMPLETE",
+          type: "GROUP_COMPLETE",
           zipBytes,
-          part: Math.floor(i / chunkSize) + 1,
-          progress: { current: processed, total },
+          groupName,
+          progress: { current: processed, total: totalRows },
         },
         [zipBytes.buffer]
       );

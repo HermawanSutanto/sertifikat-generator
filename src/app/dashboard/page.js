@@ -15,7 +15,6 @@ import {
   clearAutosave,
 } from "./idbStorage";
 
-// Daftar Template Bawaan dari folder public
 const BUILT_IN_TEMPLATES = [
   {
     id: "template1",
@@ -112,6 +111,13 @@ const IconHelp = (props) => (
   </svg>
 );
 
+const sanitizeName = (nama) => {
+  return (nama || "")
+    .trim()
+    .replace(/[/\\:*?"<>|]/g, "_")
+    .replace(/\s+/g, "_");
+};
+
 const Notification = ({ message, type, show, isDark }) => {
   const isSuccess = type === "success";
   return (
@@ -153,7 +159,7 @@ const ValidationModal = ({ isOpen, warnings, onConfirm, onCancel, isDark }) => {
               Peringatan Validasi
             </h3>
             <p className={`text-xs mt-0.5 font-mono ${isDark ? "text-[#EBE9E4]/70" : "text-[#555555]"}`}>
-              Ditemukan potensi kendala sebelum proses cetak
+              Ditemukan catatan sebelum proses cetak
             </p>
           </div>
         </div>
@@ -192,128 +198,6 @@ const ValidationModal = ({ isOpen, warnings, onConfirm, onCancel, isDark }) => {
           >
             Lanjutkan Cetak
           </button>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-const TutorialModal = ({ isOpen, onClose, isDark }) => {
-  const [currentStep, setCurrentStep] = useState(0);
-
-  if (!isOpen) return null;
-
-  const steps = [
-    {
-      title: "1. Pemilihan Template & Data Peserta",
-      tab: "Berkas",
-      desc: "Buka panel 'Berkas' di bilah kiri. Anda dapat langsung memilih salah satu dari 4 Template Bawaan yang sudah dilengkapi tata letak bawaan, atau mengunggah berkas template PDF kustom sendiri. Setelah itu, masukkan berkas CSV daftar peserta.",
-    },
-    {
-      title: "2. Menambahkan Elemen Desain",
-      tab: "Elemen",
-      desc: "Di panel 'Elemen', Anda memiliki tiga jenis elemen yang dapat ditempatkan ke kanvas:\n• Teks Statis: Teks label tetap yang mendukung placeholder kolom (contoh: {Nama})\n• Teks Variabel: Variabel mandiri dengan daftar nilai terpisah koma\n• Gambar: Unggah logo instansi atau tanda tangan (PNG/JPG) untuk ditempel ke atas template",
-    },
-    {
-      title: "3. Cara Kerja Teks Variabel",
-      tab: "Variabel",
-      desc: "Teks Variabel memungkinkan Anda membuat kolom dinamis tanpa mengedit file CSV:\n• Masukkan nama variabel (contoh: 'kota') dan daftar isinya (contoh: 'Jakarta, Bandung, Surabaya').\n• Jika jumlah kata sama persis dengan baris peserta, nilai akan di-looping berurutan per peserta.\n• Jika jumlahnya berbeda, sistem otomatis menggunakan nilai pertama untuk semua peserta.\n• Variabel ini juga dapat dipanggil di teks lain dengan format {nama_variabel}.",
-    },
-    {
-      title: "4. Tipografi & Navigasi Kanvas",
-      tab: "Kanvas",
-      desc: "Atur posisi dan ukuran elemen teks maupun gambar langsung di kanvas:\n• Ubah ukuran, font size, line height, letter spacing, dan warna tinta di panel editor.\n• Gunakan tombol Panah untuk geser 1pt (tahan Shift untuk geser 10pt).\n• Ctrl/Cmd + D untuk duplikat elemen aktif, dan Delete/Backspace untuk menghapus.",
-    },
-    {
-      title: "5. Pemilihan Font & Rentang Cetak",
-      tab: "Ekspor",
-      desc: "Sebelum mencetak sertifikat:\n• Tab 'Font': Pindai dan terapkan font lokal komputer Anda (khusus browser Chromium).\n• Tab 'Preset': Atur format nama file PDF (misal: sertifikat_{Nama}_{index}) dan tentukan rentang baris peserta (contoh: baris 1-100) sebelum menekan 'Cetak ZIP'.",
-    },
-  ];
-
-  return (
-    <div className="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-4">
-      <div
-        className={`border-2 rounded-[4px] max-w-lg w-full p-6 space-y-5 shadow-2xl transition-colors ${
-          isDark ? "bg-[#111111] border-[#FFFFFF]" : "bg-[#FFFFFF] border-[#111111]"
-        }`}
-      >
-        <div className="flex items-center justify-between border-b pb-3">
-          <div className="flex items-center gap-2">
-            <span className="p-1.5 bg-[#0000EE]/10 text-[#0000EE] border border-[#0000EE] rounded-[2px]">
-              <IconHelp className="w-4 h-4" />
-            </span>
-            <h3 className={`text-sm font-mono font-bold uppercase tracking-wider ${isDark ? "text-[#FFFFFF]" : "text-[#111111]"}`}>
-              [ PANDUAN PENGGUNAAN STUDIO ]
-            </h3>
-          </div>
-          <span className={`text-xs font-mono font-bold ${isDark ? "text-[#888888]" : "text-[#777777]"}`}>
-            {currentStep + 1} / {steps.length}
-          </span>
-        </div>
-
-        <div className="space-y-3 min-h-[155px]">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-[2px] bg-[#0000EE] text-white font-bold">
-              {steps[currentStep].tab}
-            </span>
-            <h4 className={`text-xs font-mono font-bold uppercase ${isDark ? "text-[#FFFFFF]" : "text-[#111111]"}`}>
-              {steps[currentStep].title}
-            </h4>
-          </div>
-          <p className={`text-xs font-mono leading-relaxed whitespace-pre-line ${isDark ? "text-[#EBE9E4]/85" : "text-[#444444]"}`}>
-            {steps[currentStep].desc}
-          </p>
-        </div>
-
-        {/* Indikator Langkah */}
-        <div className="flex items-center justify-center gap-1.5 py-1">
-          {steps.map((_, idx) => (
-            <button
-              key={idx}
-              onClick={() => setCurrentStep(idx)}
-              className={`h-1.5 rounded-none transition-all ${
-                currentStep === idx
-                  ? "w-6 bg-[#0000EE]"
-                  : isDark
-                  ? "w-2 bg-[#333333] hover:bg-[#555555]"
-                  : "w-2 bg-[#CCCCCC] hover:bg-[#999999]"
-              }`}
-              title={`Langkah ${idx + 1}`}
-            />
-          ))}
-        </div>
-
-        <div className={`flex items-center justify-between pt-3 border-t ${isDark ? "border-[#333333]" : "border-[#E5E7EB]"}`}>
-          <button
-            onClick={() => setCurrentStep((prev) => Math.max(0, prev - 1))}
-            disabled={currentStep === 0}
-            className={`px-3 py-1.5 text-xs font-mono uppercase font-bold rounded-[2px] border transition-colors disabled:opacity-20 ${
-              isDark
-                ? "bg-[#222222] text-[#FFFFFF] border-[#444444] hover:bg-[#333333]"
-                : "bg-[#EBE9E4] text-[#111111] border-[#CCCCCC] hover:bg-[#DDDCD7]"
-            }`}
-          >
-            ← Kembali
-          </button>
-
-          <div className="flex items-center gap-2">
-            {currentStep < steps.length - 1 ? (
-              <button
-                onClick={() => setCurrentStep((prev) => Math.min(steps.length - 1, prev + 1))}
-                className="px-4 py-1.5 text-xs font-mono uppercase font-bold text-white bg-[#0000EE] hover:bg-[#0000EE]/85 rounded-[2px] border border-[#0000EE] transition-colors"
-              >
-                Lanjut →
-              </button>
-            ) : (
-              <button
-                onClick={onClose}
-                className="px-4 py-1.5 text-xs font-mono uppercase font-bold text-white bg-[#0000EE] hover:bg-[#0000EE]/85 rounded-[2px] border border-[#0000EE] transition-colors"
-              >
-                Mulai Studio
-              </button>
-            )}
-          </div>
         </div>
       </div>
     </div>
@@ -362,6 +246,12 @@ export default function CetakLokal() {
   const [sliceStart, setSliceStart] = useState(1);
   const [sliceEnd, setSliceEnd] = useState(1);
 
+  // Fitur Batas Aman & Deteksi Memori Perangkat
+  const [deviceRamGb, setDeviceRamGb] = useState(8);
+  const [maxCertsPerZip, setMaxCertsPerZip] = useState(1000);
+  const [zipGroupingMode, setZipGroupingMode] = useState("chunk");
+  const [selectedZipGroupColumn, setSelectedZipGroupColumn] = useState("");
+
   const [localFontApiSupported, setLocalFontApiSupported] = useState(false);
   const [isDetectingFonts, setIsDetectingFonts] = useState(false);
   const [localFontsRaw, setLocalFontsRaw] = useState([]);
@@ -374,7 +264,17 @@ export default function CetakLokal() {
 
   const imageUploadInputRef = useRef(null);
 
+  // Deteksi kapasitas RAM perangkat saat inisialisasi
   useEffect(() => {
+    if (typeof navigator !== "undefined" && navigator.deviceMemory) {
+      const ram = navigator.deviceMemory;
+      setDeviceRamGb(ram);
+      if (ram <= 4) {
+        setMaxCertsPerZip(500); // Batasi 500 berkas per ZIP untuk device RAM 4GB ke bawah
+      } else {
+        setMaxCertsPerZip(1000);
+      }
+    }
     setLocalFontApiSupported(typeof window !== "undefined" && "queryLocalFonts" in window);
   }, []);
 
@@ -800,6 +700,18 @@ export default function CetakLokal() {
         setSliceStart(1);
         setSliceEnd(rows.length);
 
+        // Jika data > 2000 dan RAM rendah, beri tahu pengguna untuk membagi rentang
+        if (rows.length > 2000 && deviceRamGb <= 4) {
+          setSliceMode("custom");
+          setSliceStart(1);
+          setSliceEnd(Math.min(rows.length, 1000));
+          setNotification({
+            show: true,
+            message: `Terdeteksi ${rows.length} data. Mode Rentang otomatis aktif demi stabilitas RAM.`,
+            type: "success",
+          });
+        }
+
         if (results.meta && results.meta.fields) {
           const fields = results.meta.fields;
           setCsvHeaders(fields);
@@ -960,7 +872,7 @@ export default function CetakLokal() {
       setHistoryState({ past: [], future: [] });
       setNotification({ show: true, message: "Sesi tersimpan berhasil dipulihkan.", type: "success" });
     } catch (err) {
-      console.error("Gagal memuilhkan sesi:", err);
+      console.error("Gagal memulihkan sesi:", err);
       setNotification({ show: true, message: `Gagal memulihkan sesi: ${err.message}`, type: "error" });
     } finally {
       setIsRestoring(false);
@@ -1029,7 +941,6 @@ export default function CetakLokal() {
     setActiveColumn(staticId);
   };
 
-  // Tambah Elemen Teks Variabel Mandiri
   const handleAddCustomVar = () => {
     const varName = `variabel_${Date.now().toString().slice(-4)}`;
     const newConfig = {
@@ -1052,7 +963,6 @@ export default function CetakLokal() {
     setActiveColumn(varName);
   };
 
-  // Tambah Elemen Gambar (Logo / TTD)
   const handleAddImageElement = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1355,6 +1265,13 @@ export default function CetakLokal() {
       warnings.push("Rentang baris yang dipilih tidak memuat data yang valid.");
     }
 
+    // Peringatan otomatis jika batch terlalu besar untuk perangkat
+    if (selectedRows.length > 2500 && deviceRamGb <= 4) {
+      warnings.push(
+        `Anda memproses ${selectedRows.length} baris dengan memori perangkat rendah (${deviceRamGb} GB). Disarankan menggunakan 'Pilih Rentang' bertahap (maks. 1.000 per cetak).`
+      );
+    }
+
     configs
       .filter((c) => c.enabled)
       .forEach((cfg) => {
@@ -1481,6 +1398,11 @@ export default function CetakLokal() {
       return;
     }
 
+    if (zipGroupingMode === "column" && !selectedZipGroupColumn) {
+      setNotification({ show: true, message: "Pilih kolom pengelompokan ZIP terlebih dahulu.", type: "error" });
+      return;
+    }
+
     const warnings = runPreflightValidation();
     if (warnings.length > 0) {
       setValidationWarnings(warnings);
@@ -1504,6 +1426,52 @@ export default function CetakLokal() {
     const enrichedRows = enrichRowsWithCustomVariables(selectedRows);
     setProgress({ current: 0, total: enrichedRows.length });
 
+    // Batas aman per satu ZIP dari deteksi memori perangkat
+    const CHUNK_LIMIT = Math.max(100, parseInt(maxCertsPerZip, 10) || 1000);
+
+    const batchQueue = [];
+    if (zipGroupingMode === "column") {
+      const groups = {};
+      enrichedRows.forEach((row, idx) => {
+        const rawVal = row[selectedZipGroupColumn];
+        const groupKey = rawVal && String(rawVal).trim() !== "" ? String(rawVal).trim() : "Lainnya";
+        if (!groups[groupKey]) {
+          groups[groupKey] = [];
+        }
+        groups[groupKey].push({ row, globalIndex: offset + idx + 1 });
+      });
+
+      // Pecah tiap prodi/kategori menjadi sub-part jika melebihi CHUNK_LIMIT
+      Object.entries(groups).forEach(([groupName, items]) => {
+        const cleanGroupName = sanitizeName(groupName);
+        if (items.length <= CHUNK_LIMIT) {
+          batchQueue.push({
+            groupName: cleanGroupName,
+            rows: items.map((it) => it.row),
+            startOffset: items[0].globalIndex - 1,
+          });
+        } else {
+          for (let p = 0; p < items.length; p += CHUNK_LIMIT) {
+            const subItems = items.slice(p, p + CHUNK_LIMIT);
+            const partIdx = Math.floor(p / CHUNK_LIMIT) + 1;
+            batchQueue.push({
+              groupName: `${cleanGroupName}_part_${partIdx}`,
+              rows: subItems.map((it) => it.row),
+              startOffset: subItems[0].globalIndex - 1,
+            });
+          }
+        }
+      });
+    } else {
+      for (let i = 0; i < enrichedRows.length; i += CHUNK_LIMIT) {
+        batchQueue.push({
+          groupName: `part_${Math.floor(i / CHUNK_LIMIT) + 1}`,
+          rows: enrichedRows.slice(i, i + CHUNK_LIMIT),
+          startOffset: offset + i,
+        });
+      }
+    }
+
     try {
       const templateUint8 = await bakeImagesIntoPdfTemplate(templateFile);
       const formattedConfigs = buildFormattedConfigs();
@@ -1513,26 +1481,24 @@ export default function CetakLokal() {
       worker.postMessage(
         {
           templateUint8,
-          csvRows: enrichedRows,
+          batchQueue,
           configs: formattedConfigs,
-          chunkSize: 1000,
           fontBytes: selectedFontBytes || undefined,
           filenamePattern: filenamePattern.trim() || undefined,
-          startOffset: offset,
         },
         [templateUint8.buffer]
       );
 
       worker.onmessage = (e) => {
-        const { type, zipBytes, part, progress: workerProgress, error } = e.data;
+        const { type, zipBytes, groupName, progress: workerProgress, error } = e.data;
 
-        if (type === "CHUNK_COMPLETE") {
+        if (type === "GROUP_COMPLETE") {
           setProgress(workerProgress);
           const blob = new Blob([zipBytes], { type: "application/zip" });
           const downloadUrl = URL.createObjectURL(blob);
           const link = document.createElement("a");
           link.href = downloadUrl;
-          link.download = `sertifikat_part_${part}_${Date.now()}.zip`;
+          link.download = `sertifikat_${groupName}_${Date.now()}.zip`;
           document.body.appendChild(link);
           link.click();
           document.body.removeChild(link);
@@ -1542,7 +1508,7 @@ export default function CetakLokal() {
         if (type === "ALL_COMPLETE") {
           setIsProcessing(false);
           setProgress(null);
-          setNotification({ show: true, message: "Proses pencetakan selesai.", type: "success" });
+          setNotification({ show: true, message: "Seluruh arsip ZIP berhasil diunduh.", type: "success" });
           worker.terminate();
         }
 
@@ -1575,10 +1541,10 @@ export default function CetakLokal() {
     );
   }
 
-  const GENERATION_CHUNK_SIZE = 1000;
   const targetData = getTargetRows();
   const estimatedCertCount = targetData.rows.length;
-  const estimatedZipParts = estimatedCertCount > 0 ? Math.ceil(estimatedCertCount / GENERATION_CHUNK_SIZE) : 0;
+  const CHUNK_LIMIT_COUNT = Math.max(100, parseInt(maxCertsPerZip, 10) || 1000);
+  const estimatedZipParts = estimatedCertCount > 0 ? Math.ceil(estimatedCertCount / CHUNK_LIMIT_COUNT) : 0;
   const estimatedPerFileBytes = templateFile ? templateFile.size : 0;
   const estimatedTotalBytes = estimatedCertCount * estimatedPerFileBytes;
 
@@ -2557,15 +2523,125 @@ export default function CetakLokal() {
                   </p>
                 </div>
 
+                {/* Kontrol Pengelompokan Berkas ZIP */}
+                <div
+                  className={`border rounded-[4px] p-3 space-y-3 ${
+                    isDark ? "bg-[#111111] border-[#333333]" : "bg-[#F7F6F3] border-[#CCCCCC]"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <label className={`text-[10px] font-mono uppercase font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
+                      Pengelompokan Berkas ZIP
+                    </label>
+                    <span className={`text-[9px] font-mono ${deviceRamGb <= 4 ? "text-[#B3261E] font-bold" : "text-[#888888]"}`}>
+                      RAM: ~{deviceRamGb} GB
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setZipGroupingMode("chunk")}
+                      className={`py-1.5 text-[10px] font-mono uppercase font-bold rounded-[2px] border transition-colors ${
+                        zipGroupingMode === "chunk"
+                          ? "bg-[#0000EE] text-[#FFFFFF] border-[#0000EE]"
+                          : isDark
+                          ? "bg-[#181818] text-[#EBE9E4] border-[#444444]"
+                          : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
+                      }`}
+                    >
+                      Berdasarkan Jumlah
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setZipGroupingMode("column")}
+                      className={`py-1.5 text-[10px] font-mono uppercase font-bold rounded-[2px] border transition-colors ${
+                        zipGroupingMode === "column"
+                          ? "bg-[#0000EE] text-[#FFFFFF] border-[#0000EE]"
+                          : isDark
+                          ? "bg-[#181818] text-[#EBE9E4] border-[#444444]"
+                          : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
+                      }`}
+                    >
+                      Berdasarkan Kolom
+                    </button>
+                  </div>
+
+                  {zipGroupingMode === "column" && (
+                    <div className="pt-1">
+                      <label className={`block text-[9px] font-mono uppercase mb-1 ${isDark ? "text-[#888888]" : "text-[#777777]"}`}>
+                        Pilih Kolom Pengelompokan (Misal: Prodi / Divisi)
+                      </label>
+                      <select
+                        value={selectedZipGroupColumn}
+                        onChange={(e) => setSelectedZipGroupColumn(e.target.value)}
+                        className={`w-full p-2 text-xs font-mono font-bold rounded-[4px] border ${
+                          isDark ? "bg-[#181818] text-[#FFFFFF] border-[#444444]" : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
+                        }`}
+                      >
+                        <option value="">-- Pilih Kolom Pengelompokan --</option>
+                        {csvHeaders.map((header) => (
+                          <option key={header} value={header}>
+                            [CSV] {header}
+                          </option>
+                        ))}
+                        {configs
+                          .filter((c) => c.enabled && c.is_custom_var)
+                          .map((cVar) => {
+                            const vName = cVar.custom_var_name || cVar.column_name;
+                            return (
+                              <option key={vName} value={vName}>
+                                [VARIABEL] {vName}
+                              </option>
+                            );
+                          })}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Batas Maksimum Berkas per ZIP (Sub-chunking) */}
+                  <div className="pt-1 border-t border-dashed border-[#444444]/40">
+                    <div className="flex justify-between items-center mb-1">
+                      <label className={`text-[9px] font-mono uppercase font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
+                        Batas Maksimum per 1 Berkas ZIP
+                      </label>
+                      <span className="text-[10px] font-mono font-bold text-[#0000EE]">{maxCertsPerZip} Berkas</span>
+                    </div>
+                    <select
+                      value={maxCertsPerZip}
+                      onChange={(e) => setMaxCertsPerZip(Number(e.target.value))}
+                      className={`w-full p-1.5 text-xs font-mono font-bold rounded border ${
+                        isDark ? "bg-[#181818] text-[#FFFFFF] border-[#444444]" : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
+                      }`}
+                    >
+                      <option value={250}>250 Berkas (Sangat Aman / HP & Laptop Hemat RAM)</option>
+                      <option value={500}>500 Berkas (Aman / RAM 4GB)</option>
+                      <option value={1000}>1.000 Berkas (Standar / RAM 8GB+)</option>
+                      <option value={1500}>1.500 Berkas (Kapasitas Besar)</option>
+                    </select>
+                    <p className={`text-[9px] font-mono mt-1 ${isDark ? "text-[#888888]" : "text-[#666666]"}`}>
+                      Jika 1 prodi memuat lebih dari batas ini, arsip otomatis dipecah menjadi beberapa bagian (part 1, part 2, dst).
+                    </p>
+                  </div>
+                </div>
+
                 {csvRows.length > 0 && (
                   <div
                     className={`border rounded-[4px] p-3 space-y-3 ${
                       isDark ? "bg-[#111111] border-[#333333]" : "bg-[#F7F6F3] border-[#CCCCCC]"
                     }`}
                   >
-                    <label className={`block text-[10px] font-mono uppercase font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
-                      Rentang Baris Data
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className={`text-[10px] font-mono uppercase font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
+                        Rentang Baris Data
+                      </label>
+                      {csvRows.length > 2000 && (
+                        <span className="text-[9px] font-mono text-[#B3261E] font-bold">
+                          [ Data Masif: {csvRows.length} ]
+                        </span>
+                      )}
+                    </div>
+
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         type="button"
@@ -2712,7 +2788,7 @@ export default function CetakLokal() {
                       >
                         <div className={`text-[10px] font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>Arsip ZIP</div>
                         <div className={`font-bold mt-1 ${isDark ? "text-[#FFFFFF]" : "text-[#111111]"}`}>
-                          {estimatedZipParts} Bagian
+                          {zipGroupingMode === "column" ? "Dinamis (Per Kolom)" : `${estimatedZipParts} Bagian`}
                         </div>
                       </div>
                       <div
