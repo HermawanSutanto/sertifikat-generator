@@ -230,6 +230,13 @@ export default function CetakLokal() {
   const [presetName, setPresetName] = useState("");
   const [savedPresets, setSavedPresets] = useState([]);
   const [activeSnapGuides, setActiveSnapGuides] = useState({ x: false, y: false });
+  const [historyState, setHistoryState] = useState({ past: [], future: [] });
+  const historyBurstActiveRef = useRef(false);
+  const historyBurstTimerRef = useRef(null);
+  const configsRef = useRef(configs);
+  useEffect(() => {
+    configsRef.current = configs;
+  }, [configs]);
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [progress, setProgress] = useState(null);
@@ -311,6 +318,70 @@ export default function CetakLokal() {
 
     return () => clearTimeout(configsSaveTimerRef.current);
   }, [configs, isRestoring, isRestoreBannerOpen]);
+
+  // Pintasan keyboard untuk panel elemen: undo/redo, duplikat, hapus, dan
+  // geser posisi dengan tombol panah. Dinonaktifkan saat fokus berada di
+  // input/textarea/select supaya tidak bentrok dengan pengeditan teks biasa.
+  useEffect(() => {
+    const isEditableTarget = (target) => {
+      const tag = target?.tagName;
+      return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target?.isContentEditable;
+    };
+
+    const onKeyDown = (e) => {
+      if (isEditableTarget(e.target)) return;
+
+      const isMeta = e.ctrlKey || e.metaKey;
+
+      if (isMeta && e.key.toLowerCase() === "z") {
+        e.preventDefault();
+        if (e.shiftKey) handleRedo();
+        else handleUndo();
+        return;
+      }
+
+      if (isMeta && e.key.toLowerCase() === "y") {
+        e.preventDefault();
+        handleRedo();
+        return;
+      }
+
+      if (!activeColumn) return;
+
+      if (isMeta && e.key.toLowerCase() === "d") {
+        e.preventDefault();
+        handleDuplicateElement(activeColumn);
+        return;
+      }
+
+      if (e.key === "Delete" || e.key === "Backspace") {
+        const cfg = configsRef.current.find((c) => c.column_name === activeColumn);
+        if (cfg?.static_text !== undefined) {
+          e.preventDefault();
+          handleHideElement(activeColumn);
+        }
+        return;
+      }
+
+      const step = e.shiftKey ? 10 : 1;
+      if (e.key === "ArrowUp") {
+        e.preventDefault();
+        handleNudgeActive(0, -step);
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        handleNudgeActive(0, step);
+      } else if (e.key === "ArrowLeft") {
+        e.preventDefault();
+        handleNudgeActive(-step, 0);
+      } else if (e.key === "ArrowRight") {
+        e.preventDefault();
+        handleNudgeActive(step, 0);
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [activeColumn]);
 
   const formatBytes = (bytes) => {
     if (!bytes || bytes <= 0) return "0 B";
@@ -596,6 +667,7 @@ export default function CetakLokal() {
       }
 
       setIsRestoreBannerOpen(false);
+      setHistoryState({ past: [], future: [] });
       setNotification({ show: true, message: "Sesi tersimpan berhasil dipulihkan.", type: "success" });
     } catch (err) {
       console.error("Gagal memulihkan sesi:", err);
@@ -611,6 +683,47 @@ export default function CetakLokal() {
     setIsRestoreBannerOpen(false);
   };
 
+  // --- Riwayat (undo/redo) ---
+  // Snapshot configs disimpan sebelum perubahan diterapkan. Perubahan yang
+  // terjadi beruntun dalam waktu singkat (mengetik, drag, tahan tombol panah)
+  // digabung jadi satu langkah undo lewat mekanisme "burst" di bawah, supaya
+  // undo tidak harus ditekan berkali-kali untuk satu aksi yang terasa tunggal.
+  const HISTORY_LIMIT = 50;
+  const HISTORY_BURST_MS = 700;
+
+  const pushHistorySnapshot = (snapshot) => {
+    setHistoryState((h) => ({
+      past: [...h.past.slice(-(HISTORY_LIMIT - 1)), snapshot],
+      future: [],
+    }));
+  };
+
+  const commitConfigs = (updaterFn) => {
+    pushHistorySnapshot(configsRef.current);
+    setConfigs(updaterFn);
+  };
+
+  const handleUndo = () => {
+    setHistoryState((h) => {
+      if (h.past.length === 0) return h;
+      const previous = h.past[h.past.length - 1];
+      setConfigs(previous);
+      return { past: h.past.slice(0, -1), future: [configsRef.current, ...h.future] };
+    });
+  };
+
+  const handleRedo = () => {
+    setHistoryState((h) => {
+      if (h.future.length === 0) return h;
+      const next = h.future[0];
+      setConfigs(next);
+      return { past: [...h.past, configsRef.current], future: h.future.slice(1) };
+    });
+  };
+
+  const canUndo = historyState.past.length > 0;
+  const canRedo = historyState.future.length > 0;
+
   const handleAddStaticText = () => {
     const staticId = `static_text_${Date.now()}`;
     const newConfig = {
@@ -625,29 +738,70 @@ export default function CetakLokal() {
       page_number: currentPage,
     };
 
-    setConfigs((prev) => [...prev, newConfig]);
+    commitConfigs((prev) => [...prev, newConfig]);
     setActiveColumn(staticId);
   };
 
+  const handleDuplicateElement = (colName) => {
+    const source = configsRef.current.find((c) => c.column_name === colName);
+    // Duplikasi dibatasi untuk elemen teks statis: elemen berbasis kolom CSV
+    // memakai column_name sebagai kunci unik ke data, jadi menduplikasinya
+    // akan membuat dua elemen berbagi satu kolom yang sama dan saling
+    // menimpa saat diedit.
+    if (!source || source.static_text === undefined) return;
+
+    const newId = `static_text_${Date.now()}`;
+    const duplicated = {
+      ...source,
+      column_name: newId,
+      x: Math.min(source.x + 16, Math.max(pdfPreviewSize.width - source.max_width, 0)),
+      y: Math.min(source.y + 16, Math.max(pdfPreviewSize.height - source.font_size * 1.2, 0)),
+    };
+
+    commitConfigs((prev) => [...prev, duplicated]);
+    setActiveColumn(newId);
+  };
+
   const handleHideElement = (colName) => {
-    setConfigs((prev) =>
+    commitConfigs((prev) =>
       prev.map((c) => (c.column_name === colName ? { ...c, enabled: false } : c))
     );
-    const remainingActive = configs.filter((c) => c.enabled && c.column_name !== colName);
+    const remainingActive = configsRef.current.filter((c) => c.enabled && c.column_name !== colName);
     setActiveColumn(remainingActive[0]?.column_name || "");
   };
 
   const handleRestoreElement = (colName) => {
-    setConfigs((prev) =>
+    commitConfigs((prev) =>
       prev.map((c) => (c.column_name === colName ? { ...c, enabled: true } : c))
     );
     setActiveColumn(colName);
   };
 
   const updateConfig = (colName, newProps) => {
+    // Perubahan yang datang cepat berturut-turut (mengetik, drag, resize)
+    // digabung jadi satu entri riwayat: snapshot hanya diambil di awal
+    // "burst", lalu jendela burst diperpanjang setiap perubahan berikutnya.
+    if (!historyBurstActiveRef.current) {
+      pushHistorySnapshot(configsRef.current);
+      historyBurstActiveRef.current = true;
+    }
+    if (historyBurstTimerRef.current) clearTimeout(historyBurstTimerRef.current);
+    historyBurstTimerRef.current = setTimeout(() => {
+      historyBurstActiveRef.current = false;
+    }, HISTORY_BURST_MS);
+
     setConfigs((prev) =>
       prev.map((cfg) => (cfg.column_name === colName ? { ...cfg, ...newProps } : cfg))
     );
+  };
+
+  const handleNudgeActive = (dx, dy) => {
+    const cfg = configsRef.current.find((c) => c.column_name === activeColumn);
+    if (!cfg) return;
+    const height = cfg.font_size * 1.2;
+    const nextX = Math.min(Math.max(cfg.x + dx, 0), Math.max(pdfPreviewSize.width - cfg.max_width, 0));
+    const nextY = Math.min(Math.max(cfg.y + dy, 0), Math.max(pdfPreviewSize.height - height, 0));
+    updateConfig(activeColumn, { x: nextX, y: nextY });
   };
 
   const handleDrag = (colName, x, y, width) => {
@@ -693,6 +847,7 @@ export default function CetakLokal() {
   const handleLoadPreset = (presetId) => {
     const target = savedPresets.find((p) => p.id === Number(presetId));
     if (target) {
+      pushHistorySnapshot(configsRef.current);
       setConfigs(target.configs);
       if (target.configs.length > 0) setActiveColumn(target.configs[0].column_name);
       setNotification({ show: true, message: `Preset "${target.name}" dimuat.`, type: "success" });
@@ -718,6 +873,7 @@ export default function CetakLokal() {
       try {
         const imported = JSON.parse(evt.target.result);
         if (Array.isArray(imported)) {
+          pushHistorySnapshot(configsRef.current);
           setConfigs(imported);
           if (imported.length > 0) setActiveColumn(imported[0].column_name);
           setNotification({ show: true, message: "Preset JSON berhasil diimpor.", type: "success" });
@@ -1207,14 +1363,38 @@ export default function CetakLokal() {
               <div className="space-y-4">
                 <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
                   <h2 className="text-xs font-semibold text-slate-200">Tata Letak Teks</h2>
-                  <button
-                    type="button"
-                    onClick={handleAddStaticText}
-                    className="px-2 py-0.5 text-[11px] font-medium text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded transition-colors"
-                  >
-                    + Teks Statis
-                  </button>
+                  <div className="flex items-center gap-1">
+                    <button
+                      type="button"
+                      onClick={handleUndo}
+                      disabled={!canUndo}
+                      title="Urungkan (Ctrl+Z)"
+                      className="px-1.5 py-0.5 text-[11px] font-medium text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded transition-colors disabled:opacity-30 disabled:hover:bg-slate-900 disabled:hover:text-slate-300"
+                    >
+                      ↶
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleRedo}
+                      disabled={!canRedo}
+                      title="Ulangi (Ctrl+Shift+Z)"
+                      className="px-1.5 py-0.5 text-[11px] font-medium text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded transition-colors disabled:opacity-30 disabled:hover:bg-slate-900 disabled:hover:text-slate-300"
+                    >
+                      ↷
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAddStaticText}
+                      className="px-2 py-0.5 text-[11px] font-medium text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded transition-colors"
+                    >
+                      + Teks Statis
+                    </button>
+                  </div>
                 </div>
+
+                <p className="text-[10px] text-slate-500 -mt-2">
+                  Pilih elemen lalu gunakan tombol panah untuk geser (Shift = 10px), Ctrl+D duplikat, Delete hapus.
+                </p>
 
                 {configs.some((c) => !c.enabled) && (
                   <div className="bg-slate-950/60 border border-slate-800/80 rounded-lg p-2.5 space-y-1.5">
@@ -1361,13 +1541,23 @@ export default function CetakLokal() {
                       </div>
 
                       {cfg.static_text !== undefined && (
-                        <button
-                          type="button"
-                          onClick={() => handleHideElement(cfg.column_name)}
-                          className="w-full py-1 text-[11px] font-medium text-rose-400 hover:bg-rose-950/30 border border-rose-900/40 rounded transition-colors"
-                        >
-                          Hapus Elemen
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => handleDuplicateElement(cfg.column_name)}
+                            title="Duplikat (Ctrl+D)"
+                            className="flex-1 py-1 text-[11px] font-medium text-slate-300 hover:text-white bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded transition-colors"
+                          >
+                            Duplikat
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleHideElement(cfg.column_name)}
+                            className="flex-1 py-1 text-[11px] font-medium text-rose-400 hover:bg-rose-950/30 border border-rose-900/40 rounded transition-colors"
+                          >
+                            Hapus Elemen
+                          </button>
+                        </div>
                       )}
                     </div>
                   ))}
