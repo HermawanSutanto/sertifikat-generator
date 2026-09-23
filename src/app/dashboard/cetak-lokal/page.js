@@ -185,7 +185,7 @@ export default function CetakLokal() {
 
   // Custom Filename Pattern & Range Slicing State
   const [filenamePattern, setFilenamePattern] = useState("sertifikat_{Nama}_{index}");
-  const [sliceMode, setSliceMode] = useState("all"); // 'all' | 'custom'
+  const [sliceMode, setSliceMode] = useState("all");
   const [sliceStart, setSliceStart] = useState(1);
   const [sliceEnd, setSliceEnd] = useState(1);
 
@@ -529,6 +529,11 @@ export default function CetakLokal() {
           const fields = results.meta.fields;
           setCsvHeaders(fields);
 
+          // Pola nama default menggunakan kolom pertama CSV
+          if (fields.length > 0) {
+            setFilenamePattern(`sertifikat_{${fields[0]}}_{index}`);
+          }
+
           const scannedLongest = scanLongestRowSample(rows, fields);
           setLongestRowSample(scannedLongest);
 
@@ -538,6 +543,8 @@ export default function CetakLokal() {
             x: (pdfPreviewSize.width - 400) / 2,
             y: 150 + idx * 60,
             font_size: 28,
+            line_height: 1.2,
+            letter_spacing: 0,
             max_width: 400,
             align: "center",
             enabled: true,
@@ -678,6 +685,9 @@ export default function CetakLokal() {
         setCsvHeaders(csv.headers || []);
         setSliceStart(1);
         setSliceEnd(csv.rows.length);
+        if (csv.headers && csv.headers.length > 0) {
+          setFilenamePattern(`sertifikat_{${csv.headers[0]}}_{index}`);
+        }
         const scannedLongest = scanLongestRowSample(csv.rows, csv.headers || []);
         setLongestRowSample(scannedLongest);
       }
@@ -771,6 +781,8 @@ export default function CetakLokal() {
       x: (pdfPreviewSize.width - 300) / 2,
       y: 100,
       font_size: 24,
+      line_height: 1.2,
+      letter_spacing: 0,
       max_width: 300,
       align: "center",
       enabled: true,
@@ -790,7 +802,7 @@ export default function CetakLokal() {
       ...source,
       column_name: newId,
       x: Math.min(source.x + 16, Math.max(pdfPreviewSize.width - source.max_width, 0)),
-      y: Math.min(source.y + 16, Math.max(pdfPreviewSize.height - source.font_size * 1.2, 0)),
+      y: Math.min(source.y + 16, Math.max(pdfPreviewSize.height - source.font_size * (source.line_height || 1.2), 0)),
     };
 
     commitConfigs((prev) => [...prev, duplicated]);
@@ -830,7 +842,7 @@ export default function CetakLokal() {
   const handleNudgeActive = (dx, dy) => {
     const cfg = configsRef.current.find((c) => c.column_name === activeColumn);
     if (!cfg) return;
-    const height = cfg.font_size * 1.2;
+    const height = cfg.font_size * (cfg.line_height || 1.2);
     const nextX = Math.min(Math.max(cfg.x + dx, 0), Math.max(pdfPreviewSize.width - cfg.max_width, 0));
     const nextY = Math.min(Math.max(cfg.y + dy, 0), Math.max(pdfPreviewSize.height - height, 0));
     updateConfig(activeColumn, { x: nextX, y: nextY });
@@ -939,7 +951,6 @@ export default function CetakLokal() {
     return longestRowSample[cfg.column_name] || `[Kolom ${cfg.column_name}]`;
   };
 
-  // Helper untuk memfilter baris data berdasarkan mode rentang cetak
   const getTargetRows = () => {
     if (sliceMode === "all") {
       return { rows: csvRows, offset: 0 };
@@ -1015,6 +1026,8 @@ export default function CetakLokal() {
           x: Number(c.x),
           y: Number(c.y),
           font_size: parseFloat(c.font_size),
+          line_height: parseFloat(c.line_height || 1.2),
+          letter_spacing: parseFloat(c.letter_spacing || 0),
           max_width: parseFloat(c.max_width),
           align: c.align || "left",
           page_number: page,
@@ -1733,7 +1746,7 @@ export default function CetakLokal() {
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
-                            Ukuran (pt)
+                            Ukuran Font (pt)
                           </label>
                           <input
                             type="number"
@@ -1755,6 +1768,47 @@ export default function CetakLokal() {
                             type="number"
                             value={cfg.max_width}
                             onChange={(e) => updateConfig(cfg.column_name, { max_width: Number(e.target.value) })}
+                            className={`w-full p-2 text-xs font-mono font-bold rounded-[4px] border ${
+                              isDark
+                                ? "bg-[#181818] text-[#FFFFFF] border-[#444444]"
+                                : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
+                            }`}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Line Height & Letter Spacing Controls */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div>
+                          <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
+                            Line Height
+                          </label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0.5"
+                            max="3.0"
+                            value={cfg.line_height !== undefined ? cfg.line_height : 1.2}
+                            onChange={(e) => updateConfig(cfg.column_name, { line_height: parseFloat(e.target.value) })}
+                            className={`w-full p-2 text-xs font-mono font-bold rounded-[4px] border ${
+                              isDark
+                                ? "bg-[#181818] text-[#FFFFFF] border-[#444444]"
+                                : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
+                            }`}
+                          />
+                        </div>
+
+                        <div>
+                          <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
+                            Letter Spacing (pt)
+                          </label>
+                          <input
+                            type="number"
+                            step="0.5"
+                            min="-5"
+                            max="20"
+                            value={cfg.letter_spacing !== undefined ? cfg.letter_spacing : 0}
+                            onChange={(e) => updateConfig(cfg.column_name, { letter_spacing: parseFloat(e.target.value) })}
                             className={`w-full p-2 text-xs font-mono font-bold rounded-[4px] border ${
                               isDark
                                 ? "bg-[#181818] text-[#FFFFFF] border-[#444444]"
@@ -2143,7 +2197,6 @@ export default function CetakLokal() {
             isDark ? "bg-[#0A0A0A]" : "bg-[#EBE9E4]"
           }`}
         >
-          {/* Top Canvas Toolbar */}
           <div className="w-full max-w-4xl flex items-center justify-between mb-4 text-xs font-mono">
             <span className={`font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
               [ KANVAS PRATINJAU DOKUMEN ]
@@ -2176,7 +2229,6 @@ export default function CetakLokal() {
                 </div>
               )}
 
-              {/* Kontrol Zoom */}
               <div
                 className={`flex items-center gap-1 border px-1.5 py-1 rounded-[4px] ${
                   isDark ? "bg-[#111111] border-[#333333]" : "bg-[#FFFFFF] border-[#CCCCCC]"
@@ -2225,7 +2277,6 @@ export default function CetakLokal() {
             }}
             className="shrink-0"
           >
-            {/* Canvas Container */}
             <div
               ref={containerRef}
               className="relative bg-white shadow-2xl rounded-[2px] overflow-hidden shrink-0 border-2 border-[#111111] origin-top-left"
@@ -2237,7 +2288,6 @@ export default function CetakLokal() {
             >
               <canvas ref={canvasRef} className="absolute top-0 left-0 z-0 pointer-events-none" />
 
-              {/* Snap Guides */}
               {activeSnapGuides.x && (
                 <div className="absolute top-0 bottom-0 left-1/2 w-[2px] bg-[#0000EE] z-20 pointer-events-none" />
               )}
@@ -2245,7 +2295,6 @@ export default function CetakLokal() {
                 <div className="absolute left-0 right-0 top-1/2 h-[2px] bg-[#0000EE] z-20 pointer-events-none" />
               )}
 
-              {/* Render Dynamic Elements */}
               {configs
                 .filter((cfg) => cfg.enabled && (cfg.page_number || 1) === currentPage)
                 .map((cfg) => {
@@ -2259,12 +2308,15 @@ export default function CetakLokal() {
                     ? "rgba(85,85,85,0.05)"
                     : "rgba(17,17,17,0.05)";
 
+                  const lineHeightVal = cfg.line_height !== undefined ? cfg.line_height : 1.2;
+                  const letterSpacingVal = cfg.letter_spacing !== undefined ? `${cfg.letter_spacing}px` : "0px";
+
                   return (
                     <Rnd
                       key={cfg.column_name}
                       bounds="parent"
                       scale={zoomLevel}
-                      size={{ width: cfg.max_width, height: cfg.font_size * 1.2 }}
+                      size={{ width: cfg.max_width, height: cfg.font_size * lineHeightVal }}
                       enableResizing={{ left: true, right: true }}
                       position={{ x: cfg.x, y: cfg.y }}
                       onDrag={(e, d) => {
@@ -2290,7 +2342,8 @@ export default function CetakLokal() {
                           display: "block",
                           width: "100%",
                           fontSize: `${cfg.font_size}px`,
-                          lineHeight: 1.2,
+                          lineHeight: lineHeightVal,
+                          letterSpacing: letterSpacingVal,
                           textAlign: cfg.align || "left",
                           whiteSpace: "normal",
                           overflowWrap: "anywhere",

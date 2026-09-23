@@ -8,25 +8,18 @@ use zip::write::SimpleFileOptions;
 use zip::ZipWriter;
 
 // ---------------------------------------------------------------------------
-// Konstanta layout — HARUS sama dengan preview di page.js (lineHeight: 1.2)
+// Konstanta layout
 // ---------------------------------------------------------------------------
-const LINE_HEIGHT_RATIO: f32 = 1.2;
-// Metrik fallback (Arial/Helvetica) saat tidak ada font kustom.
+const DEFAULT_LINE_HEIGHT_RATIO: f32 = 1.2;
 const FALLBACK_ASCENT: f32 = 0.905;
 const FALLBACK_DESCENT: f32 = 0.212;
 
 const FIRST_CHAR: u32 = 32;
 const LAST_CHAR: u32 = 255;
 const MISSING_WIDTH: f32 = 500.0;
-// Warna teks bawaan (#1A1A1A) bila elemen tidak punya warna / format tidak valid.
 const DEFAULT_COLOR: [f32; 3] = [0.1, 0.1, 0.1];
 
 /// Konfigurasi satu elemen teks.
-///
-/// Koordinat `x`/`y` adalah pojok KIRI-ATAS kotak elemen pada preview
-/// (satuan pt, origin di kiri-atas halaman). Konversi ke koordinat PDF
-/// (origin kiri-bawah) dan penentuan baseline dilakukan di sini, memakai
-/// metrik font yang benar-benar dipakai, sehingga hasilnya sama dengan preview.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TextElementConfig {
     pub column_name: String,
@@ -36,15 +29,13 @@ pub struct TextElementConfig {
     pub font_size: f32,
     pub max_width: f32,
     pub line_height: Option<f32>,
+    pub letter_spacing: Option<f32>,
     pub align: Option<String>,
     pub page_number: Option<usize>,
-    /// Tinggi halaman tujuan (pt), dikirim dari page.js per halaman.
     pub page_height: f32,
-    /// Warna teks hex ("#RRGGBB" atau "#RGB"). Opsional.
     pub color: Option<String>,
 }
 
-/// Parse "#RRGGBB" / "#RGB" (tanpa/dengan '#') menjadi komponen 0.0..=1.0.
 fn parse_hex_color(input: &str) -> Option<[f32; 3]> {
     let h = input.trim().trim_start_matches('#');
     if !h.is_ascii() {
@@ -76,7 +67,7 @@ pub fn sanitize_name(nama: &str) -> String {
 }
 
 // ---------------------------------------------------------------------------
-// Encoding WinAnsi (dipakai oleh font kustom maupun fallback Helvetica-Bold)
+// Encoding WinAnsi
 // ---------------------------------------------------------------------------
 const WINANSI_80_9F: [char; 32] = [
     '€', '\u{81}', '‚', 'ƒ', '„', '…', '†', '‡', 'ˆ', '‰', 'Š', '‹', 'Œ', '\u{8D}', 'Ž', '\u{8F}',
@@ -100,7 +91,6 @@ fn encode_winansi_char(ch: char) -> u8 {
         return c as u8;
     }
     match WINANSI_80_9F.iter().position(|&x| x == ch) {
-        // 0x81, 0x8D, 0x8F, 0x90, 0x9D tidak terdefinisi di WinAnsi
         Some(i) if !matches!(i, 1 | 13 | 15 | 16 | 29) => 0x80 + i as u8,
         _ => b'?',
     }
@@ -110,17 +100,16 @@ fn encode_winansi(text: &str) -> Vec<u8> {
     text.chars().map(encode_winansi_char).collect()
 }
 
-// Lebar glyph Helvetica-Bold (AFM), kode 32..=126, satuan 1/1000 em.
 const HELVETICA_BOLD_WIDTHS: [u16; 95] = [
-    278, 333, 474, 556, 556, 889, 722, 238, 333, 333, 389, 584, 278, 333, 278, 278, // 32-47
-    556, 556, 556, 556, 556, 556, 556, 556, 556, 556, // 48-57
-    333, 333, 584, 584, 584, 611, 975, // 58-64
-    722, 722, 722, 722, 667, 611, 778, 722, 278, 556, 722, 611, 833, // A-M
-    722, 778, 667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, // N-Z
-    333, 278, 333, 584, 556, 333, // 91-96
-    556, 611, 556, 611, 556, 333, 611, 611, 278, 278, 556, 278, 889, // a-m
-    611, 611, 611, 611, 389, 556, 333, 611, 556, 778, 556, 556, 500, // n-z
-    389, 280, 389, 584, // 123-126
+    278, 333, 474, 556, 556, 889, 722, 238, 333, 333, 389, 584, 278, 333, 278, 278,
+    556, 556, 556, 556, 556, 556, 556, 556, 556, 556,
+    333, 333, 584, 584, 584, 611, 975,
+    722, 722, 722, 722, 667, 611, 778, 722, 278, 556, 722, 611, 833,
+    722, 778, 667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611,
+    333, 278, 333, 584, 556, 333,
+    556, 611, 556, 611, 556, 333, 611, 611, 278, 278, 556, 278, 889,
+    611, 611, 611, 611, 389, 556, 333, 611, 556, 778, 556, 556, 500,
+    389, 280, 389, 584,
 ];
 
 fn helvetica_bold_width(code: u8) -> f32 {
@@ -136,7 +125,7 @@ fn helvetica_bold_width(code: u8) -> f32 {
 }
 
 // ---------------------------------------------------------------------------
-// Pengukuran teks — satu sumber kebenaran untuk wrap, align, dan baseline
+// Pengukuran teks
 // ---------------------------------------------------------------------------
 fn face_width_1000(face: &Face, units_per_em: f32, ch: char) -> Option<f32> {
     face.glyph_index(ch)
@@ -147,7 +136,6 @@ fn face_width_1000(face: &Face, units_per_em: f32, ch: char) -> Option<f32> {
 struct FontMetrics<'a> {
     face: Option<Face<'a>>,
     units_per_em: f32,
-    /// Rasio ascent/descent terhadap font size (descent bernilai positif).
     ascent: f32,
     descent: f32,
 }
@@ -172,7 +160,6 @@ impl<'a> FontMetrics<'a> {
         }
     }
 
-    /// Lebar satu byte WinAnsi dalam 1/1000 em.
     fn code_width_1000(&self, code: u8) -> f32 {
         match &self.face {
             Some(face) => face_width_1000(face, self.units_per_em, winansi_to_char(code as u32))
@@ -185,22 +172,26 @@ impl<'a> FontMetrics<'a> {
         self.code_width_1000(encode_winansi_char(ch)) / 1000.0 * font_size
     }
 
-    fn text_width(&self, text: &str, font_size: f32) -> f32 {
-        text.chars().map(|c| self.char_width(c, font_size)).sum()
+    fn text_width(&self, text: &str, font_size: f32, letter_spacing: f32) -> f32 {
+        let char_count = text.chars().count();
+        if char_count == 0 {
+            return 0.0;
+        }
+        let base_w: f32 = text.chars().map(|c| self.char_width(c, font_size)).sum();
+        let spacing_w = (char_count.saturating_sub(1) as f32) * letter_spacing;
+        base_w + spacing_w
     }
 }
 
-/// Word-wrap greedy berdasarkan lebar glyph asli (bukan perkiraan per karakter).
-fn wrap_text(text: &str, font_size: f32, max_width: f32, m: &FontMetrics) -> Vec<String> {
-    let space_w = m.char_width(' ', font_size);
+fn wrap_text(text: &str, font_size: f32, max_width: f32, letter_spacing: f32, m: &FontMetrics) -> Vec<String> {
+    let space_w = m.char_width(' ', font_size) + letter_spacing;
     let mut lines: Vec<String> = Vec::with_capacity(4);
     let mut current = String::with_capacity(64);
     let mut current_w = 0.0_f32;
 
     for word in text.split_whitespace() {
-        let word_w = m.text_width(word, font_size);
+        let word_w = m.text_width(word, font_size, letter_spacing);
 
-        // Kata tunggal lebih lebar dari kotak: pecah per karakter.
         if word_w > max_width {
             if !current.is_empty() {
                 lines.push(std::mem::take(&mut current));
@@ -208,7 +199,7 @@ fn wrap_text(text: &str, font_size: f32, max_width: f32, m: &FontMetrics) -> Vec
             let mut chunk = String::with_capacity(32);
             let mut chunk_w = 0.0_f32;
             for ch in word.chars() {
-                let cw = m.char_width(ch, font_size);
+                let cw = m.char_width(ch, font_size) + letter_spacing;
                 if chunk_w + cw > max_width && !chunk.is_empty() {
                     lines.push(std::mem::take(&mut chunk));
                     chunk_w = 0.0;
@@ -239,36 +230,7 @@ fn wrap_text(text: &str, font_size: f32, max_width: f32, m: &FontMetrics) -> Vec
     }
     lines
 }
-fn build_custom_filename(
-    pattern: Option<&str>,
-    row: &serde_json::Value,
-    global_idx: usize,
-) -> String {
-    let raw_name = match pattern {
-        Some(p) if !p.trim().is_empty() => {
-            let mut formatted = interpolate_template(p, row);
-            // Tambahkan dukungan variabel bawaan seperti {index} atau {urutan}
-            formatted = formatted.replace("{index}", &global_idx.to_string());
-            formatted = formatted.replace("{urutan}", &global_idx.to_string());
-            formatted
-        }
-        _ => {
-            let main_name = row
-                .get("Nama")
-                .or_else(|| row.get("nama"))
-                .and_then(|v| v.as_str())
-                .unwrap_or("peserta");
-            format!("sertifikat_{}_{}", main_name.to_lowercase().replace(' ', "_"), global_idx)
-        }
-    };
 
-    let sanitized = sanitize_name(&raw_name);
-    if sanitized.to_lowercase().ends_with(".pdf") {
-        sanitized
-    } else {
-        format!("{}.pdf", sanitized)
-    }
-}
 fn interpolate_template(template: &str, row: &serde_json::Value) -> String {
     let mut result = template.to_string();
 
@@ -295,14 +257,42 @@ fn interpolate_template(template: &str, row: &serde_json::Value) -> String {
     result
 }
 
+fn build_custom_filename(
+    pattern: Option<&str>,
+    row: &serde_json::Value,
+    global_idx: usize,
+) -> String {
+    let raw_name = match pattern {
+        Some(p) if !p.trim().is_empty() => {
+            let mut formatted = interpolate_template(p, row);
+            formatted = formatted.replace("{index}", &global_idx.to_string());
+            formatted = formatted.replace("{urutan}", &global_idx.to_string());
+            formatted
+        }
+        _ => {
+            let main_name = row
+                .get("Nama")
+                .or_else(|| row.get("nama"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("peserta");
+            format!("sertifikat_{}_{}", main_name.to_lowercase().replace(' ', "_"), global_idx)
+        }
+    };
+
+    let sanitized = sanitize_name(&raw_name);
+    if sanitized.to_lowercase().ends_with(".pdf") {
+        sanitized
+    } else {
+        format!("{}.pdf", sanitized)
+    }
+}
+
 fn embed_truetype_font(doc: &mut Document, font_bytes: &[u8]) -> Result<lopdf::ObjectId, String> {
     let face = Face::parse(font_bytes, 0).map_err(|e| format!("Font gagal diparse: {:?}", e))?;
 
     let units_per_em = face.units_per_em() as f32;
     let scale = if units_per_em > 0.0 { 1000.0 / units_per_em } else { 1.0 };
 
-    // Lebar per kode WinAnsi — dibangun dengan pemetaan yang sama seperti
-    // encode_winansi(), jadi /Widths konsisten dengan pengukuran teks.
     let mut widths = Vec::with_capacity((LAST_CHAR - FIRST_CHAR + 1) as usize);
     for code in FIRST_CHAR..=LAST_CHAR {
         let ch = winansi_to_char(code);
@@ -370,7 +360,7 @@ pub fn generate_certificates_chunk(
     configs_json: JsValue,
     start_idx: usize,
     font_bytes: Option<Vec<u8>>,
-    filename_pattern: Option<String>, // <-- Parameter baru
+    filename_pattern: Option<String>,
 ) -> Result<Vec<u8>, JsValue> {
     let csv_rows: Vec<serde_json::Value> = serde_wasm_bindgen::from_value(csv_rows_json)
         .map_err(|e| JsValue::from_str(&format!("Gagal membaca data CSV: {}", e)))?;
@@ -464,17 +454,22 @@ pub fn generate_certificates_chunk(
                     operations.push(Operation::new("rg", vec![cr.into(), cg.into(), cb.into()]));
 
                     let fs = cfg.font_size;
-                    let lines = wrap_text(&raw_text, fs, cfg.max_width, &metrics);
-                    let line_height = cfg.line_height.unwrap_or(fs * LINE_HEIGHT_RATIO);
+                    let letter_sp = cfg.letter_spacing.unwrap_or(0.0);
+                    let line_height_ratio = cfg.line_height.unwrap_or(DEFAULT_LINE_HEIGHT_RATIO);
+                    let line_height = fs * line_height_ratio;
                     let align = cfg.align.as_deref().unwrap_or("left");
+
+                    let lines = wrap_text(&raw_text, fs, cfg.max_width, letter_sp, &metrics);
 
                     let content_h = (metrics.ascent + metrics.descent) * fs;
                     let baseline_from_top = (line_height - content_h) / 2.0 + metrics.ascent * fs;
                     let first_baseline_y = cfg.page_height - cfg.y - baseline_from_top;
 
+                    operations.push(Operation::new("Tc", vec![letter_sp.into()]));
+
                     for (line_idx, line_str) in lines.iter().enumerate() {
                         let current_y = first_baseline_y - (line_idx as f32 * line_height);
-                        let line_width = metrics.text_width(line_str, fs);
+                        let line_width = metrics.text_width(line_str, fs, letter_sp);
 
                         let adjusted_x = match align {
                             "center" => cfg.x + ((cfg.max_width - line_width) / 2.0),
@@ -513,9 +508,7 @@ pub fn generate_certificates_chunk(
             doc.save_to(&mut pdf_bytes)
                 .map_err(|e| JsValue::from_str(&format!("Gagal menyusun sertifikat: {}", e)))?;
 
-            // Nama file dinamis dengan fallback aman
             let file_name = build_custom_filename(filename_pattern.as_deref(), row, global_idx);
-
             zip.start_file(file_name, zip_options)
                 .map_err(|e| JsValue::from_str(&format!("Gagal membuat berkas ZIP: {}", e)))?;
             zip.write_all(&pdf_bytes)
@@ -542,8 +535,7 @@ mod tests {
     #[test]
     fn helvetica_bold_known_widths() {
         let m = FontMetrics::new(None);
-        // "AB" = 722 + 722 pada 10pt => 14.44
-        assert!((m.text_width("AB", 10.0) - 14.44).abs() < 0.01);
+        assert!((m.text_width("AB", 10.0, 0.0) - 14.44).abs() < 0.01);
     }
 
     #[test]
@@ -558,17 +550,26 @@ mod tests {
     #[test]
     fn wrap_respects_width() {
         let m = FontMetrics::new(None);
-        let lines = wrap_text("Muhammad Rizky Ramadhan Putra", 20.0, 150.0, &m);
+        let lines = wrap_text("Muhammad Rizky Ramadhan Putra", 20.0, 150.0, 0.0, &m);
         assert!(lines.len() > 1);
         for l in &lines {
-            assert!(m.text_width(l, 20.0) <= 150.0 + 0.01, "baris melebihi lebar: {}", l);
+            assert!(m.text_width(l, 20.0, 0.0) <= 150.0 + 0.01, "baris melebihi lebar: {}", l);
         }
     }
 
     #[test]
     fn wrap_splits_overlong_word() {
         let m = FontMetrics::new(None);
-        let lines = wrap_text("Supercalifragilisticexpialidocious", 20.0, 100.0, &m);
+        let lines = wrap_text("Supercalifragilisticexpialidocious", 20.0, 100.0, 0.0, &m);
         assert!(lines.len() > 1);
+    }
+
+    #[test]
+    fn letter_spacing_calculation() {
+        let m = FontMetrics::new(None);
+        let w_normal = m.text_width("ABC", 10.0, 0.0);
+        let w_spaced = m.text_width("ABC", 10.0, 2.0);
+        // "ABC" memiliki 3 huruf (2 celah tambahan * 2.0 pt = 4.0 pt)
+        assert!((w_spaced - (w_normal + 4.0)).abs() < 0.01);
     }
 }
