@@ -1402,8 +1402,8 @@ export default function LandingPage() {
         </div>
 
         <div className="max-w-[1440px] mx-auto flex flex-col md:flex-row justify-between items-center gap-4 mt-8 font-mono text-xs text-[#EBE9E4]/40">
-          <span>© {new Date().getFullYear()} SERTIGEN PLATFORM. SELURUH HAK CIPTA DILINDUNGI.</span>
-          <span>DIBANGUN TANPA SLOP</span>
+          <span>© {new Date().getFullYear()} SERTIGEN BY KROVIDA. SELURUH HAK CIPTA DILINDUNGI.</span>
+          <span>DIBANGUN OLEH KROVIDA</span>
         </div>
       </footer>
     </div>
