@@ -167,8 +167,24 @@ export default function CetakLokal() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
-  const [themeMode, setThemeMode] = useState("dark");
+  // Mode Terang / Gelap State (Default: Terang, tersimpan di localStorage)
+  const [themeMode, setThemeMode] = useState("light");
   const isDark = themeMode === "dark";
+
+  // Membaca pengaturan tema tersimpan dari cache browser saat awal render
+  useEffect(() => {
+    const savedTheme = localStorage.getItem("sertigen_theme_mode");
+    if (savedTheme === "dark" || savedTheme === "light") {
+      setThemeMode(savedTheme);
+    }
+  }, []);
+
+  // Fungsi toggle tema yang langsung menyimpan preferensi ke localStorage
+  const handleToggleTheme = () => {
+    const nextTheme = themeMode === "dark" ? "light" : "dark";
+    setThemeMode(nextTheme);
+    localStorage.setItem("sertigen_theme_mode", nextTheme);
+  };
 
   const [activeTab, setActiveTab] = useState("files");
 
@@ -529,7 +545,6 @@ export default function CetakLokal() {
           const fields = results.meta.fields;
           setCsvHeaders(fields);
 
-          // Pola nama default menggunakan kolom pertama CSV
           if (fields.length > 0) {
             setFilenamePattern(`sertifikat_{${fields[0]}}_{index}`);
           }
@@ -1291,7 +1306,7 @@ export default function CetakLokal() {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => setThemeMode(isDark ? "light" : "dark")}
+            onClick={handleToggleTheme}
             className={`p-2 rounded-[4px] border transition-colors flex items-center justify-center ${
               isDark
                 ? "bg-[#222222] text-[#FFFFFF] border-[#444444] hover:bg-[#333333]"
