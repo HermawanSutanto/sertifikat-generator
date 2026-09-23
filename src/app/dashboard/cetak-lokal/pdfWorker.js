@@ -2,15 +2,17 @@ import init, * as wasm from "@/rust_wasm/pkg/pdf_cert_wasm.js";
 
 self.onmessage = async (e) => {
   try {
-    const { templateUint8, csvRows, configs, chunkSize = 1000, fontBytes } = e.data;
+    const {
+      templateUint8,
+      csvRows,
+      configs,
+      chunkSize = 1000,
+      fontBytes,
+      filenamePattern,
+      startOffset = 0,
+    } = e.data;
 
     await init();
-
-    // DEBUG SEMENTARA: cek apakah fontBytes benar-benar diterima worker
-    console.log(
-      "[DEBUG] fontBytes diterima worker:",
-      fontBytes ? `${fontBytes.length} bytes` : "TIDAK ADA (null/undefined)"
-    );
 
     const total = csvRows.length;
     let processed = 0;
@@ -18,27 +20,23 @@ self.onmessage = async (e) => {
     for (let i = 0; i < total; i += chunkSize) {
       const chunkRows = csvRows.slice(i, i + chunkSize);
 
-      // Kirim Array JSON CSV & Configs ke Rust, sekaligus font custom (kalau user memilihnya)
       const zipBytes = wasm.generate_certificates_chunk(
         templateUint8,
         chunkRows,
         configs,
-        i,
-        fontBytes
+        startOffset + i,
+        fontBytes,
+        filenamePattern || undefined
       );
 
       processed += chunkRows.length;
 
-      // zipBytes ditransfer (bukan di-copy) ke main thread: ia adalah hasil
-      // baru dari WASM untuk chunk ini dan tidak dipakai lagi di worker
-      // setelah dikirim, jadi transfer menghindari duplikasi memori untuk
-      // ZIP yang bisa berukuran besar pada dataset ribuan baris.
       self.postMessage(
         {
           type: "CHUNK_COMPLETE",
           zipBytes,
           part: Math.floor(i / chunkSize) + 1,
-          progress: { current: processed, total }
+          progress: { current: processed, total },
         },
         [zipBytes.buffer]
       );

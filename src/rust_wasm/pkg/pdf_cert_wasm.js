@@ -6,20 +6,23 @@
  * @param {any} configs_json
  * @param {number} start_idx
  * @param {Uint8Array | null} [font_bytes]
+ * @param {string | null} [filename_pattern]
  * @returns {Uint8Array}
  */
-export function generate_certificates_chunk(template_bytes, csv_rows_json, configs_json, start_idx, font_bytes) {
+export function generate_certificates_chunk(template_bytes, csv_rows_json, configs_json, start_idx, font_bytes, filename_pattern) {
     const ptr0 = passArray8ToWasm0(template_bytes, wasm.__wbindgen_malloc);
     const len0 = WASM_VECTOR_LEN;
     var ptr1 = isLikeNone(font_bytes) ? 0 : passArray8ToWasm0(font_bytes, wasm.__wbindgen_malloc);
     var len1 = WASM_VECTOR_LEN;
-    const ret = wasm.generate_certificates_chunk(ptr0, len0, csv_rows_json, configs_json, start_idx, ptr1, len1);
+    var ptr2 = isLikeNone(filename_pattern) ? 0 : passStringToWasm0(filename_pattern, wasm.__wbindgen_malloc, wasm.__wbindgen_realloc);
+    var len2 = WASM_VECTOR_LEN;
+    const ret = wasm.generate_certificates_chunk(ptr0, len0, csv_rows_json, configs_json, start_idx, ptr1, len1, ptr2, len2);
     if (ret[3]) {
         throw takeFromExternrefTable0(ret[2]);
     }
-    var v3 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
+    var v4 = getArrayU8FromWasm0(ret[0], ret[1]).slice();
     wasm.__wbindgen_free(ret[0], ret[1] * 1, 1);
-    return v3;
+    return v4;
 }
 function __wbg_get_imports() {
     const import0 = {

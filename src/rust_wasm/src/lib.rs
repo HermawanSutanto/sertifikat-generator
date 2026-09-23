@@ -239,7 +239,36 @@ fn wrap_text(text: &str, font_size: f32, max_width: f32, m: &FontMetrics) -> Vec
     }
     lines
 }
+fn build_custom_filename(
+    pattern: Option<&str>,
+    row: &serde_json::Value,
+    global_idx: usize,
+) -> String {
+    let raw_name = match pattern {
+        Some(p) if !p.trim().is_empty() => {
+            let mut formatted = interpolate_template(p, row);
+            // Tambahkan dukungan variabel bawaan seperti {index} atau {urutan}
+            formatted = formatted.replace("{index}", &global_idx.to_string());
+            formatted = formatted.replace("{urutan}", &global_idx.to_string());
+            formatted
+        }
+        _ => {
+            let main_name = row
+                .get("Nama")
+                .or_else(|| row.get("nama"))
+                .and_then(|v| v.as_str())
+                .unwrap_or("peserta");
+            format!("sertifikat_{}_{}", main_name.to_lowercase().replace(' ', "_"), global_idx)
+        }
+    };
 
+    let sanitized = sanitize_name(&raw_name);
+    if sanitized.to_lowercase().ends_with(".pdf") {
+        sanitized
+    } else {
+        format!("{}.pdf", sanitized)
+    }
+}
 fn interpolate_template(template: &str, row: &serde_json::Value) -> String {
     let mut result = template.to_string();
 
@@ -341,6 +370,7 @@ pub fn generate_certificates_chunk(
     configs_json: JsValue,
     start_idx: usize,
     font_bytes: Option<Vec<u8>>,
+    filename_pattern: Option<String>, // <-- Parameter baru
 ) -> Result<Vec<u8>, JsValue> {
     let csv_rows: Vec<serde_json::Value> = serde_wasm_bindgen::from_value(csv_rows_json)
         .map_err(|e| JsValue::from_str(&format!("Gagal membaca data CSV: {}", e)))?;
@@ -355,7 +385,6 @@ pub fn generate_certificates_chunk(
         Some(bytes) => embed_truetype_font(&mut base_doc, bytes)
             .map_err(|err| JsValue::from_str(&format!("Gagal embed font kustom: {}", err)))?,
         None => {
-            // WinAnsi supaya karakter Latin-1 (é, ü, dst.) dan tanda kutip melengkung tampil benar.
             let font_dict = dictionary! {
                 "Type" => "Font",
                 "Subtype" => "Type1",
@@ -383,7 +412,6 @@ pub fn generate_certificates_chunk(
         }
     }
 
-    // Diparse sekali per chunk, dipakai untuk semua baris.
     let metrics = FontMetrics::new(font_bytes.as_deref());
 
     let mut zip_buffer = Vec::with_capacity(1024 * 1024 * 10);
@@ -396,15 +424,7 @@ pub fn generate_certificates_chunk(
             let global_idx = start_idx + i + 1;
             let mut doc = base_doc.clone();
 
-            let main_name = row
-                .get("Nama")
-                .or_else(|| row.get("nama"))
-                .and_then(|v| v.as_str())
-                .unwrap_or("peserta");
-            let file_name_sanitized = sanitize_name(main_name);
-
             for (page_num, page_id) in &pages {
-                // q/Q mengisolasi graphics state agar tidak terpengaruh isi template.
                 let mut operations = Vec::with_capacity(32);
                 operations.push(Operation::new("q", vec![]));
                 operations.push(Operation::new("BT", vec![]));
@@ -436,7 +456,6 @@ pub fn generate_certificates_chunk(
 
                     has_operations = true;
 
-                    // Warna per elemen (persisten di dalam BT, jadi set eksplisit untuk tiap elemen).
                     let [cr, cg, cb] = cfg
                         .color
                         .as_deref()
@@ -449,8 +468,6 @@ pub fn generate_certificates_chunk(
                     let line_height = cfg.line_height.unwrap_or(fs * LINE_HEIGHT_RATIO);
                     let align = cfg.align.as_deref().unwrap_or("left");
 
-                    // Sama dengan CSS: teks berada di tengah line box (half-leading),
-                    // baseline = tepi atas line box + half-leading + ascent.
                     let content_h = (metrics.ascent + metrics.descent) * fs;
                     let baseline_from_top = (line_height - content_h) / 2.0 + metrics.ascent * fs;
                     let first_baseline_y = cfg.page_height - cfg.y - baseline_from_top;
@@ -466,7 +483,6 @@ pub fn generate_certificates_chunk(
                         };
 
                         operations.push(Operation::new("Tf", vec!["F1".into(), fs.into()]));
-                        // Tm absolut: tidak ada state posisi yang menumpuk antar baris.
                         operations.push(Operation::new(
                             "Tm",
                             vec![
@@ -497,11 +513,9 @@ pub fn generate_certificates_chunk(
             doc.save_to(&mut pdf_bytes)
                 .map_err(|e| JsValue::from_str(&format!("Gagal menyusun sertifikat: {}", e)))?;
 
-            let file_name = format!(
-                "sertifikat_{}_{}.pdf",
-                file_name_sanitized.to_lowercase().replace(' ', "_"),
-                global_idx
-            );
+            // Nama file dinamis dengan fallback aman
+            let file_name = build_custom_filename(filename_pattern.as_deref(), row, global_idx);
+
             zip.start_file(file_name, zip_options)
                 .map_err(|e| JsValue::from_str(&format!("Gagal membuat berkas ZIP: {}", e)))?;
             zip.write_all(&pdf_bytes)

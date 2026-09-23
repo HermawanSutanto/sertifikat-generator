@@ -104,9 +104,11 @@ const ValidationModal = ({ isOpen, warnings, onConfirm, onCancel, isDark }) => {
 
   return (
     <div className="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-4">
-      <div className={`border-2 rounded-[4px] max-w-md w-full p-6 space-y-4 shadow-2xl ${
-        isDark ? "bg-[#111111] border-[#FFFFFF]" : "bg-[#FFFFFF] border-[#111111]"
-      }`}>
+      <div
+        className={`border-2 rounded-[4px] max-w-md w-full p-6 space-y-4 shadow-2xl ${
+          isDark ? "bg-[#111111] border-[#FFFFFF]" : "bg-[#FFFFFF] border-[#111111]"
+        }`}
+      >
         <div className="flex items-start gap-3">
           <div className="p-2 bg-[#B3261E]/15 text-[#B3261E] border border-[#B3261E] rounded-[2px] shrink-0">
             <IconAlertTriangle className="w-5 h-5" />
@@ -121,9 +123,11 @@ const ValidationModal = ({ isOpen, warnings, onConfirm, onCancel, isDark }) => {
           </div>
         </div>
 
-        <div className={`max-h-48 overflow-y-auto space-y-2 text-xs p-3 rounded-[2px] border font-mono ${
-          isDark ? "bg-[#1A1A1A] border-[#333333] text-[#EBE9E4]" : "bg-[#F5F4F0] border-[#E5E7EB] text-[#111111]"
-        }`}>
+        <div
+          className={`max-h-48 overflow-y-auto space-y-2 text-xs p-3 rounded-[2px] border font-mono ${
+            isDark ? "bg-[#1A1A1A] border-[#333333] text-[#EBE9E4]" : "bg-[#F5F4F0] border-[#E5E7EB] text-[#111111]"
+          }`}
+        >
           {warnings.map((warn, idx) => (
             <div key={idx} className="flex items-start gap-2">
               <span className="text-[#B3261E] font-bold">[!]</span>
@@ -163,7 +167,6 @@ export default function CetakLokal() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
-  // Mode Terang / Gelap State
   const [themeMode, setThemeMode] = useState("dark");
   const isDark = themeMode === "dark";
 
@@ -179,6 +182,12 @@ export default function CetakLokal() {
   const [compressionScale, setCompressionScale] = useState(1.5);
   const [compressionQuality, setCompressionQuality] = useState(0.8);
   const [isRecompressing, setIsRecompressing] = useState(false);
+
+  // Custom Filename Pattern & Range Slicing State
+  const [filenamePattern, setFilenamePattern] = useState("sertifikat_{Nama}_{index}");
+  const [sliceMode, setSliceMode] = useState("all"); // 'all' | 'custom'
+  const [sliceStart, setSliceStart] = useState(1);
+  const [sliceEnd, setSliceEnd] = useState(1);
 
   const [localFontApiSupported, setLocalFontApiSupported] = useState(false);
   const [isDetectingFonts, setIsDetectingFonts] = useState(false);
@@ -513,6 +522,8 @@ export default function CetakLokal() {
       complete: (results) => {
         const rows = results.data;
         setCsvRows(rows);
+        setSliceStart(1);
+        setSliceEnd(rows.length);
 
         if (results.meta && results.meta.fields) {
           const fields = results.meta.fields;
@@ -665,6 +676,8 @@ export default function CetakLokal() {
         setCsvFile(new File([], autosaveMeta?.csvName || "data_tersimpan.csv"));
         setCsvRows(csv.rows);
         setCsvHeaders(csv.headers || []);
+        setSliceStart(1);
+        setSliceEnd(csv.rows.length);
         const scannedLongest = scanLongestRowSample(csv.rows, csv.headers || []);
         setLongestRowSample(scannedLongest);
       }
@@ -926,8 +939,27 @@ export default function CetakLokal() {
     return longestRowSample[cfg.column_name] || `[Kolom ${cfg.column_name}]`;
   };
 
+  // Helper untuk memfilter baris data berdasarkan mode rentang cetak
+  const getTargetRows = () => {
+    if (sliceMode === "all") {
+      return { rows: csvRows, offset: 0 };
+    }
+    const start = Math.max(1, parseInt(sliceStart, 10) || 1) - 1;
+    const end = Math.min(csvRows.length, parseInt(sliceEnd, 10) || csvRows.length);
+    const validEnd = Math.max(start + 1, end);
+    return {
+      rows: csvRows.slice(start, validEnd),
+      offset: start,
+    };
+  };
+
   const runPreflightValidation = () => {
     const warnings = [];
+    const { rows: selectedRows } = getTargetRows();
+
+    if (selectedRows.length === 0) {
+      warnings.push("Rentang baris yang dipilih tidak memuat data yang valid.");
+    }
 
     configs.filter((c) => c.enabled).forEach((cfg) => {
       const targetPage = cfg.page_number || 1;
@@ -956,7 +988,7 @@ export default function CetakLokal() {
 
       if (!cfg.static_text && csvHeaders.includes(cfg.column_name)) {
         let emptyCount = 0;
-        csvRows.forEach((row) => {
+        selectedRows.forEach((row) => {
           if (!row[cfg.column_name] || String(row[cfg.column_name]).trim() === "") {
             emptyCount++;
           }
@@ -1013,7 +1045,8 @@ export default function CetakLokal() {
         sampleCsvRow,
         formattedConfigs,
         0,
-        selectedFontBytes || undefined
+        selectedFontBytes || undefined,
+        filenamePattern.trim() || undefined
       );
 
       const blob = new Blob([zipBytes], { type: "application/zip" });
@@ -1050,7 +1083,15 @@ export default function CetakLokal() {
   const executeBatchRendering = async () => {
     setIsValidationModalOpen(false);
     setIsProcessing(true);
-    setProgress({ current: 0, total: csvRows.length });
+
+    const { rows: selectedRows, offset } = getTargetRows();
+    if (selectedRows.length === 0) {
+      setNotification({ show: true, message: "Rentang baris tidak memuat data yang valid.", type: "error" });
+      setIsProcessing(false);
+      return;
+    }
+
+    setProgress({ current: 0, total: selectedRows.length });
 
     try {
       const templateArrayBuffer = await templateFile.arrayBuffer();
@@ -1062,10 +1103,12 @@ export default function CetakLokal() {
       worker.postMessage(
         {
           templateUint8,
-          csvRows,
+          csvRows: selectedRows,
           configs: formattedConfigs,
           chunkSize: 1000,
           fontBytes: selectedFontBytes || undefined,
+          filenamePattern: filenamePattern.trim() || undefined,
+          startOffset: offset,
         },
         [templateUint8.buffer]
       );
@@ -1123,7 +1166,8 @@ export default function CetakLokal() {
   }
 
   const GENERATION_CHUNK_SIZE = 1000;
-  const estimatedCertCount = csvRows.length;
+  const targetData = getTargetRows();
+  const estimatedCertCount = targetData.rows.length;
   const estimatedZipParts = estimatedCertCount > 0 ? Math.ceil(estimatedCertCount / GENERATION_CHUNK_SIZE) : 0;
   const estimatedPerFileBytes = templateFile ? templateFile.size : 0;
   const estimatedTotalBytes = estimatedCertCount * estimatedPerFileBytes;
@@ -1151,9 +1195,11 @@ export default function CetakLokal() {
       {/* BANNER RESTORE SESI TERSIMPAN */}
       {isRestoreBannerOpen && (
         <div className="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-4">
-          <div className={`border-2 rounded-[4px] max-w-md w-full p-6 space-y-4 shadow-2xl ${
-            isDark ? "bg-[#111111] border-[#FFFFFF]" : "bg-[#FFFFFF] border-[#111111]"
-          }`}>
+          <div
+            className={`border-2 rounded-[4px] max-w-md w-full p-6 space-y-4 shadow-2xl ${
+              isDark ? "bg-[#111111] border-[#FFFFFF]" : "bg-[#FFFFFF] border-[#111111]"
+            }`}
+          >
             <div className="flex items-start gap-3">
               <div className="p-2 bg-[#0000EE]/10 rounded-[2px] text-[#0000EE] border border-[#0000EE] shrink-0">
                 <IconFolder className="w-5 h-5" />
@@ -1205,9 +1251,11 @@ export default function CetakLokal() {
       )}
 
       {/* TOP HEADER STUDIO BAR */}
-      <header className={`h-14 border-b px-6 flex items-center justify-between shrink-0 z-30 transition-colors ${
-        isDark ? "bg-[#111111] border-[#333333]" : "bg-[#FFFFFF] border-[#CCCCCC]"
-      }`}>
+      <header
+        className={`h-14 border-b px-6 flex items-center justify-between shrink-0 z-30 transition-colors ${
+          isDark ? "bg-[#111111] border-[#333333]" : "bg-[#FFFFFF] border-[#CCCCCC]"
+        }`}
+      >
         <div className="flex items-center gap-4">
           <Link
             href="/"
@@ -1218,21 +1266,16 @@ export default function CetakLokal() {
             SERTIGEN.
           </Link>
           <span className={isDark ? "text-[#444444]" : "text-[#CCCCCC]"}>|</span>
-          <span className={`text-xs font-mono uppercase tracking-wider font-semibold ${
-            isDark ? "text-[#AAAAAA]" : "text-[#555555]"
-          }`}>
+          <span className={`text-xs font-mono uppercase tracking-wider font-semibold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
             STUDIO ENGINE
           </span>
           <span className={isDark ? "text-[#444444]" : "text-[#CCCCCC]"}>/</span>
-          <span className={`text-xs font-mono truncate max-w-xs font-medium ${
-            isDark ? "text-[#EBE9E4]" : "text-[#333333]"
-          }`}>
+          <span className={`text-xs font-mono truncate max-w-xs font-medium ${isDark ? "text-[#EBE9E4]" : "text-[#333333]"}`}>
             {templateFile ? templateFile.name : "[ TANPA TEMPLATE ]"}
           </span>
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Toggle Mode Terang / Gelap */}
           <button
             type="button"
             onClick={() => setThemeMode(isDark ? "light" : "dark")}
@@ -1262,7 +1305,7 @@ export default function CetakLokal() {
 
           <button
             onClick={handleStartGenerate}
-            disabled={isProcessing || !csvFile || !templateFile}
+            disabled={isProcessing || !csvFile || !templateFile || estimatedCertCount === 0}
             className="px-5 py-2 text-xs font-mono uppercase font-bold text-[#FFFFFF] bg-[#0000EE] hover:bg-[#0000EE]/85 disabled:bg-[#333333] disabled:text-[#888888] rounded-[4px] border border-[#0000EE] disabled:border-transparent transition-colors flex items-center gap-2 shadow-sm"
           >
             {isProcessing ? (
@@ -1296,9 +1339,11 @@ export default function CetakLokal() {
 
       {/* STRIP PROGRESS PROSES CETAK */}
       {isProcessing && (
-        <div className={`h-7 border-b px-6 flex items-center gap-4 shrink-0 z-20 ${
-          isDark ? "bg-[#1A1A1A] border-[#333333]" : "bg-[#EBE9E4] border-[#CCCCCC]"
-        }`}>
+        <div
+          className={`h-7 border-b px-6 flex items-center gap-4 shrink-0 z-20 ${
+            isDark ? "bg-[#1A1A1A] border-[#333333]" : "bg-[#EBE9E4] border-[#CCCCCC]"
+          }`}
+        >
           <div className={`flex-1 h-1.5 rounded-none overflow-hidden ${isDark ? "bg-[#111111]" : "bg-[#CCCCCC]"}`}>
             <div
               className="h-full bg-[#0000EE] transition-[width] duration-150 ease-out"
@@ -1309,9 +1354,7 @@ export default function CetakLokal() {
               }}
             />
           </div>
-          <span className={`text-xs font-mono font-bold tabular-nums shrink-0 ${
-            isDark ? "text-[#FFFFFF]" : "text-[#111111]"
-          }`}>
+          <span className={`text-xs font-mono font-bold tabular-nums shrink-0 ${isDark ? "text-[#FFFFFF]" : "text-[#111111]"}`}>
             {progress && progress.total > 0
               ? `STATUS: ${progress.current}/${progress.total} (${Math.min(100, Math.round((progress.current / progress.total) * 100))}%)`
               : "MENYIAPKAN BUFFER..."}
@@ -1323,9 +1366,11 @@ export default function CetakLokal() {
       <div className="flex-1 flex overflow-hidden">
         
         {/* 1. LEFT TOOLBAR DOCK */}
-        <aside className={`w-14 border-r flex flex-col items-center py-4 gap-3 shrink-0 z-20 transition-colors ${
-          isDark ? "bg-[#111111] border-[#333333]" : "bg-[#FFFFFF] border-[#CCCCCC]"
-        }`}>
+        <aside
+          className={`w-14 border-r flex flex-col items-center py-4 gap-3 shrink-0 z-20 transition-colors ${
+            isDark ? "bg-[#111111] border-[#333333]" : "bg-[#FFFFFF] border-[#CCCCCC]"
+          }`}
+        >
           {[
             { id: "files", label: "Berkas", Icon: IconFolder },
             { id: "elements", label: "Elemen", Icon: IconEdit },
@@ -1353,18 +1398,18 @@ export default function CetakLokal() {
         </aside>
 
         {/* 2. CONTEXTUAL INSPECTOR PANEL */}
-        <div className={`w-80 border-r flex flex-col shrink-0 z-10 overflow-y-auto transition-colors ${
-          isDark ? "bg-[#181818] border-[#333333]" : "bg-[#FFFFFF] border-[#CCCCCC]"
-        }`}>
+        <div
+          className={`w-80 border-r flex flex-col shrink-0 z-10 overflow-y-auto transition-colors ${
+            isDark ? "bg-[#181818] border-[#333333]" : "bg-[#FFFFFF] border-[#CCCCCC]"
+          }`}
+        >
           <div className="p-5 space-y-6">
             
             {/* PANEL: FILES */}
             {activeTab === "files" && (
               <div className="space-y-5">
                 <div className={`border-b pb-3 ${isDark ? "border-[#333333]" : "border-[#E5E7EB]"}`}>
-                  <h2 className={`text-xs font-bold uppercase tracking-wider font-mono ${
-                    isDark ? "text-[#FFFFFF]" : "text-[#111111]"
-                  }`}>
+                  <h2 className={`text-xs font-bold uppercase tracking-wider font-mono ${isDark ? "text-[#FFFFFF]" : "text-[#111111]"}`}>
                     [ 01. SUMBER DATA ]
                   </h2>
                   <p className={`text-[11px] font-mono mt-1 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
@@ -1374,9 +1419,7 @@ export default function CetakLokal() {
 
                 <div className="space-y-4">
                   <div>
-                    <label className={`block text-[11px] font-mono uppercase font-bold mb-2 ${
-                      isDark ? "text-[#FFFFFF]" : "text-[#111111]"
-                    }`}>
+                    <label className={`block text-[11px] font-mono uppercase font-bold mb-2 ${isDark ? "text-[#FFFFFF]" : "text-[#111111]"}`}>
                       Data Peserta (.csv)
                     </label>
                     <input
@@ -1398,9 +1441,7 @@ export default function CetakLokal() {
                   </div>
 
                   <div>
-                    <label className={`block text-[11px] font-mono uppercase font-bold mb-2 ${
-                      isDark ? "text-[#FFFFFF]" : "text-[#111111]"
-                    }`}>
+                    <label className={`block text-[11px] font-mono uppercase font-bold mb-2 ${isDark ? "text-[#FFFFFF]" : "text-[#111111]"}`}>
                       Template Sertifikat (.pdf)
                     </label>
                     <input
@@ -1417,9 +1458,11 @@ export default function CetakLokal() {
                 </div>
 
                 {templateFile && (
-                  <div className={`border rounded-[4px] p-4 space-y-3 ${
-                    isDark ? "bg-[#111111] border-[#333333]" : "bg-[#F7F6F3] border-[#CCCCCC]"
-                  }`}>
+                  <div
+                    className={`border rounded-[4px] p-4 space-y-3 ${
+                      isDark ? "bg-[#111111] border-[#333333]" : "bg-[#F7F6F3] border-[#CCCCCC]"
+                    }`}
+                  >
                     <div className="flex items-center justify-between text-xs font-mono">
                       <span className={`font-bold uppercase ${isDark ? "text-[#FFFFFF]" : "text-[#111111]"}`}>
                         Kompresi PDF
@@ -1431,9 +1474,7 @@ export default function CetakLokal() {
 
                     <div className="space-y-3 pt-1">
                       <div>
-                        <div className={`flex justify-between text-[10px] font-mono font-bold mb-1 ${
-                          isDark ? "text-[#AAAAAA]" : "text-[#555555]"
-                        }`}>
+                        <div className={`flex justify-between text-[10px] font-mono font-bold mb-1 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
                           <span>Skala Resample</span>
                           <span>{compressionScale.toFixed(1)}x</span>
                         </div>
@@ -1449,9 +1490,7 @@ export default function CetakLokal() {
                       </div>
 
                       <div>
-                        <div className={`flex justify-between text-[10px] font-mono font-bold mb-1 ${
-                          isDark ? "text-[#AAAAAA]" : "text-[#555555]"
-                        }`}>
+                        <div className={`flex justify-between text-[10px] font-mono font-bold mb-1 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
                           <span>Kualitas JPEG</span>
                           <span>{Math.round(compressionQuality * 100)}%</span>
                         </div>
@@ -1513,12 +1552,8 @@ export default function CetakLokal() {
             {/* PANEL: ELEMENTS */}
             {activeTab === "elements" && (
               <div className="space-y-5">
-                <div className={`flex items-center justify-between border-b pb-3 ${
-                  isDark ? "border-[#333333]" : "border-[#E5E7EB]"
-                }`}>
-                  <h2 className={`text-xs font-bold uppercase tracking-wider font-mono ${
-                    isDark ? "text-[#FFFFFF]" : "text-[#111111]"
-                  }`}>
+                <div className={`flex items-center justify-between border-b pb-3 ${isDark ? "border-[#333333]" : "border-[#E5E7EB]"}`}>
+                  <h2 className={`text-xs font-bold uppercase tracking-wider font-mono ${isDark ? "text-[#FFFFFF]" : "text-[#111111]"}`}>
                     [ 02. ELEMEN TEKS ]
                   </h2>
                   <div className="flex items-center gap-1.5">
@@ -1562,12 +1597,12 @@ export default function CetakLokal() {
                 </div>
 
                 {configs.some((c) => !c.enabled) && (
-                  <div className={`border rounded-[4px] p-3 space-y-2 ${
-                    isDark ? "bg-[#111111] border-[#333333]" : "bg-[#F7F6F3] border-[#CCCCCC]"
-                  }`}>
-                    <label className={`block text-[10px] font-mono uppercase font-bold ${
-                      isDark ? "text-[#AAAAAA]" : "text-[#555555]"
-                    }`}>
+                  <div
+                    className={`border rounded-[4px] p-3 space-y-2 ${
+                      isDark ? "bg-[#111111] border-[#333333]" : "bg-[#F7F6F3] border-[#CCCCCC]"
+                    }`}
+                  >
+                    <label className={`block text-[10px] font-mono uppercase font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
                       Elemen Non-Aktif ({configs.filter((c) => !c.enabled).length})
                     </label>
                     <div className="flex flex-wrap gap-1.5">
@@ -1596,9 +1631,7 @@ export default function CetakLokal() {
 
                 {configs.length > 0 && (
                   <div>
-                    <label className={`block text-[11px] font-mono uppercase font-bold mb-2 ${
-                      isDark ? "text-[#FFFFFF]" : "text-[#111111]"
-                    }`}>
+                    <label className={`block text-[11px] font-mono uppercase font-bold mb-2 ${isDark ? "text-[#FFFFFF]" : "text-[#111111]"}`}>
                       Pilih Elemen Aktif
                     </label>
                     <select
@@ -1632,9 +1665,7 @@ export default function CetakLokal() {
                     >
                       {cfg.static_text !== undefined && (
                         <div>
-                          <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${
-                            isDark ? "text-[#AAAAAA]" : "text-[#555555]"
-                          }`}>
+                          <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
                             Isi Teks Statis
                           </label>
                           <input
@@ -1652,9 +1683,7 @@ export default function CetakLokal() {
 
                       {totalPages > 1 && (
                         <div>
-                          <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${
-                            isDark ? "text-[#AAAAAA]" : "text-[#555555]"
-                          }`}>
+                          <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
                             Target Halaman
                           </label>
                           <select
@@ -1674,9 +1703,7 @@ export default function CetakLokal() {
                       )}
 
                       <div>
-                        <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${
-                          isDark ? "text-[#AAAAAA]" : "text-[#555555]"
-                        }`}>
+                        <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
                           Perataan Teks
                         </label>
                         <div className="grid grid-cols-3 gap-1.5">
@@ -1705,9 +1732,7 @@ export default function CetakLokal() {
 
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${
-                            isDark ? "text-[#AAAAAA]" : "text-[#555555]"
-                          }`}>
+                          <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
                             Ukuran (pt)
                           </label>
                           <input
@@ -1723,9 +1748,7 @@ export default function CetakLokal() {
                         </div>
 
                         <div>
-                          <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${
-                            isDark ? "text-[#AAAAAA]" : "text-[#555555]"
-                          }`}>
+                          <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
                             Lebar Kotak (pt)
                           </label>
                           <input
@@ -1742,9 +1765,7 @@ export default function CetakLokal() {
                       </div>
 
                       <div>
-                        <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${
-                          isDark ? "text-[#AAAAAA]" : "text-[#555555]"
-                        }`}>
+                        <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
                           Warna Tinta
                         </label>
                         <div className="flex items-center gap-2">
@@ -1754,9 +1775,7 @@ export default function CetakLokal() {
                             onChange={(e) => updateConfig(cfg.column_name, { color: e.target.value })}
                             className="h-8 w-10 p-0.5 bg-transparent border rounded-[2px] cursor-pointer"
                           />
-                          <span className={`text-xs font-mono font-bold uppercase ${
-                            isDark ? "text-[#FFFFFF]" : "text-[#111111]"
-                          }`}>
+                          <span className={`text-xs font-mono font-bold uppercase ${isDark ? "text-[#FFFFFF]" : "text-[#111111]"}`}>
                             {cfg.color || "#111111"}
                           </span>
                           <button
@@ -1805,9 +1824,7 @@ export default function CetakLokal() {
             {activeTab === "fonts" && (
               <div className="space-y-5">
                 <div className={`border-b pb-3 ${isDark ? "border-[#333333]" : "border-[#E5E7EB]"}`}>
-                  <h2 className={`text-xs font-bold uppercase tracking-wider font-mono ${
-                    isDark ? "text-[#FFFFFF]" : "text-[#111111]"
-                  }`}>
+                  <h2 className={`text-xs font-bold uppercase tracking-wider font-mono ${isDark ? "text-[#FFFFFF]" : "text-[#111111]"}`}>
                     [ 03. FONT SISTEM ]
                   </h2>
                   <p className={`text-[11px] font-mono mt-1 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
@@ -1815,9 +1832,11 @@ export default function CetakLokal() {
                   </p>
                 </div>
 
-                <div className={`border rounded-[4px] p-3 flex items-center justify-between gap-2 ${
-                  isDark ? "bg-[#111111] border-[#333333]" : "bg-[#F7F6F3] border-[#CCCCCC]"
-                }`}>
+                <div
+                  className={`border rounded-[4px] p-3 flex items-center justify-between gap-2 ${
+                    isDark ? "bg-[#111111] border-[#333333]" : "bg-[#F7F6F3] border-[#CCCCCC]"
+                  }`}
+                >
                   <span className={`text-xs font-mono font-bold ${isDark ? "text-[#EBE9E4]" : "text-[#111111]"}`}>
                     Local Font API
                   </span>
@@ -1826,9 +1845,11 @@ export default function CetakLokal() {
                       Didukung
                     </span>
                   ) : (
-                    <span className={`text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded-[2px] border ${
-                      isDark ? "bg-[#222222] text-[#888888] border-[#444444]" : "bg-[#EBE9E4] text-[#555555] border-[#CCCCCC]"
-                    }`}>
+                    <span
+                      className={`text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded-[2px] border ${
+                        isDark ? "bg-[#222222] text-[#888888] border-[#444444]" : "bg-[#EBE9E4] text-[#555555] border-[#CCCCCC]"
+                      }`}
+                    >
                       Tidak Didukung
                     </span>
                   )}
@@ -1855,9 +1876,7 @@ export default function CetakLokal() {
 
                     {localFontFamilies.length > 0 && (
                       <div>
-                        <label className={`block text-[11px] font-mono uppercase font-bold mb-2 ${
-                          isDark ? "text-[#FFFFFF]" : "text-[#111111]"
-                        }`}>
+                        <label className={`block text-[11px] font-mono uppercase font-bold mb-2 ${isDark ? "text-[#FFFFFF]" : "text-[#111111]"}`}>
                           Pilih Font ({localFontFamilies.length})
                         </label>
                         <select
@@ -1877,9 +1896,7 @@ export default function CetakLokal() {
                         </select>
 
                         {isLoadingFontBytes && (
-                          <p className={`text-xs font-mono font-bold mt-2 flex items-center gap-2 ${
-                            isDark ? "text-[#AAAAAA]" : "text-[#555555]"
-                          }`}>
+                          <p className={`text-xs font-mono font-bold mt-2 flex items-center gap-2 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
                             <Spinner /> Memuat berkas font...
                           </p>
                         )}
@@ -1901,16 +1918,117 @@ export default function CetakLokal() {
             {activeTab === "presets" && (
               <div className="space-y-5">
                 <div className={`border-b pb-3 ${isDark ? "border-[#333333]" : "border-[#E5E7EB]"}`}>
-                  <h2 className={`text-xs font-bold uppercase tracking-wider font-mono ${
-                    isDark ? "text-[#FFFFFF]" : "text-[#111111]"
-                  }`}>
-                    [ 04. PRESET LAYOUT ]
+                  <h2 className={`text-xs font-bold uppercase tracking-wider font-mono ${isDark ? "text-[#FFFFFF]" : "text-[#111111]"}`}>
+                    [ 04. PRESET & EKSPOR ]
                   </h2>
                   <p className={`text-[11px] font-mono mt-1 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
-                    Ekspor dan impor tata letak koordinat
+                    Konfigurasi nama berkas, rentang baris, dan simpan preset
                   </p>
                 </div>
 
+                {/* KONTROL POLA NAMA FILE */}
+                <div
+                  className={`border rounded-[4px] p-3 space-y-2 ${
+                    isDark ? "bg-[#111111] border-[#333333]" : "bg-[#F7F6F3] border-[#CCCCCC]"
+                  }`}
+                >
+                  <label className={`block text-[10px] font-mono uppercase font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
+                    Pola Nama Berkas (.pdf)
+                  </label>
+                  <input
+                    type="text"
+                    value={filenamePattern}
+                    onChange={(e) => setFilenamePattern(e.target.value)}
+                    placeholder="Contoh: {Nama}_{index}"
+                    className={`w-full p-2 text-xs font-mono font-bold rounded-[4px] border ${
+                      isDark ? "bg-[#181818] text-[#FFFFFF] border-[#444444]" : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
+                    }`}
+                  />
+                  <p className={`text-[10px] font-mono leading-relaxed ${isDark ? "text-[#888888]" : "text-[#666666]"}`}>
+                    Variabel: <span className="text-[#0000EE] font-bold">&#123;index&#125;</span>, atau nama kolom CSV (contoh:{" "}
+                    <span className="text-[#0000EE] font-bold">&#123;Nama&#125;</span> /{" "}
+                    <span className="text-[#0000EE] font-bold">&#123;Nama:uppercase&#125;</span>).
+                  </p>
+                </div>
+
+                {/* KONTROL RENTANG CETAK (BATCH SLICING) */}
+                {csvRows.length > 0 && (
+                  <div
+                    className={`border rounded-[4px] p-3 space-y-3 ${
+                      isDark ? "bg-[#111111] border-[#333333]" : "bg-[#F7F6F3] border-[#CCCCCC]"
+                    }`}
+                  >
+                    <label className={`block text-[10px] font-mono uppercase font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
+                      Rentang Baris Data
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setSliceMode("all")}
+                        className={`py-1.5 text-[10px] font-mono uppercase font-bold rounded-[2px] border transition-colors ${
+                          sliceMode === "all"
+                            ? "bg-[#0000EE] text-[#FFFFFF] border-[#0000EE]"
+                            : isDark
+                            ? "bg-[#181818] text-[#EBE9E4] border-[#444444]"
+                            : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
+                        }`}
+                      >
+                        Semua ({csvRows.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSliceMode("custom")}
+                        className={`py-1.5 text-[10px] font-mono uppercase font-bold rounded-[2px] border transition-colors ${
+                          sliceMode === "custom"
+                            ? "bg-[#0000EE] text-[#FFFFFF] border-[#0000EE]"
+                            : isDark
+                            ? "bg-[#181818] text-[#EBE9E4] border-[#444444]"
+                            : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
+                        }`}
+                      >
+                        Pilih Rentang
+                      </button>
+                    </div>
+
+                    {sliceMode === "custom" && (
+                      <div className="flex items-center gap-2 pt-1">
+                        <div className="flex-1">
+                          <label className={`block text-[9px] font-mono uppercase ${isDark ? "text-[#888888]" : "text-[#777777]"}`}>
+                            Mulai
+                          </label>
+                          <input
+                            type="number"
+                            min={1}
+                            max={csvRows.length}
+                            value={sliceStart}
+                            onChange={(e) => setSliceStart(Number(e.target.value))}
+                            className={`w-full p-1.5 text-xs font-mono font-bold rounded border ${
+                              isDark ? "bg-[#181818] text-[#FFFFFF] border-[#444444]" : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
+                            }`}
+                          />
+                        </div>
+                        <span className="text-xs font-mono font-bold pt-3">-</span>
+                        <div className="flex-1">
+                          <label className={`block text-[9px] font-mono uppercase ${isDark ? "text-[#888888]" : "text-[#777777]"}`}>
+                            Sampai
+                          </label>
+                          <input
+                            type="number"
+                            min={1}
+                            max={csvRows.length}
+                            value={sliceEnd}
+                            onChange={(e) => setSliceEnd(Number(e.target.value))}
+                            className={`w-full p-1.5 text-xs font-mono font-bold rounded border ${
+                              isDark ? "bg-[#181818] text-[#FFFFFF] border-[#444444]" : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
+                            }`}
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* MANAJEMEN PRESET */}
                 <div className="space-y-3">
                   <div className="flex gap-2">
                     <input
@@ -1962,11 +2080,13 @@ export default function CetakLokal() {
                     >
                       Ekspor JSON
                     </button>
-                    <label className={`py-2 text-xs font-mono uppercase font-bold text-center rounded-[4px] border cursor-pointer transition-colors ${
-                      isDark
-                        ? "bg-[#222222] text-[#FFFFFF] border-[#444444] hover:bg-[#333333]"
-                        : "bg-[#FFFFFF] text-[#111111] border-[#111111] hover:bg-[#EBE9E4]"
-                    }`}>
+                    <label
+                      className={`py-2 text-xs font-mono uppercase font-bold text-center rounded-[4px] border cursor-pointer transition-colors ${
+                        isDark
+                          ? "bg-[#222222] text-[#FFFFFF] border-[#444444] hover:bg-[#333333]"
+                          : "bg-[#FFFFFF] text-[#111111] border-[#111111] hover:bg-[#EBE9E4]"
+                      }`}
+                    >
                       Impor JSON
                       <input type="file" accept=".json" onChange={handleImportJson} className="hidden" />
                     </label>
@@ -1975,31 +2095,35 @@ export default function CetakLokal() {
 
                 {csvFile && templateFile && estimatedCertCount > 0 && (
                   <div className={`border-t pt-4 space-y-3 ${isDark ? "border-[#333333]" : "border-[#E5E7EB]"}`}>
-                    <label className={`block text-[10px] font-mono uppercase font-bold ${
-                      isDark ? "text-[#AAAAAA]" : "text-[#555555]"
-                    }`}>
+                    <label className={`block text-[10px] font-mono uppercase font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
                       Estimasi Pemrosesan
                     </label>
                     <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-                      <div className={`border rounded-[4px] p-3 ${
-                        isDark ? "bg-[#111111] border-[#333333]" : "bg-[#F7F6F3] border-[#CCCCCC]"
-                      }`}>
+                      <div
+                        className={`border rounded-[4px] p-3 ${
+                          isDark ? "bg-[#111111] border-[#333333]" : "bg-[#F7F6F3] border-[#CCCCCC]"
+                        }`}
+                      >
                         <div className={`text-[10px] font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>Dokumen</div>
                         <div className={`font-bold mt-1 ${isDark ? "text-[#FFFFFF]" : "text-[#111111]"}`}>
                           {estimatedCertCount.toLocaleString("id-ID")} Berkas
                         </div>
                       </div>
-                      <div className={`border rounded-[4px] p-3 ${
-                        isDark ? "bg-[#111111] border-[#333333]" : "bg-[#F7F6F3] border-[#CCCCCC]"
-                      }`}>
+                      <div
+                        className={`border rounded-[4px] p-3 ${
+                          isDark ? "bg-[#111111] border-[#333333]" : "bg-[#F7F6F3] border-[#CCCCCC]"
+                        }`}
+                      >
                         <div className={`text-[10px] font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>Arsip ZIP</div>
                         <div className={`font-bold mt-1 ${isDark ? "text-[#FFFFFF]" : "text-[#111111]"}`}>
                           {estimatedZipParts} Bagian
                         </div>
                       </div>
-                      <div className={`border rounded-[4px] p-3 col-span-2 ${
-                        isDark ? "bg-[#111111] border-[#333333]" : "bg-[#F7F6F3] border-[#CCCCCC]"
-                      }`}>
+                      <div
+                        className={`border rounded-[4px] p-3 col-span-2 ${
+                          isDark ? "bg-[#111111] border-[#333333]" : "bg-[#F7F6F3] border-[#CCCCCC]"
+                        }`}
+                      >
                         <div className={`text-[10px] font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>Ukuran Total</div>
                         <div className="font-bold text-[#0000EE] mt-1">{formatBytes(estimatedTotalBytes)}</div>
                       </div>
@@ -2026,9 +2150,11 @@ export default function CetakLokal() {
             </span>
             <div className="flex items-center gap-3">
               {totalPages > 1 && (
-                <div className={`flex items-center gap-1 border px-2 py-1 rounded-[4px] ${
-                  isDark ? "bg-[#111111] border-[#333333]" : "bg-[#FFFFFF] border-[#CCCCCC]"
-                }`}>
+                <div
+                  className={`flex items-center gap-1 border px-2 py-1 rounded-[4px] ${
+                    isDark ? "bg-[#111111] border-[#333333]" : "bg-[#FFFFFF] border-[#CCCCCC]"
+                  }`}
+                >
                   <span className={`text-[11px] mr-1 font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
                     Halaman:
                   </span>
@@ -2051,9 +2177,11 @@ export default function CetakLokal() {
               )}
 
               {/* Kontrol Zoom */}
-              <div className={`flex items-center gap-1 border px-1.5 py-1 rounded-[4px] ${
-                isDark ? "bg-[#111111] border-[#333333]" : "bg-[#FFFFFF] border-[#CCCCCC]"
-              }`}>
+              <div
+                className={`flex items-center gap-1 border px-1.5 py-1 rounded-[4px] ${
+                  isDark ? "bg-[#111111] border-[#333333]" : "bg-[#FFFFFF] border-[#CCCCCC]"
+                }`}
+              >
                 <button
                   type="button"
                   onClick={handleZoomOut}
@@ -2187,9 +2315,11 @@ export default function CetakLokal() {
       </div>
 
       {/* FOOTER REAL-TIME STATUS BAR */}
-      <footer className={`h-8 border-t px-6 flex items-center justify-between text-xs font-mono shrink-0 z-30 transition-colors ${
-        isDark ? "bg-[#111111] border-[#333333] text-[#AAAAAA]" : "bg-[#FFFFFF] border-[#CCCCCC] text-[#555555]"
-      }`}>
+      <footer
+        className={`h-8 border-t px-6 flex items-center justify-between text-xs font-mono shrink-0 z-30 transition-colors ${
+          isDark ? "bg-[#111111] border-[#333333] text-[#AAAAAA]" : "bg-[#FFFFFF] border-[#CCCCCC] text-[#555555]"
+        }`}
+      >
         <div className="flex items-center gap-4">
           <span className="flex items-center gap-2">
             <span className={`w-2 h-2 rounded-full ${csvRows.length > 0 ? "bg-[#0000EE]" : "bg-[#888888]"}`} />
@@ -2216,7 +2346,7 @@ export default function CetakLokal() {
           </span>
           <span className={isDark ? "text-[#333333]" : "text-[#E5E7EB]"}>|</span>
           <span>
-            ESTIMASI: <strong className={isDark ? "text-[#FFFFFF]" : "text-[#111111]"}>
+            ESTIMASI TARGET: <strong className={isDark ? "text-[#FFFFFF]" : "text-[#111111]"}>
               {formatBytes(estimatedTotalBytes)}
             </strong>
           </span>
