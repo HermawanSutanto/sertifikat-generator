@@ -205,29 +205,29 @@ const TutorialModal = ({ isOpen, onClose, isDark }) => {
 
   const steps = [
     {
-      title: "1. Unggah Berkas & Optimasi",
+      title: "1. Pemilihan Template & Data Peserta",
       tab: "Berkas",
-      desc: "Buka panel 'Berkas' di bilah kiri. Pilih salah satu Template Bawaan atau unggah file CSV dan PDF sertifikat Anda sendiri. Anda dapat mengatur skala kompresi template agar ukuran arsip ZIP tidak membengkak saat dicetak massal.",
+      desc: "Buka panel 'Berkas' di bilah kiri. Anda dapat langsung memilih salah satu dari 4 Template Bawaan yang sudah dilengkapi tata letak bawaan, atau mengunggah berkas template PDF kustom sendiri. Setelah itu, masukkan berkas CSV daftar peserta.",
     },
     {
-      title: "2. Tata Letak, Gambar & Teks Variabel",
+      title: "2. Menambahkan Elemen Desain",
       tab: "Elemen",
-      desc: "Geser kotak elemen di kanvas. Anda bisa menambahkan Teks Statis, Gambar (Logo/TTD), serta Teks Variabel mandiri yang nilainya dipisahkan tanda koma untuk melengkapi baris data CSV secara otomatis.",
+      desc: "Di panel 'Elemen', Anda memiliki tiga jenis elemen yang dapat ditempatkan ke kanvas:\n• Teks Statis: Teks label tetap yang mendukung placeholder kolom (contoh: {Nama})\n• Teks Variabel: Variabel mandiri dengan daftar nilai terpisah koma\n• Gambar: Unggah logo instansi atau tanda tangan (PNG/JPG) untuk ditempel ke atas template",
     },
     {
-      title: "3. Pintasan Keyboard Kanvas",
-      tab: "Shortcut",
-      desc: "Klik salah satu elemen di kanvas untuk mengaktifkannya:\n• Tombol Panah: Geser posisi 1pt (tahan Shift untuk 10pt)\n• Ctrl/Cmd + D: Duplikat elemen kustom\n• Delete / Backspace: Sembunyikan elemen aktif\n• Ctrl/Cmd + Z / Y: Urungkan (Undo) atau Ulangi (Redo)",
+      title: "3. Cara Kerja Teks Variabel",
+      tab: "Variabel",
+      desc: "Teks Variabel memungkinkan Anda membuat kolom dinamis tanpa mengedit file CSV:\n• Masukkan nama variabel (contoh: 'kota') dan daftar isinya (contoh: 'Jakarta, Bandung, Surabaya').\n• Jika jumlah kata sama persis dengan baris peserta, nilai akan di-looping berurutan per peserta.\n• Jika jumlahnya berbeda, sistem otomatis menggunakan nilai pertama untuk semua peserta.\n• Variabel ini juga dapat dipanggil di teks lain dengan format {nama_variabel}.",
     },
     {
-      title: "4. Pemilihan Font Lokal",
-      tab: "Font",
-      desc: "Buka tab 'Font' untuk memindai font sistem di komputer Anda (tersedia di browser Chromium). Pilih font yang diinginkan agar langsung diterapkan di kanvas pratinjau maupun hasil cetak PDF.",
+      title: "4. Tipografi & Navigasi Kanvas",
+      tab: "Kanvas",
+      desc: "Atur posisi dan ukuran elemen teks maupun gambar langsung di kanvas:\n• Ubah ukuran, font size, line height, letter spacing, dan warna tinta di panel editor.\n• Gunakan tombol Panah untuk geser 1pt (tahan Shift untuk geser 10pt).\n• Ctrl/Cmd + D untuk duplikat elemen aktif, dan Delete/Backspace untuk menghapus.",
     },
     {
-      title: "5. Rentang Baris & Penamaan Berkas",
-      tab: "Preset",
-      desc: "Di tab 'Preset', atur pola nama berkas PDF (misal: sertifikat_{Nama}_{index}) dan tentukan rentang baris data yang ingin dicetak sebelum menekan tombol Cetak ZIP.",
+      title: "5. Pemilihan Font & Rentang Cetak",
+      tab: "Ekspor",
+      desc: "Sebelum mencetak sertifikat:\n• Tab 'Font': Pindai dan terapkan font lokal komputer Anda (khusus browser Chromium).\n• Tab 'Preset': Atur format nama file PDF (misal: sertifikat_{Nama}_{index}) dan tentukan rentang baris peserta (contoh: baris 1-100) sebelum menekan 'Cetak ZIP'.",
     },
   ];
 
@@ -252,7 +252,7 @@ const TutorialModal = ({ isOpen, onClose, isDark }) => {
           </span>
         </div>
 
-        <div className="space-y-3 min-h-[140px]">
+        <div className="space-y-3 min-h-[155px]">
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-[2px] bg-[#0000EE] text-white font-bold">
               {steps[currentStep].tab}
@@ -266,6 +266,7 @@ const TutorialModal = ({ isOpen, onClose, isDark }) => {
           </p>
         </div>
 
+        {/* Indikator Langkah */}
         <div className="flex items-center justify-center gap-1.5 py-1">
           {steps.map((_, idx) => (
             <button
