@@ -29,12 +29,19 @@ self.onmessage = async (e) => {
 
       processed += chunkRows.length;
 
-      self.postMessage({
-        type: "CHUNK_COMPLETE",
-        zipBytes,
-        part: Math.floor(i / chunkSize) + 1,
-        progress: { current: processed, total }
-      });
+      // zipBytes ditransfer (bukan di-copy) ke main thread: ia adalah hasil
+      // baru dari WASM untuk chunk ini dan tidak dipakai lagi di worker
+      // setelah dikirim, jadi transfer menghindari duplikasi memori untuk
+      // ZIP yang bisa berukuran besar pada dataset ribuan baris.
+      self.postMessage(
+        {
+          type: "CHUNK_COMPLETE",
+          zipBytes,
+          part: Math.floor(i / chunkSize) + 1,
+          progress: { current: processed, total }
+        },
+        [zipBytes.buffer]
+      );
     }
 
     self.postMessage({ type: "ALL_COMPLETE" });

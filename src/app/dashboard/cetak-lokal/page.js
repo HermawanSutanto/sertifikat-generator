@@ -152,6 +152,7 @@ export default function CetakLokal() {
   const [localFontFamilies, setLocalFontFamilies] = useState([]);
   const [selectedLocalFontFamily, setSelectedLocalFontFamily] = useState("");
   const [selectedFontBytes, setSelectedFontBytes] = useState(null);
+  const [selectedFontStyle, setSelectedFontStyle] = useState("");
   const [isLoadingFontBytes, setIsLoadingFontBytes] = useState(false);
   const [fontDetectionError, setFontDetectionError] = useState("");
 
@@ -192,6 +193,7 @@ export default function CetakLokal() {
   const handleSelectLocalFont = async (family) => {
     setSelectedLocalFontFamily(family);
     setSelectedFontBytes(null);
+    setSelectedFontStyle("");
     setFontDetectionError("");
     if (!family) return;
 
@@ -210,6 +212,11 @@ export default function CetakLokal() {
       document.fonts.add(fontFace);
 
       setSelectedFontBytes(bytes);
+      // Simpan varian sesungguhnya yang terpilih (bisa jadi bukan "Regular"
+      // kalau family ini tidak punya varian itu, lihat fallback candidates[0]
+      // di atas), supaya pratinjau canvas bisa mencerminkan bobot font yang
+      // sebenarnya dikirim ke WASM — bukan diasumsikan selalu Regular/400.
+      setSelectedFontStyle(chosen.style || "Regular");
     } catch (err) {
       setFontDetectionError(`Gagal memuat font "${family}": ${err.message}`);
       setSelectedLocalFontFamily("");
@@ -930,6 +937,16 @@ export default function CetakLokal() {
     const warnings = [];
 
     configs.filter((c) => c.enabled).forEach((cfg) => {
+      const targetPage = cfg.page_number || 1;
+      if (targetPage > totalPages) {
+        const label = cfg.static_text !== undefined
+          ? `Teks statis "${cfg.static_text}"`
+          : `Kolom "${cfg.column_name}"`;
+        warnings.push(
+          `${label} menargetkan Halaman ${targetPage}, tapi template hanya punya ${totalPages} halaman — elemen ini akan dilewati saat render.`
+        );
+      }
+
       if (cfg.static_text) {
         const matches = cfg.static_text.match(/\{([^}]+)\}/g);
         if (matches) {
@@ -1049,13 +1066,23 @@ export default function CetakLokal() {
 
       const worker = new Worker(new URL("./pdfWorker.js", import.meta.url));
 
-      worker.postMessage({
-        templateUint8,
-        csvRows,
-        configs: formattedConfigs,
-        chunkSize: 1000,
-        fontBytes: selectedFontBytes || undefined,
-      });
+      // templateUint8 ditransfer (bukan di-copy) karena buffer-nya baru saja
+      // dibuat khusus untuk pengiriman ini dan tidak dipakai lagi di main
+      // thread setelahnya — menghindari duplikasi memori heap untuk PDF
+      // berukuran besar. selectedFontBytes SENGAJA TIDAK ditransfer: ia
+      // adalah state yang dipakai ulang (mis. saat "Pratinjau" diklik lagi),
+      // jadi mentransfernya akan men-detach buffer dan merusak pemakaian
+      // berikutnya.
+      worker.postMessage(
+        {
+          templateUint8,
+          csvRows,
+          configs: formattedConfigs,
+          chunkSize: 1000,
+          fontBytes: selectedFontBytes || undefined,
+        },
+        [templateUint8.buffer]
+      );
 
       worker.onmessage = (e) => {
         const { type, zipBytes, part, progress: workerProgress, error } = e.data;
@@ -1114,6 +1141,16 @@ export default function CetakLokal() {
   const estimatedZipParts = estimatedCertCount > 0 ? Math.ceil(estimatedCertCount / GENERATION_CHUNK_SIZE) : 0;
   const estimatedPerFileBytes = templateFile ? templateFile.size : 0;
   const estimatedTotalBytes = estimatedCertCount * estimatedPerFileBytes;
+
+  // Bobot & gaya font pratinjau harus mencerminkan varian font yang
+  // SEBENARNYA terpilih (lihat handleSelectLocalFont), bukan diasumsikan
+  // selalu "Regular" — supaya preview canvas tidak meleset dari hasil PDF
+  // saat font lokal yang dipilih user ternyata fallback ke varian lain
+  // (mis. Bold/Italic) karena family itu tidak punya varian Regular.
+  const previewFontWeight = selectedLocalFontFamily
+    ? (/bold|black|heavy|semibold/i.test(selectedFontStyle) ? 700 : 400)
+    : 700; // Helvetica-Bold dipakai di sisi Rust saat tanpa font kustom
+  const previewFontStyle = /italic|oblique/i.test(selectedFontStyle) ? "italic" : "normal";
 
   return (
     <div className="h-screen w-screen bg-slate-950 text-slate-100 flex flex-col overflow-hidden font-sans antialiased selection:bg-rose-500/30 selection:text-rose-200">
@@ -1672,7 +1709,7 @@ export default function CetakLokal() {
                         {selectedFontBytes && !isLoadingFontBytes && (
                           <p className="text-[10px] text-emerald-400 mt-1 flex items-center gap-1">
                             <IconCheck className="w-3 h-3 shrink-0" />
-                            "{selectedLocalFontFamily}" Siap digunakan
+                            "{selectedLocalFontFamily}" ({selectedFontStyle || "Regular"}) siap digunakan
                           </p>
                         )}
                       </div>
@@ -1906,7 +1943,8 @@ export default function CetakLokal() {
                         fontKerning: "none",
                         fontVariantLigatures: "none",
                         color: cfg.color || DEFAULT_TEXT_COLOR,
-                        fontWeight: selectedLocalFontFamily ? 400 : 700,
+                        fontWeight: previewFontWeight,
+                        fontStyle: previewFontStyle,
                         fontFamily: selectedLocalFontFamily
                           ? `"${selectedLocalFontFamily}", Helvetica, Arial, sans-serif`
                           : 'Helvetica, Arial, "Liberation Sans", sans-serif',
