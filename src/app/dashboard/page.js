@@ -159,7 +159,7 @@ const ValidationModal = ({ isOpen, warnings, onConfirm, onCancel, isDark }) => {
               Peringatan Validasi
             </h3>
             <p className={`text-xs mt-0.5 font-mono ${isDark ? "text-[#EBE9E4]/70" : "text-[#555555]"}`}>
-              Ditemukan potensi kendala sebelum proses cetak
+              Ditemukan catatan sebelum proses cetak
             </p>
           </div>
         </div>
@@ -203,7 +203,6 @@ const ValidationModal = ({ isOpen, warnings, onConfirm, onCancel, isDark }) => {
     </div>
   );
 };
-
 const TutorialModal = ({ isOpen, onClose, isDark }) => {
   const [currentStep, setCurrentStep] = useState(0);
 
@@ -324,7 +323,6 @@ const TutorialModal = ({ isOpen, onClose, isDark }) => {
     </div>
   );
 };
-
 export default function CetakLokal() {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -367,7 +365,9 @@ export default function CetakLokal() {
   const [sliceStart, setSliceStart] = useState(1);
   const [sliceEnd, setSliceEnd] = useState(1);
 
-  // State Pengelompokan ZIP
+  // Fitur Batas Aman & Deteksi Memori Perangkat
+  const [deviceRamGb, setDeviceRamGb] = useState(8);
+  const [maxCertsPerZip, setMaxCertsPerZip] = useState(1000);
   const [zipGroupingMode, setZipGroupingMode] = useState("chunk");
   const [selectedZipGroupColumn, setSelectedZipGroupColumn] = useState("");
 
@@ -383,7 +383,17 @@ export default function CetakLokal() {
 
   const imageUploadInputRef = useRef(null);
 
+  // Deteksi kapasitas RAM perangkat saat inisialisasi
   useEffect(() => {
+    if (typeof navigator !== "undefined" && navigator.deviceMemory) {
+      const ram = navigator.deviceMemory;
+      setDeviceRamGb(ram);
+      if (ram <= 4) {
+        setMaxCertsPerZip(500); // Batasi 500 berkas per ZIP untuk device RAM 4GB ke bawah
+      } else {
+        setMaxCertsPerZip(1000);
+      }
+    }
     setLocalFontApiSupported(typeof window !== "undefined" && "queryLocalFonts" in window);
   }, []);
 
@@ -808,6 +818,18 @@ export default function CetakLokal() {
         setCsvRows(rows);
         setSliceStart(1);
         setSliceEnd(rows.length);
+
+        // Jika data > 2000 dan RAM rendah, beri tahu pengguna untuk membagi rentang
+        if (rows.length > 2000 && deviceRamGb <= 4) {
+          setSliceMode("custom");
+          setSliceStart(1);
+          setSliceEnd(Math.min(rows.length, 1000));
+          setNotification({
+            show: true,
+            message: `Terdeteksi ${rows.length} data. Mode Rentang otomatis aktif demi stabilitas RAM.`,
+            type: "success",
+          });
+        }
 
         if (results.meta && results.meta.fields) {
           const fields = results.meta.fields;
@@ -1362,6 +1384,13 @@ export default function CetakLokal() {
       warnings.push("Rentang baris yang dipilih tidak memuat data yang valid.");
     }
 
+    // Peringatan otomatis jika batch terlalu besar untuk perangkat
+    if (selectedRows.length > 2500 && deviceRamGb <= 4) {
+      warnings.push(
+        `Anda memproses ${selectedRows.length} baris dengan memori perangkat rendah (${deviceRamGb} GB). Disarankan menggunakan 'Pilih Rentang' bertahap (maks. 1.000 per cetak).`
+      );
+    }
+
     configs
       .filter((c) => c.enabled)
       .forEach((cfg) => {
@@ -1516,7 +1545,9 @@ export default function CetakLokal() {
     const enrichedRows = enrichRowsWithCustomVariables(selectedRows);
     setProgress({ current: 0, total: enrichedRows.length });
 
-    // Susun antrean batch berdasarkan kelompok kolom atau partisi numerik
+    // Batas aman per satu ZIP dari deteksi memori perangkat
+    const CHUNK_LIMIT = Math.max(100, parseInt(maxCertsPerZip, 10) || 1000);
+
     const batchQueue = [];
     if (zipGroupingMode === "column") {
       const groups = {};
@@ -1529,19 +1560,32 @@ export default function CetakLokal() {
         groups[groupKey].push({ row, globalIndex: offset + idx + 1 });
       });
 
+      // Pecah tiap prodi/kategori menjadi sub-part jika melebihi CHUNK_LIMIT
       Object.entries(groups).forEach(([groupName, items]) => {
-        batchQueue.push({
-          groupName: sanitizeName(groupName),
-          rows: items.map((it) => it.row),
-          startOffset: items[0].globalIndex - 1,
-        });
+        const cleanGroupName = sanitizeName(groupName);
+        if (items.length <= CHUNK_LIMIT) {
+          batchQueue.push({
+            groupName: cleanGroupName,
+            rows: items.map((it) => it.row),
+            startOffset: items[0].globalIndex - 1,
+          });
+        } else {
+          for (let p = 0; p < items.length; p += CHUNK_LIMIT) {
+            const subItems = items.slice(p, p + CHUNK_LIMIT);
+            const partIdx = Math.floor(p / CHUNK_LIMIT) + 1;
+            batchQueue.push({
+              groupName: `${cleanGroupName}_part_${partIdx}`,
+              rows: subItems.map((it) => it.row),
+              startOffset: subItems[0].globalIndex - 1,
+            });
+          }
+        }
       });
     } else {
-      const CHUNK_SIZE = 1000;
-      for (let i = 0; i < enrichedRows.length; i += CHUNK_SIZE) {
+      for (let i = 0; i < enrichedRows.length; i += CHUNK_LIMIT) {
         batchQueue.push({
-          groupName: `part_${Math.floor(i / CHUNK_SIZE) + 1}`,
-          rows: enrichedRows.slice(i, i + CHUNK_SIZE),
+          groupName: `part_${Math.floor(i / CHUNK_LIMIT) + 1}`,
+          rows: enrichedRows.slice(i, i + CHUNK_LIMIT),
           startOffset: offset + i,
         });
       }
@@ -1616,10 +1660,10 @@ export default function CetakLokal() {
     );
   }
 
-  const GENERATION_CHUNK_SIZE = 1000;
   const targetData = getTargetRows();
   const estimatedCertCount = targetData.rows.length;
-  const estimatedZipParts = estimatedCertCount > 0 ? Math.ceil(estimatedCertCount / GENERATION_CHUNK_SIZE) : 0;
+  const CHUNK_LIMIT_COUNT = Math.max(100, parseInt(maxCertsPerZip, 10) || 1000);
+  const estimatedZipParts = estimatedCertCount > 0 ? Math.ceil(estimatedCertCount / CHUNK_LIMIT_COUNT) : 0;
   const estimatedPerFileBytes = templateFile ? templateFile.size : 0;
   const estimatedTotalBytes = estimatedCertCount * estimatedPerFileBytes;
 
@@ -2604,9 +2648,15 @@ export default function CetakLokal() {
                     isDark ? "bg-[#111111] border-[#333333]" : "bg-[#F7F6F3] border-[#CCCCCC]"
                   }`}
                 >
-                  <label className={`block text-[10px] font-mono uppercase font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
-                    Pengelompokan Berkas ZIP
-                  </label>
+                  <div className="flex items-center justify-between">
+                    <label className={`text-[10px] font-mono uppercase font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
+                      Pengelompokan Berkas ZIP
+                    </label>
+                    <span className={`text-[9px] font-mono ${deviceRamGb <= 4 ? "text-[#B3261E] font-bold" : "text-[#888888]"}`}>
+                      RAM: ~{deviceRamGb} GB
+                    </span>
+                  </div>
+
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
@@ -2619,7 +2669,7 @@ export default function CetakLokal() {
                           : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
                       }`}
                     >
-                      Per 1.000 Berkas
+                      Berdasarkan Jumlah
                     </button>
                     <button
                       type="button"
@@ -2667,6 +2717,31 @@ export default function CetakLokal() {
                       </select>
                     </div>
                   )}
+
+                  {/* Batas Maksimum Berkas per ZIP (Sub-chunking) */}
+                  <div className="pt-1 border-t border-dashed border-[#444444]/40">
+                    <div className="flex justify-between items-center mb-1">
+                      <label className={`text-[9px] font-mono uppercase font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
+                        Batas Maksimum per 1 Berkas ZIP
+                      </label>
+                      <span className="text-[10px] font-mono font-bold text-[#0000EE]">{maxCertsPerZip} Berkas</span>
+                    </div>
+                    <select
+                      value={maxCertsPerZip}
+                      onChange={(e) => setMaxCertsPerZip(Number(e.target.value))}
+                      className={`w-full p-1.5 text-xs font-mono font-bold rounded border ${
+                        isDark ? "bg-[#181818] text-[#FFFFFF] border-[#444444]" : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
+                      }`}
+                    >
+                      <option value={250}>250 Berkas (Sangat Aman / HP & Laptop Hemat RAM)</option>
+                      <option value={500}>500 Berkas (Aman / RAM 4GB)</option>
+                      <option value={1000}>1.000 Berkas (Standar / RAM 8GB+)</option>
+                      <option value={1500}>1.500 Berkas (Kapasitas Besar)</option>
+                    </select>
+                    <p className={`text-[9px] font-mono mt-1 ${isDark ? "text-[#888888]" : "text-[#666666]"}`}>
+                      Jika 1 prodi memuat lebih dari batas ini, arsip otomatis dipecah menjadi beberapa bagian (part 1, part 2, dst).
+                    </p>
+                  </div>
                 </div>
 
                 {csvRows.length > 0 && (
@@ -2675,9 +2750,17 @@ export default function CetakLokal() {
                       isDark ? "bg-[#111111] border-[#333333]" : "bg-[#F7F6F3] border-[#CCCCCC]"
                     }`}
                   >
-                    <label className={`block text-[10px] font-mono uppercase font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
-                      Rentang Baris Data
-                    </label>
+                    <div className="flex items-center justify-between">
+                      <label className={`text-[10px] font-mono uppercase font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
+                        Rentang Baris Data
+                      </label>
+                      {csvRows.length > 2000 && (
+                        <span className="text-[9px] font-mono text-[#B3261E] font-bold">
+                          [ Data Masif: {csvRows.length} ]
+                        </span>
+                      )}
+                    </div>
+
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         type="button"
@@ -2824,7 +2907,7 @@ export default function CetakLokal() {
                       >
                         <div className={`text-[10px] font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>Arsip ZIP</div>
                         <div className={`font-bold mt-1 ${isDark ? "text-[#FFFFFF]" : "text-[#111111]"}`}>
-                          {zipGroupingMode === "column" ? "Dinamis (Per Nilai)" : `${estimatedZipParts} Bagian`}
+                          {zipGroupingMode === "column" ? "Dinamis (Per Kolom)" : `${estimatedZipParts} Bagian`}
                         </div>
                       </div>
                       <div
