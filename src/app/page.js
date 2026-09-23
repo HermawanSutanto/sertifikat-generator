@@ -394,7 +394,7 @@ export default function LandingPage() {
 
       {/* Header Utama dengan Link Lengkap */}
       <header className="sticky top-0 z-40 bg-[#EBE9E4]/95 border-b border-[#111111] backdrop-blur-sm transition-all">
-        <div className="max-w-[1440px] mx-auto px-6 md:px-12 h-20 flex justify-between items-center">
+        <div className="max-w-[1440px] mx-auto px-3 md:px-6 h-15 flex justify-between items-center">
           <Link
             href="/"
             className="text-2xl font-bold uppercase tracking-tight text-[#111111] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0000EE]"
@@ -432,7 +432,7 @@ export default function LandingPage() {
 
       <main id="main-content">
         {/* HERO SECTION: Poster Editorial + Live Simulator Studio */}
-        <section className="pt-16 pb-20 md:pt-24 md:pb-28 px-6 md:px-12 border-b border-[#111111]">
+        <section className="pt-8 pb-20 md:pt-12 md:pb-28 px-6 md:px-12 border-b border-[#111111]">
           <div className="max-w-[1440px] mx-auto grid lg:grid-cols-12 gap-12 items-start">
             
             <div className="lg:col-span-7 flex flex-col">
