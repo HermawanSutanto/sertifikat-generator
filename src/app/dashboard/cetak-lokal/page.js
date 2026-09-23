@@ -253,6 +253,25 @@ export default function CetakLokal() {
 
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
+  const stageScrollRef = useRef(null);
+  const [zoomLevel, setZoomLevel] = useState(1);
+
+  const ZOOM_MIN = 0.25;
+  const ZOOM_MAX = 2;
+  const ZOOM_STEP = 0.1;
+
+  const clampZoom = (z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, z));
+  const handleZoomIn = () => setZoomLevel((z) => clampZoom(Math.round((z + ZOOM_STEP) * 100) / 100));
+  const handleZoomOut = () => setZoomLevel((z) => clampZoom(Math.round((z - ZOOM_STEP) * 100) / 100));
+  const handleZoomReset = () => setZoomLevel(1);
+
+  // Zoom dengan Ctrl/Cmd + scroll (termasuk pinch-to-zoom trackpad, yang di
+  // Chrome/Firefox terkirim sebagai wheel event dengan ctrlKey true).
+  const handleStageWheel = (e) => {
+    if (!(e.ctrlKey || e.metaKey)) return;
+    e.preventDefault();
+    setZoomLevel((z) => clampZoom(Math.round((z - e.deltaY * 0.001) * 100) / 100));
+  };
 
   useEffect(() => {
     if (notification.show) {
@@ -1189,7 +1208,9 @@ export default function CetakLokal() {
             {isProcessing ? (
               <>
                 <Spinner className="w-3.5 h-3.5" />
-                <span>Memproses...</span>
+                <span>
+                  {progress ? `Memproses ${progress.current}/${progress.total}...` : "Memproses..."}
+                </span>
               </>
             ) : (
               <>
@@ -1210,6 +1231,27 @@ export default function CetakLokal() {
           </Link>
         </div>
       </header>
+
+      {/* STRIP PROGRESS PROSES CETAK */}
+      {isProcessing && (
+        <div className="h-6 bg-slate-950 border-b border-slate-800/80 px-4 flex items-center gap-3 shrink-0 z-20">
+          <div className="flex-1 h-1.5 bg-slate-900 rounded-full overflow-hidden">
+            <div
+              className="h-full bg-gradient-to-r from-rose-600 to-rose-400 transition-[width] duration-200 ease-out"
+              style={{
+                width: progress && progress.total > 0
+                  ? `${Math.min(100, Math.round((progress.current / progress.total) * 100))}%`
+                  : "8%",
+              }}
+            />
+          </div>
+          <span className="text-[10px] font-medium text-slate-400 tabular-nums shrink-0">
+            {progress && progress.total > 0
+              ? `${progress.current}/${progress.total} (${Math.min(100, Math.round((progress.current / progress.total) * 100))}%)`
+              : "Menyiapkan..."}
+          </span>
+        </div>
+      )}
 
       {/* STUDIO BODY WORKSPACE */}
       <div className="flex-1 flex overflow-hidden">
@@ -1721,37 +1763,87 @@ export default function CetakLokal() {
         </div>
 
         {/* 3. WORKSPACE CANVAS STAGE */}
-        <div className="flex-1 bg-slate-950 p-6 flex flex-col items-center justify-start overflow-auto relative bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:16px_16px]">
+        <div
+          ref={stageScrollRef}
+          onWheel={handleStageWheel}
+          className="flex-1 bg-slate-950 p-6 flex flex-col items-center justify-start overflow-auto relative bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:16px_16px]"
+        >
           
           {/* Top Canvas Toolbar */}
           <div className="w-full max-w-4xl flex items-center justify-between mb-3 text-xs text-slate-400">
             <span className="text-[11px] text-slate-400">
               Geser elemen teks di atas canvas untuk mengatur tata letak
             </span>
-            {totalPages > 1 && (
-              <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 px-2 py-1 rounded-lg">
-                <span className="text-[11px] mr-1">Halaman:</span>
-                {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
-                  <button
-                    key={pageNum}
-                    onClick={() => setCurrentPage(pageNum)}
-                    className={`px-2 py-0.5 text-xs rounded transition-colors ${
-                      currentPage === pageNum ? "bg-rose-700 text-white font-medium" : "text-slate-400 hover:text-white"
-                    }`}
-                  >
-                    {pageNum}
-                  </button>
-                ))}
+            <div className="flex items-center gap-2">
+              {totalPages > 1 && (
+                <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 px-2 py-1 rounded-lg">
+                  <span className="text-[11px] mr-1">Halaman:</span>
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
+                    <button
+                      key={pageNum}
+                      onClick={() => setCurrentPage(pageNum)}
+                      className={`px-2 py-0.5 text-xs rounded transition-colors ${
+                        currentPage === pageNum ? "bg-rose-700 text-white font-medium" : "text-slate-400 hover:text-white"
+                      }`}
+                    >
+                      {pageNum}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {/* Kontrol Zoom */}
+              <div className="flex items-center gap-0.5 bg-slate-900 border border-slate-800 px-1 py-1 rounded-lg">
+                <button
+                  type="button"
+                  onClick={handleZoomOut}
+                  disabled={zoomLevel <= ZOOM_MIN}
+                  title="Perkecil"
+                  className="w-6 h-6 flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-800 rounded transition-colors disabled:opacity-30"
+                >
+                  −
+                </button>
+                <button
+                  type="button"
+                  onClick={handleZoomReset}
+                  title="Reset ke 100%"
+                  className="px-1.5 h-6 min-w-[3.2rem] text-[11px] font-medium text-slate-300 hover:text-white hover:bg-slate-800 rounded transition-colors tabular-nums"
+                >
+                  {Math.round(zoomLevel * 100)}%
+                </button>
+                <button
+                  type="button"
+                  onClick={handleZoomIn}
+                  disabled={zoomLevel >= ZOOM_MAX}
+                  title="Perbesar"
+                  className="w-6 h-6 flex items-center justify-center text-slate-300 hover:text-white hover:bg-slate-800 rounded transition-colors disabled:opacity-30"
+                >
+                  +
+                </button>
               </div>
-            )}
+            </div>
           </div>
 
-          {/* Canvas Container */}
+          {/* Pembungkus ukuran untuk area scroll: dimensinya mengikuti hasil
+              zoom supaya overflow-auto pada stage tahu batas scroll yang
+              sebenarnya (CSS transform tidak mengubah ukuran layout). */}
           <div
-            ref={containerRef}
-            className="relative bg-white shadow-xl rounded overflow-hidden shrink-0 border border-slate-800"
-            style={{ width: pdfPreviewSize.width, height: pdfPreviewSize.height }}
+            style={{
+              width: pdfPreviewSize.width * zoomLevel,
+              height: pdfPreviewSize.height * zoomLevel,
+            }}
+            className="shrink-0"
           >
+            {/* Canvas Container */}
+            <div
+              ref={containerRef}
+              className="relative bg-white shadow-xl rounded overflow-hidden shrink-0 border border-slate-800 origin-top-left"
+              style={{
+                width: pdfPreviewSize.width,
+                height: pdfPreviewSize.height,
+                transform: `scale(${zoomLevel})`,
+              }}
+            >
             <canvas ref={canvasRef} className="absolute top-0 left-0 z-0 pointer-events-none" />
 
             {/* Snap Guides */}
@@ -1780,6 +1872,7 @@ export default function CetakLokal() {
                   <Rnd
                     key={cfg.column_name}
                     bounds="parent"
+                    scale={zoomLevel}
                     size={{ width: cfg.max_width, height: cfg.font_size * 1.2 }}
                     enableResizing={{ left: true, right: true }}
                     position={{ x: cfg.x, y: cfg.y }}
@@ -1825,6 +1918,7 @@ export default function CetakLokal() {
                 );
               })}
           </div>
+          </div>
         </div>
       </div>
 
@@ -1843,7 +1937,13 @@ export default function CetakLokal() {
         </div>
 
         <div className="flex items-center gap-3">
-          <span>Worker Engine: <strong className="text-emerald-400 font-medium">Siap</strong></span>
+          <span>Worker Engine: <strong className={isProcessing ? "text-rose-400 font-medium" : "text-emerald-400 font-medium"}>
+            {isProcessing
+              ? (progress && progress.total > 0
+                  ? `Memproses ${progress.current}/${progress.total}`
+                  : "Memproses...")
+              : "Siap"}
+          </strong></span>
           <span className="text-slate-800">|</span>
           <span>Estimasi Output: <strong className="text-rose-400 font-medium">≈ {formatBytes(estimatedTotalBytes)}</strong></span>
         </div>
