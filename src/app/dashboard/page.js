@@ -159,7 +159,7 @@ const ValidationModal = ({ isOpen, warnings, onConfirm, onCancel, isDark }) => {
               Peringatan Validasi
             </h3>
             <p className={`text-xs mt-0.5 font-mono ${isDark ? "text-[#EBE9E4]/70" : "text-[#555555]"}`}>
-              Ditemukan catatan sebelum proses cetak
+              Ditemukan potensi kendala sebelum proses cetak
             </p>
           </div>
         </div>
@@ -198,6 +198,127 @@ const ValidationModal = ({ isOpen, warnings, onConfirm, onCancel, isDark }) => {
           >
             Lanjutkan Cetak
           </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const TutorialModal = ({ isOpen, onClose, isDark }) => {
+  const [currentStep, setCurrentStep] = useState(0);
+
+  if (!isOpen) return null;
+
+  const steps = [
+    {
+      title: "1. Pemilihan Template & Data Peserta",
+      tab: "Berkas",
+      desc: "Buka panel 'Berkas' di bilah kiri. Anda dapat langsung memilih salah satu Template Bawaan yang sudah dilengkapi tata letak bawaan, atau mengunggah template PDF sendiri beserta file CSV peserta.",
+    },
+    {
+      title: "2. Menambahkan Elemen Desain",
+      tab: "Elemen",
+      desc: "Tersedia tiga jenis elemen yang dapat dipasang di kanvas:\n• Teks Statis: Label tetap dengan dukungan placeholder (contoh: {Nama})\n• Teks Variabel: Variabel mandiri berisi daftar nilai yang dipisahkan koma\n• Gambar: Logo atau tanda tangan (PNG/JPG) yang ditempelkan di atas sertifikat",
+    },
+    {
+      title: "3. Cara Kerja Teks Variabel",
+      tab: "Variabel",
+      desc: "Teks Variabel memungkinkan Anda membuat kolom baru secara fleksibel:\n• Tentukan nama variabel (contoh: 'prodi') dan daftarnya (contoh: 'Informatika, Elektro, Mesin').\n• Jika jumlah kata sama persis dengan baris peserta, nilainya akan diisi berurutan per peserta.\n• Jika jumlahnya berbeda, sistem otomatis memakai nilai pertama untuk semua peserta.",
+    },
+    {
+      title: "4. Pengelompokan Berkas ZIP",
+      tab: "Pengelompokan",
+      desc: "Di tab 'Preset', Anda dapat memilih cara pemecahan arsip ZIP:\n• Per 1.000 Berkas: Memecah arsip ZIP tiap kuota 1.000 peserta.\n• Berdasarkan Kolom: Memecah arsip ZIP per kategori otomatis (misal: arsip dipisah per Prodi, Kelas, atau Divisi).",
+    },
+    {
+      title: "5. Tipografi & Pintasan Kanvas",
+      tab: "Shortcut",
+      desc: "Navigasi cepat di kanvas:\n• Tombol Panah: Menggeser posisi elemen 1pt (tahan Shift untuk 10pt)\n• Ctrl/Cmd + D: Duplikat elemen aktif\n• Delete / Backspace: Sembunyikan elemen aktif\n• Ctrl/Cmd + Z / Y: Urungkan (Undo) atau Ulangi (Redo)",
+    },
+  ];
+
+  return (
+    <div className="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-4">
+      <div
+        className={`border-2 rounded-[4px] max-w-lg w-full p-6 space-y-5 shadow-2xl transition-colors ${
+          isDark ? "bg-[#111111] border-[#FFFFFF]" : "bg-[#FFFFFF] border-[#111111]"
+        }`}
+      >
+        <div className="flex items-center justify-between border-b pb-3">
+          <div className="flex items-center gap-2">
+            <span className="p-1.5 bg-[#0000EE]/10 text-[#0000EE] border border-[#0000EE] rounded-[2px]">
+              <IconHelp className="w-4 h-4" />
+            </span>
+            <h3 className={`text-sm font-mono font-bold uppercase tracking-wider ${isDark ? "text-[#FFFFFF]" : "text-[#111111]"}`}>
+              [ PANDUAN PENGGUNAAN STUDIO ]
+            </h3>
+          </div>
+          <span className={`text-xs font-mono font-bold ${isDark ? "text-[#888888]" : "text-[#777777]"}`}>
+            {currentStep + 1} / {steps.length}
+          </span>
+        </div>
+
+        <div className="space-y-3 min-h-[155px]">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-[2px] bg-[#0000EE] text-white font-bold">
+              {steps[currentStep].tab}
+            </span>
+            <h4 className={`text-xs font-mono font-bold uppercase ${isDark ? "text-[#FFFFFF]" : "text-[#111111]"}`}>
+              {steps[currentStep].title}
+            </h4>
+          </div>
+          <p className={`text-xs font-mono leading-relaxed whitespace-pre-line ${isDark ? "text-[#EBE9E4]/85" : "text-[#444444]"}`}>
+            {steps[currentStep].desc}
+          </p>
+        </div>
+
+        <div className="flex items-center justify-center gap-1.5 py-1">
+          {steps.map((_, idx) => (
+            <button
+              key={idx}
+              onClick={() => setCurrentStep(idx)}
+              className={`h-1.5 rounded-none transition-all ${
+                currentStep === idx
+                  ? "w-6 bg-[#0000EE]"
+                  : isDark
+                  ? "w-2 bg-[#333333] hover:bg-[#555555]"
+                  : "w-2 bg-[#CCCCCC] hover:bg-[#999999]"
+              }`}
+              title={`Langkah ${idx + 1}`}
+            />
+          ))}
+        </div>
+
+        <div className={`flex items-center justify-between pt-3 border-t ${isDark ? "border-[#333333]" : "border-[#E5E7EB]"}`}>
+          <button
+            onClick={() => setCurrentStep((prev) => Math.max(0, prev - 1))}
+            disabled={currentStep === 0}
+            className={`px-3 py-1.5 text-xs font-mono uppercase font-bold rounded-[2px] border transition-colors disabled:opacity-20 ${
+              isDark
+                ? "bg-[#222222] text-[#FFFFFF] border-[#444444] hover:bg-[#333333]"
+                : "bg-[#EBE9E4] text-[#111111] border-[#CCCCCC] hover:bg-[#DDDCD7]"
+            }`}
+          >
+            ← Kembali
+          </button>
+
+          <div className="flex items-center gap-2">
+            {currentStep < steps.length - 1 ? (
+              <button
+                onClick={() => setCurrentStep((prev) => Math.min(steps.length - 1, prev + 1))}
+                className="px-4 py-1.5 text-xs font-mono uppercase font-bold text-white bg-[#0000EE] hover:bg-[#0000EE]/85 rounded-[2px] border border-[#0000EE] transition-colors"
+              >
+                Lanjut →
+              </button>
+            ) : (
+              <button
+                onClick={onClose}
+                className="px-4 py-1.5 text-xs font-mono uppercase font-bold text-white bg-[#0000EE] hover:bg-[#0000EE]/85 rounded-[2px] border border-[#0000EE] transition-colors"
+              >
+                Mulai Studio
+              </button>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -246,9 +367,7 @@ export default function CetakLokal() {
   const [sliceStart, setSliceStart] = useState(1);
   const [sliceEnd, setSliceEnd] = useState(1);
 
-  // Fitur Batas Aman & Deteksi Memori Perangkat
-  const [deviceRamGb, setDeviceRamGb] = useState(8);
-  const [maxCertsPerZip, setMaxCertsPerZip] = useState(1000);
+  // State Pengelompokan ZIP
   const [zipGroupingMode, setZipGroupingMode] = useState("chunk");
   const [selectedZipGroupColumn, setSelectedZipGroupColumn] = useState("");
 
@@ -264,17 +383,7 @@ export default function CetakLokal() {
 
   const imageUploadInputRef = useRef(null);
 
-  // Deteksi kapasitas RAM perangkat saat inisialisasi
   useEffect(() => {
-    if (typeof navigator !== "undefined" && navigator.deviceMemory) {
-      const ram = navigator.deviceMemory;
-      setDeviceRamGb(ram);
-      if (ram <= 4) {
-        setMaxCertsPerZip(500); // Batasi 500 berkas per ZIP untuk device RAM 4GB ke bawah
-      } else {
-        setMaxCertsPerZip(1000);
-      }
-    }
     setLocalFontApiSupported(typeof window !== "undefined" && "queryLocalFonts" in window);
   }, []);
 
@@ -699,18 +808,6 @@ export default function CetakLokal() {
         setCsvRows(rows);
         setSliceStart(1);
         setSliceEnd(rows.length);
-
-        // Jika data > 2000 dan RAM rendah, beri tahu pengguna untuk membagi rentang
-        if (rows.length > 2000 && deviceRamGb <= 4) {
-          setSliceMode("custom");
-          setSliceStart(1);
-          setSliceEnd(Math.min(rows.length, 1000));
-          setNotification({
-            show: true,
-            message: `Terdeteksi ${rows.length} data. Mode Rentang otomatis aktif demi stabilitas RAM.`,
-            type: "success",
-          });
-        }
 
         if (results.meta && results.meta.fields) {
           const fields = results.meta.fields;
@@ -1265,13 +1362,6 @@ export default function CetakLokal() {
       warnings.push("Rentang baris yang dipilih tidak memuat data yang valid.");
     }
 
-    // Peringatan otomatis jika batch terlalu besar untuk perangkat
-    if (selectedRows.length > 2500 && deviceRamGb <= 4) {
-      warnings.push(
-        `Anda memproses ${selectedRows.length} baris dengan memori perangkat rendah (${deviceRamGb} GB). Disarankan menggunakan 'Pilih Rentang' bertahap (maks. 1.000 per cetak).`
-      );
-    }
-
     configs
       .filter((c) => c.enabled)
       .forEach((cfg) => {
@@ -1426,9 +1516,7 @@ export default function CetakLokal() {
     const enrichedRows = enrichRowsWithCustomVariables(selectedRows);
     setProgress({ current: 0, total: enrichedRows.length });
 
-    // Batas aman per satu ZIP dari deteksi memori perangkat
-    const CHUNK_LIMIT = Math.max(100, parseInt(maxCertsPerZip, 10) || 1000);
-
+    // Susun antrean batch berdasarkan kelompok kolom atau partisi numerik
     const batchQueue = [];
     if (zipGroupingMode === "column") {
       const groups = {};
@@ -1441,32 +1529,19 @@ export default function CetakLokal() {
         groups[groupKey].push({ row, globalIndex: offset + idx + 1 });
       });
 
-      // Pecah tiap prodi/kategori menjadi sub-part jika melebihi CHUNK_LIMIT
       Object.entries(groups).forEach(([groupName, items]) => {
-        const cleanGroupName = sanitizeName(groupName);
-        if (items.length <= CHUNK_LIMIT) {
-          batchQueue.push({
-            groupName: cleanGroupName,
-            rows: items.map((it) => it.row),
-            startOffset: items[0].globalIndex - 1,
-          });
-        } else {
-          for (let p = 0; p < items.length; p += CHUNK_LIMIT) {
-            const subItems = items.slice(p, p + CHUNK_LIMIT);
-            const partIdx = Math.floor(p / CHUNK_LIMIT) + 1;
-            batchQueue.push({
-              groupName: `${cleanGroupName}_part_${partIdx}`,
-              rows: subItems.map((it) => it.row),
-              startOffset: subItems[0].globalIndex - 1,
-            });
-          }
-        }
+        batchQueue.push({
+          groupName: sanitizeName(groupName),
+          rows: items.map((it) => it.row),
+          startOffset: items[0].globalIndex - 1,
+        });
       });
     } else {
-      for (let i = 0; i < enrichedRows.length; i += CHUNK_LIMIT) {
+      const CHUNK_SIZE = 1000;
+      for (let i = 0; i < enrichedRows.length; i += CHUNK_SIZE) {
         batchQueue.push({
-          groupName: `part_${Math.floor(i / CHUNK_LIMIT) + 1}`,
-          rows: enrichedRows.slice(i, i + CHUNK_LIMIT),
+          groupName: `part_${Math.floor(i / CHUNK_SIZE) + 1}`,
+          rows: enrichedRows.slice(i, i + CHUNK_SIZE),
           startOffset: offset + i,
         });
       }
@@ -1541,10 +1616,10 @@ export default function CetakLokal() {
     );
   }
 
+  const GENERATION_CHUNK_SIZE = 1000;
   const targetData = getTargetRows();
   const estimatedCertCount = targetData.rows.length;
-  const CHUNK_LIMIT_COUNT = Math.max(100, parseInt(maxCertsPerZip, 10) || 1000);
-  const estimatedZipParts = estimatedCertCount > 0 ? Math.ceil(estimatedCertCount / CHUNK_LIMIT_COUNT) : 0;
+  const estimatedZipParts = estimatedCertCount > 0 ? Math.ceil(estimatedCertCount / GENERATION_CHUNK_SIZE) : 0;
   const estimatedPerFileBytes = templateFile ? templateFile.size : 0;
   const estimatedTotalBytes = estimatedCertCount * estimatedPerFileBytes;
 
@@ -2529,15 +2604,9 @@ export default function CetakLokal() {
                     isDark ? "bg-[#111111] border-[#333333]" : "bg-[#F7F6F3] border-[#CCCCCC]"
                   }`}
                 >
-                  <div className="flex items-center justify-between">
-                    <label className={`text-[10px] font-mono uppercase font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
-                      Pengelompokan Berkas ZIP
-                    </label>
-                    <span className={`text-[9px] font-mono ${deviceRamGb <= 4 ? "text-[#B3261E] font-bold" : "text-[#888888]"}`}>
-                      RAM: ~{deviceRamGb} GB
-                    </span>
-                  </div>
-
+                  <label className={`block text-[10px] font-mono uppercase font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
+                    Pengelompokan Berkas ZIP
+                  </label>
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
@@ -2550,7 +2619,7 @@ export default function CetakLokal() {
                           : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
                       }`}
                     >
-                      Berdasarkan Jumlah
+                      Per 1.000 Berkas
                     </button>
                     <button
                       type="button"
@@ -2598,31 +2667,6 @@ export default function CetakLokal() {
                       </select>
                     </div>
                   )}
-
-                  {/* Batas Maksimum Berkas per ZIP (Sub-chunking) */}
-                  <div className="pt-1 border-t border-dashed border-[#444444]/40">
-                    <div className="flex justify-between items-center mb-1">
-                      <label className={`text-[9px] font-mono uppercase font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
-                        Batas Maksimum per 1 Berkas ZIP
-                      </label>
-                      <span className="text-[10px] font-mono font-bold text-[#0000EE]">{maxCertsPerZip} Berkas</span>
-                    </div>
-                    <select
-                      value={maxCertsPerZip}
-                      onChange={(e) => setMaxCertsPerZip(Number(e.target.value))}
-                      className={`w-full p-1.5 text-xs font-mono font-bold rounded border ${
-                        isDark ? "bg-[#181818] text-[#FFFFFF] border-[#444444]" : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
-                      }`}
-                    >
-                      <option value={250}>250 Berkas (Sangat Aman / HP & Laptop Hemat RAM)</option>
-                      <option value={500}>500 Berkas (Aman / RAM 4GB)</option>
-                      <option value={1000}>1.000 Berkas (Standar / RAM 8GB+)</option>
-                      <option value={1500}>1.500 Berkas (Kapasitas Besar)</option>
-                    </select>
-                    <p className={`text-[9px] font-mono mt-1 ${isDark ? "text-[#888888]" : "text-[#666666]"}`}>
-                      Jika 1 prodi memuat lebih dari batas ini, arsip otomatis dipecah menjadi beberapa bagian (part 1, part 2, dst).
-                    </p>
-                  </div>
                 </div>
 
                 {csvRows.length > 0 && (
@@ -2631,17 +2675,9 @@ export default function CetakLokal() {
                       isDark ? "bg-[#111111] border-[#333333]" : "bg-[#F7F6F3] border-[#CCCCCC]"
                     }`}
                   >
-                    <div className="flex items-center justify-between">
-                      <label className={`text-[10px] font-mono uppercase font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
-                        Rentang Baris Data
-                      </label>
-                      {csvRows.length > 2000 && (
-                        <span className="text-[9px] font-mono text-[#B3261E] font-bold">
-                          [ Data Masif: {csvRows.length} ]
-                        </span>
-                      )}
-                    </div>
-
+                    <label className={`block text-[10px] font-mono uppercase font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
+                      Rentang Baris Data
+                    </label>
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         type="button"
@@ -2788,7 +2824,7 @@ export default function CetakLokal() {
                       >
                         <div className={`text-[10px] font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>Arsip ZIP</div>
                         <div className={`font-bold mt-1 ${isDark ? "text-[#FFFFFF]" : "text-[#111111]"}`}>
-                          {zipGroupingMode === "column" ? "Dinamis (Per Kolom)" : `${estimatedZipParts} Bagian`}
+                          {zipGroupingMode === "column" ? "Dinamis (Per Nilai)" : `${estimatedZipParts} Bagian`}
                         </div>
                       </div>
                       <div
