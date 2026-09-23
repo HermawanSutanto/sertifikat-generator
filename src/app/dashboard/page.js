@@ -15,6 +15,22 @@ import {
   clearAutosave,
 } from "./idbStorage";
 
+// Daftar Template Bawaan dari folder public
+const BUILT_IN_TEMPLATES = [
+  {
+    id: "default",
+    name: "Template Bawaan (Default)",
+    pdfPath: "/templates/default_template.pdf",
+    layoutPath: null,
+  },
+  {
+    id: "template1",
+    name: "Template Sertifikat 1",
+    pdfPath: "/templates/Template 1.pdf",
+    layoutPath: "/layout-templates/preset1.json",
+  },
+];
+
 const Spinner = ({ className = "w-3.5 h-3.5 text-current", ...props }) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className={className} {...props}>
     <path fill="currentColor" d="M12,23a9.63,9.63,0,0,1-8-9.5,9.51,9.51,0,0,1,6.79-9.1A1,1,0,0,1,12,5.19a8.4,8.4,0,0,0-6.1,8.31,8.44,8.44,0,0,0,8.38,8.38A1,1,0,0,1,12,23Z">
@@ -179,7 +195,7 @@ const TutorialModal = ({ isOpen, onClose, isDark }) => {
     {
       title: "1. Unggah Berkas & Optimasi",
       tab: "Berkas",
-      desc: "Buka panel 'Berkas' di bilah kiri. Masukkan file CSV data peserta dan PDF template sertifikat Anda. Anda dapat mengatur skala kompresi template agar ukuran arsip ZIP tidak membengkak saat dicetak massal.",
+      desc: "Buka panel 'Berkas' di bilah kiri. Pilih salah satu Template Bawaan atau unggah file CSV dan PDF sertifikat Anda sendiri. Anda dapat mengatur skala kompresi template agar ukuran arsip ZIP tidak membengkak saat dicetak massal.",
     },
     {
       title: "2. Tata Letak & Tipografi",
@@ -238,7 +254,6 @@ const TutorialModal = ({ isOpen, onClose, isDark }) => {
           </p>
         </div>
 
-        {/* Indikator Langkah */}
         <div className="flex items-center justify-center gap-1.5 py-1">
           {steps.map((_, idx) => (
             <button
@@ -296,7 +311,6 @@ export default function CetakLokal() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
-  // Mode Terang / Gelap State (Default: Terang, tersimpan di localStorage)
   const [themeMode, setThemeMode] = useState("light");
   const isDark = themeMode === "dark";
 
@@ -327,6 +341,10 @@ export default function CetakLokal() {
   const [compressionScale, setCompressionScale] = useState(1.5);
   const [compressionQuality, setCompressionQuality] = useState(0.8);
   const [isRecompressing, setIsRecompressing] = useState(false);
+
+  // State Template Bawaan
+  const [selectedBuiltInTemplateId, setSelectedBuiltInTemplateId] = useState("");
+  const [isLoadingBuiltIn, setIsLoadingBuiltIn] = useState(false);
 
   // Custom Filename Pattern & Range Slicing State
   const [filenamePattern, setFilenamePattern] = useState("sertifikat_{Nama}_{index}");
@@ -656,6 +674,103 @@ export default function CetakLokal() {
     });
   };
 
+  const processAndSetPdfTemplate = async (file) => {
+    setOriginalTemplateRawFile(file);
+    setOriginalTemplateSize(file.size);
+
+    try {
+      const compressedFile = await compressPdfTemplate(file, compressionScale, compressionQuality);
+      setTemplateFile(compressedFile);
+      const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf");
+      pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/legacy/build/pdf.worker.min.mjs`;
+
+      const arrayBuffer = await file.arrayBuffer();
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      setPdfDoc(pdf);
+      setTotalPages(pdf.numPages);
+      setCurrentPage(1);
+
+      const sizes = {};
+      for (let p = 1; p <= pdf.numPages; p++) {
+        const pg = await pdf.getPage(p);
+        const vp = pg.getViewport({ scale: 1.0 });
+        sizes[p] = { width: vp.width, height: vp.height };
+      }
+      setPageSizes(sizes);
+
+      try {
+        await idbSet(AUTOSAVE_KEYS.TEMPLATE, compressedFile);
+        await saveAutosaveMeta({ templateName: file.name, templateSize: compressedFile.size });
+      } catch (err) {
+        console.error("Gagal autosave template:", err);
+        setNotification({ show: true, message: "Autosave template gagal.", type: "error" });
+      }
+    } catch (err) {
+      console.error("Gagal memuat PDF:", err);
+      setNotification({ show: true, message: `Gagal memuat PDF: ${err.message}`, type: "error" });
+    }
+  };
+
+  const handleTemplateChange = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setSelectedBuiltInTemplateId("");
+    await processAndSetPdfTemplate(file);
+  };
+
+  // Fungsi memuat template bawaan dari direktori /public
+  const handleSelectBuiltInTemplate = async (templateId) => {
+    setSelectedBuiltInTemplateId(templateId);
+    if (!templateId) return;
+
+    const chosen = BUILT_IN_TEMPLATES.find((t) => t.id === templateId);
+    if (!chosen) return;
+
+    setIsLoadingBuiltIn(true);
+    try {
+      // 1. Fetch file PDF
+      const res = await fetch(chosen.pdfPath);
+      if (!res.ok) throw new Error(`Berkas PDF tidak ditemukan (${res.status})`);
+      const blob = await res.blob();
+      const fileName = chosen.pdfPath.split("/").pop();
+      const file = new File([blob], fileName, { type: "application/pdf" });
+
+      await processAndSetPdfTemplate(file);
+
+      // 2. Fetch file layout JSON jika disediakan
+      if (chosen.layoutPath) {
+        try {
+          const jsonRes = await fetch(chosen.layoutPath);
+          if (jsonRes.ok) {
+            const layoutJson = await jsonRes.json();
+            if (Array.isArray(layoutJson)) {
+              pushHistorySnapshot(configsRef.current);
+              setConfigs(layoutJson);
+              if (layoutJson.length > 0) setActiveColumn(layoutJson[0].column_name);
+            }
+          }
+        } catch (e) {
+          console.warn("Gagal memuat preset layout bawaan:", e);
+        }
+      }
+
+      setNotification({
+        show: true,
+        message: `Template "${chosen.name}" berhasil diterapkan.`,
+        type: "success",
+      });
+    } catch (err) {
+      setNotification({
+        show: true,
+        message: `Gagal memuat template bawaan: ${err.message}`,
+        type: "error",
+      });
+      setSelectedBuiltInTemplateId("");
+    } finally {
+      setIsLoadingBuiltIn(false);
+    }
+  };
+
   const handleCsvChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -681,21 +796,24 @@ export default function CetakLokal() {
           const scannedLongest = scanLongestRowSample(rows, fields);
           setLongestRowSample(scannedLongest);
 
-          const initialConfigs = fields.map((header, idx) => ({
-            column_name: header,
-            static_text: "",
-            x: (pdfPreviewSize.width - 400) / 2,
-            y: 150 + idx * 60,
-            font_size: 28,
-            line_height: 1.2,
-            letter_spacing: 0,
-            max_width: 400,
-            align: "center",
-            enabled: true,
-            page_number: 1,
-          }));
-          setConfigs(initialConfigs);
-          if (fields.length > 0) setActiveColumn(fields[0]);
+          // Jika configs belum diset oleh layout template bawaan, inisialisasi default
+          if (configs.length === 0) {
+            const initialConfigs = fields.map((header, idx) => ({
+              column_name: header,
+              static_text: "",
+              x: (pdfPreviewSize.width - 400) / 2,
+              y: 150 + idx * 60,
+              font_size: 28,
+              line_height: 1.2,
+              letter_spacing: 0,
+              max_width: 400,
+              align: "center",
+              enabled: true,
+              page_number: 1,
+            }));
+            setConfigs(initialConfigs);
+            if (fields.length > 0) setActiveColumn(fields[0]);
+          }
         }
 
         (async () => {
@@ -745,46 +863,6 @@ export default function CetakLokal() {
       if (err?.name !== "RenderingCancelledException") {
         console.error("Gagal merender halaman PDF:", err);
       }
-    }
-  };
-
-  const handleTemplateChange = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setOriginalTemplateRawFile(file);
-    setOriginalTemplateSize(file.size);
-
-    try {
-      const compressedFile = await compressPdfTemplate(file, compressionScale, compressionQuality);
-      setTemplateFile(compressedFile);
-      const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf");
-      pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/legacy/build/pdf.worker.min.mjs`;
-
-      const arrayBuffer = await file.arrayBuffer();
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      setPdfDoc(pdf);
-      setTotalPages(pdf.numPages);
-      setCurrentPage(1);
-
-      const sizes = {};
-      for (let p = 1; p <= pdf.numPages; p++) {
-        const pg = await pdf.getPage(p);
-        const vp = pg.getViewport({ scale: 1.0 });
-        sizes[p] = { width: vp.width, height: vp.height };
-      }
-      setPageSizes(sizes);
-
-      try {
-        await idbSet(AUTOSAVE_KEYS.TEMPLATE, compressedFile);
-        await saveAutosaveMeta({ templateName: file.name, templateSize: compressedFile.size });
-      } catch (err) {
-        console.error("Gagal autosave template:", err);
-        setNotification({ show: true, message: "Autosave template gagal.", type: "error" });
-      }
-    } catch (err) {
-      console.error("Gagal memuat PDF:", err);
-      setNotification({ show: true, message: `Gagal memuat PDF: ${err.message}`, type: "error" });
     }
   };
 
@@ -1439,7 +1517,6 @@ export default function CetakLokal() {
         </div>
 
         <div className="flex items-center gap-3">
-          {/* Tombol Panduan Penggunaan */}
           <button
             type="button"
             onClick={() => setIsTutorialOpen(true)}
@@ -1454,7 +1531,6 @@ export default function CetakLokal() {
             <IconHelp className="w-4 h-4" />
           </button>
 
-          {/* Toggle Mode Terang / Gelap */}
           <button
             type="button"
             onClick={handleToggleTheme}
@@ -1597,6 +1673,34 @@ export default function CetakLokal() {
                 </div>
 
                 <div className="space-y-4">
+                  {/* Opsi Pilih Template Bawaan dari /public */}
+                  <div className={`border rounded-[4px] p-3 space-y-2 ${isDark ? "bg-[#111111] border-[#333333]" : "bg-[#F7F6F3] border-[#CCCCCC]"}`}>
+                    <label className={`block text-[10px] font-mono uppercase font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
+                      Gunakan Template Bawaan
+                    </label>
+                    <select
+                      value={selectedBuiltInTemplateId}
+                      onChange={(e) => handleSelectBuiltInTemplate(e.target.value)}
+                      disabled={isLoadingBuiltIn}
+                      className={`w-full p-2 text-xs font-mono font-bold rounded-[4px] border ${
+                        isDark ? "bg-[#181818] text-[#FFFFFF] border-[#444444]" : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
+                      }`}
+                    >
+                      <option value="">-- Pilih Template Tersedia --</option>
+                      {BUILT_IN_TEMPLATES.map((tmpl) => (
+                        <option key={tmpl.id} value={tmpl.id}>
+                          {tmpl.name}
+                        </option>
+                      ))}
+                    </select>
+
+                    {isLoadingBuiltIn && (
+                      <p className={`text-[10px] font-mono font-bold flex items-center gap-1.5 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
+                        <Spinner /> Memuat berkas template...
+                      </p>
+                    )}
+                  </div>
+
                   <div>
                     <label className={`block text-[11px] font-mono uppercase font-bold mb-2 ${isDark ? "text-[#FFFFFF]" : "text-[#111111]"}`}>
                       Data Peserta (.csv)
@@ -1621,7 +1725,7 @@ export default function CetakLokal() {
 
                   <div>
                     <label className={`block text-[11px] font-mono uppercase font-bold mb-2 ${isDark ? "text-[#FFFFFF]" : "text-[#111111]"}`}>
-                      Template Sertifikat (.pdf)
+                      Unggah Template Kustom (.pdf)
                     </label>
                     <input
                       type="file"
@@ -1943,7 +2047,6 @@ export default function CetakLokal() {
                         </div>
                       </div>
 
-                      {/* Line Height & Letter Spacing Controls */}
                       <div className="grid grid-cols-2 gap-3">
                         <div>
                           <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
@@ -2146,7 +2249,6 @@ export default function CetakLokal() {
                   </p>
                 </div>
 
-                {/* KONTROL POLA NAMA FILE */}
                 <div
                   className={`border rounded-[4px] p-3 space-y-2 ${
                     isDark ? "bg-[#111111] border-[#333333]" : "bg-[#F7F6F3] border-[#CCCCCC]"
@@ -2171,7 +2273,6 @@ export default function CetakLokal() {
                   </p>
                 </div>
 
-                {/* KONTROL RENTANG CETAK (BATCH SLICING) */}
                 {csvRows.length > 0 && (
                   <div
                     className={`border rounded-[4px] p-3 space-y-3 ${
@@ -2248,7 +2349,6 @@ export default function CetakLokal() {
                   </div>
                 )}
 
-                {/* MANAJEMEN PRESET */}
                 <div className="space-y-3">
                   <div className="flex gap-2">
                     <input
