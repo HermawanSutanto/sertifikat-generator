@@ -440,7 +440,18 @@ export default function CetakLokal() {
     });
   };
 
+  const renderTaskRef = useRef(null);
+
   const renderPdfPage = async (pdf, pageNum) => {
+    // Batalkan render sebelumnya (kalau masih berjalan) sebelum memulai yang baru,
+    // supaya tidak ada dua render() berjalan bersamaan di canvas yang sama.
+    // Chrome melempar error untuk kasus ini; Firefox lebih toleran sehingga
+    // masalahnya tidak terlihat di sana.
+    if (renderTaskRef.current) {
+      renderTaskRef.current.cancel();
+      renderTaskRef.current = null;
+    }
+
     try {
       const page = await pdf.getPage(pageNum);
       const viewport = page.getViewport({ scale: 1.0 });
@@ -452,10 +463,17 @@ export default function CetakLokal() {
         canvas.width = viewport.width;
         canvas.height = viewport.height;
 
-        await page.render({ canvasContext: context, viewport }).promise;
+        const task = page.render({ canvasContext: context, viewport });
+        renderTaskRef.current = task;
+        await task.promise;
+        if (renderTaskRef.current === task) renderTaskRef.current = null;
       }
     } catch (err) {
-      console.error("Gagal merender halaman PDF:", err);
+      // Render yang dibatalkan (task.cancel()) melempar RenderingCancelledException —
+      // ini bukan error sungguhan, hanya efek dari render baru yang menggantikannya.
+      if (err?.name !== "RenderingCancelledException") {
+        console.error("Gagal merender halaman PDF:", err);
+      }
     }
   };
 
@@ -486,7 +504,9 @@ export default function CetakLokal() {
       }
       setPageSizes(sizes);
 
-      await renderPdfPage(pdf, 1);
+      // Render pertama ditangani oleh useEffect([pdfDoc, currentPage]) di atas —
+      // tidak dipanggil manual di sini lagi supaya tidak terjadi dua render()
+      // bersamaan di canvas yang sama (lihat renderTaskRef di renderPdfPage).
 
       // Autosave: timpa template tersimpan setiap kali template baru diunggah.
       try {
@@ -571,7 +591,8 @@ export default function CetakLokal() {
           sizes[p] = { width: vp.width, height: vp.height };
         }
         setPageSizes(sizes);
-        await renderPdfPage(pdf, 1);
+        // Render ditangani oleh useEffect([pdfDoc, currentPage]) — tidak dipanggil
+        // manual di sini agar tidak bertabrakan dengan render yang sama.
       }
 
       setIsRestoreBannerOpen(false);
