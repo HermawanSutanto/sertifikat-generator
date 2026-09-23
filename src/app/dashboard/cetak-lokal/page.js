@@ -7,39 +7,15 @@ import { useAuth } from "../../../context/AuthContext";
 import Papa from "papaparse";
 import { Rnd } from "react-rnd";
 import { PDFDocument } from "pdf-lib";
-import { Fraunces, Public_Sans } from "next/font/google";
-
-// Font yang sama dengan landing page, biar identitas brand konsisten
-// di seluruh produk (landing page <-> studio editor).
-const fraunces = Fraunces({
-  subsets: ["latin"],
-  weight: ["600", "700", "900"],
-  style: ["normal", "italic"],
-  variable: "--font-display",
-});
-
-const publicSans = Public_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-body",
-});
+import {
+  AUTOSAVE_KEYS,
+  idbSet,
+  readAutosaveMeta,
+  readFullAutosave,
+  clearAutosave,
+} from "./idbStorage";
 
 const DEFAULT_TEXT_COLOR = "#1A1A1A";
-const LOCAL_STORAGE_KEY_CONFIGS = "sertigen_active_configs";
-
-// Daftar Template PDF Sistem
-const SYSTEM_TEMPLATES = [
-  { id: "default", name: "Template Sertifikat Standard", path: "/templates/default_template.pdf" },
-  { id: "formal", name: "Template Formal / Resmi", path: "/templates/formal_template.pdf" },
-  { id: "modern", name: "Template Modern Minimalis", path: "/templates/modern_template.pdf" },
-];
-
-// Daftar Template Layout JSON Bawaan Sistem
-const SYSTEM_LAYOUT_TEMPLATES = [
-  { id: "seminar", name: "Layout Seminar Standard", path: "/layout-templates/preset1.json" },
-  { id: "pelatihan", name: "Layout Pelatihan / Workshop", path: "/layout-templates/preset2.json" },
-  { id: "penghargaan", name: "Layout Sertifikat Penghargaan", path: "/layout-templates/preset3.json" },
-];
 
 const Spinner = ({ className = "w-4 h-4 text-current", ...props }) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className={className} {...props}>
@@ -95,11 +71,11 @@ const Notification = ({ message, type, show }) => {
   const isSuccess = type === "success";
   return (
     <div
-      className={`fixed top-4 right-4 z-50 flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg text-[#F2EAD3] shadow-xl border backdrop-blur-md transition-all duration-200 transform ${
+      className={`fixed top-4 right-4 z-50 flex items-center gap-2.5 px-3.5 py-2.5 rounded-lg text-slate-100 shadow-xl border backdrop-blur-md transition-all duration-200 transform ${
         show ? "translate-y-0 opacity-100 scale-100" : "-translate-y-2 opacity-0 scale-95 pointer-events-none"
-      } ${isSuccess ? "bg-[#17233D]/90 border-emerald-500/40" : "bg-[#17233D]/90 border-[#8C2F39]/40"}`}
+      } ${isSuccess ? "bg-slate-900/90 border-emerald-500/40" : "bg-slate-900/90 border-rose-500/40"}`}
     >
-      <div className={`w-2 h-2 rounded-full ${isSuccess ? "bg-emerald-400" : "bg-[#C97C84]"}`} />
+      <div className={`w-2 h-2 rounded-full ${isSuccess ? "bg-emerald-400" : "bg-rose-400"}`} />
       <span className="text-xs font-medium">{message}</span>
     </div>
   );
@@ -109,41 +85,41 @@ const ValidationModal = ({ isOpen, warnings, onConfirm, onCancel }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-[#0D1424]/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-      <div className="bg-[#17233D] border border-[#F2EAD3]/10 rounded-xl max-w-md w-full p-5 shadow-2xl space-y-4">
+    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+      <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-5 shadow-2xl space-y-4">
         <div className="flex items-start gap-3">
-          <div className="p-2 bg-[#A9822E]/10 rounded-lg text-[#A9822E] border border-[#A9822E]/20 shrink-0">
+          <div className="p-2 bg-amber-500/10 rounded-lg text-amber-400 border border-amber-500/20 shrink-0">
             <IconAlertTriangle className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-sm font-semibold text-[#F2EAD3]">Peringatan Validasi</h3>
-            <p className="text-xs text-[#F2EAD3]/55 mt-0.5">Ditemukan beberapa potensi masalah sebelum pencetakan</p>
+            <h3 className="text-sm font-semibold text-slate-100">Peringatan Validasi</h3>
+            <p className="text-xs text-slate-400 mt-0.5">Ditemukan beberapa potensi masalah sebelum pencetakan</p>
           </div>
         </div>
 
-        <div className="max-h-48 overflow-y-auto space-y-1.5 text-xs bg-[#0D1424]/80 p-3 rounded-lg border border-[#F2EAD3]/10 text-[#F2EAD3]/75">
+        <div className="max-h-48 overflow-y-auto space-y-1.5 text-xs bg-slate-950/80 p-3 rounded-lg border border-slate-800/80 text-slate-300">
           {warnings.map((warn, idx) => (
             <div key={idx} className="flex items-start gap-2">
-              <span className="text-[#A9822E] font-bold">•</span>
+              <span className="text-amber-400 font-bold">•</span>
               <span className="leading-normal">{warn}</span>
             </div>
           ))}
         </div>
 
-        <p className="text-xs text-[#F2EAD3]/55">
+        <p className="text-xs text-slate-400">
           Apakah Anda ingin tetap melanjutkan proses pencetakan sertifikat?
         </p>
 
-        <div className="flex items-center justify-end gap-2 pt-2 border-t border-[#F2EAD3]/10">
+        <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
           <button
             onClick={onCancel}
-            className="px-3.5 py-1.5 text-xs font-medium text-[#F2EAD3]/75 hover:text-[#F2EAD3] bg-[#22304F] hover:bg-[#2E3F63] rounded-lg transition-colors"
+            className="px-3.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors"
           >
             Batal & Perbaiki
           </button>
           <button
             onClick={onConfirm}
-            className="px-3.5 py-1.5 text-xs font-medium text-[#F2EAD3] bg-[#8C2F39] hover:bg-[#A23744] rounded-lg shadow transition-colors"
+            className="px-3.5 py-1.5 text-xs font-medium text-white bg-rose-700 hover:bg-rose-600 rounded-lg shadow transition-colors"
           >
             Tetap Cetak
           </button>
@@ -156,7 +132,7 @@ const ValidationModal = ({ isOpen, warnings, onConfirm, onCancel }) => {
 export default function CetakLokal() {
   const { user, loading } = useAuth();
   const router = useRouter();
-  const renderTaskRef = useRef(null);
+
   const [activeTab, setActiveTab] = useState("files");
 
   const [csvFile, setCsvFile] = useState(null);
@@ -164,8 +140,6 @@ export default function CetakLokal() {
   const [csvRows, setCsvRows] = useState([]);
   const [longestRowSample, setLongestRowSample] = useState({});
   const [templateFile, setTemplateFile] = useState(null);
-  const [selectedSystemTemplatePath, setSelectedSystemTemplatePath] = useState("");
-  const [selectedSystemLayoutPath, setSelectedSystemLayoutPath] = useState("");
   const [originalTemplateRawFile, setOriginalTemplateRawFile] = useState(null);
   const [originalTemplateSize, setOriginalTemplateSize] = useState(0);
   const [compressionScale, setCompressionScale] = useState(1.5);
@@ -180,8 +154,6 @@ export default function CetakLokal() {
   const [selectedFontBytes, setSelectedFontBytes] = useState(null);
   const [isLoadingFontBytes, setIsLoadingFontBytes] = useState(false);
   const [fontDetectionError, setFontDetectionError] = useState("");
-
-  const [isInitialConfigLoaded, setIsInitialConfigLoaded] = useState(false);
 
   useEffect(() => {
     setLocalFontApiSupported(typeof window !== "undefined" && "queryLocalFonts" in window);
@@ -266,6 +238,12 @@ export default function CetakLokal() {
   const [validationWarnings, setValidationWarnings] = useState([]);
   const [isValidationModalOpen, setIsValidationModalOpen] = useState(false);
 
+  const [autosaveMeta, setAutosaveMeta] = useState(null);
+  const [isRestoreBannerOpen, setIsRestoreBannerOpen] = useState(false);
+  const [isRestoring, setIsRestoring] = useState(false);
+  const hasCheckedAutosaveRef = useRef(false);
+  const configsSaveTimerRef = useRef(null);
+
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
 
@@ -283,35 +261,15 @@ export default function CetakLokal() {
   }, [user, loading, router]);
 
   useEffect(() => {
-    const localPresets = localStorage.getItem("sertigen_presets");
-    if (localPresets) {
+    const local = localStorage.getItem("sertigen_presets");
+    if (local) {
       try {
-        setSavedPresets(JSON.parse(localPresets));
+        setSavedPresets(JSON.parse(local));
       } catch (e) {
         console.error("Gagal membaca preset:", e);
       }
     }
-
-    const localConfigs = localStorage.getItem(LOCAL_STORAGE_KEY_CONFIGS);
-    if (localConfigs) {
-      try {
-        const parsed = JSON.parse(localConfigs);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setConfigs(parsed);
-          setActiveColumn(parsed[0].column_name);
-        }
-      } catch (e) {
-        console.error("Gagal membaca aktif konfigurasi:", e);
-      }
-    }
-    setIsInitialConfigLoaded(true);
   }, []);
-
-  useEffect(() => {
-    if (isInitialConfigLoaded) {
-      localStorage.setItem(LOCAL_STORAGE_KEY_CONFIGS, JSON.stringify(configs));
-    }
-  }, [configs, isInitialConfigLoaded]);
 
   useEffect(() => {
     if (pdfDoc) {
@@ -319,12 +277,57 @@ export default function CetakLokal() {
     }
   }, [pdfDoc, currentPage]);
 
+  // Cek apakah ada sesi tersimpan (autosave) saat pengguna sudah login.
+  // Ditampilkan sebagai banner konfirmasi, bukan auto-restore diam-diam,
+  // karena data CSV berisi informasi peserta.
+  useEffect(() => {
+    if (loading || !user || hasCheckedAutosaveRef.current) return;
+    hasCheckedAutosaveRef.current = true;
+
+    (async () => {
+      const meta = await readAutosaveMeta();
+      if (meta && (meta.templateName || meta.csvName)) {
+        setAutosaveMeta(meta);
+        setIsRestoreBannerOpen(true);
+      }
+    })();
+  }, [loading, user]);
+
+  // Autosave tata letak (debounced) setiap kali configs berubah.
+  // Tidak berjalan saat proses restore sedang berlangsung, dan tidak
+  // menyimpan konfigurasi kosong di atas sesi yang mungkin baru dipulihkan.
+  useEffect(() => {
+    if (isRestoring || isRestoreBannerOpen) return;
+    if (configsSaveTimerRef.current) clearTimeout(configsSaveTimerRef.current);
+
+    configsSaveTimerRef.current = setTimeout(async () => {
+      try {
+        await idbSet(AUTOSAVE_KEYS.CONFIGS, configs);
+        if (configs.length > 0) await saveAutosaveMeta({});
+      } catch (err) {
+        console.error("Gagal autosave tata letak:", err);
+      }
+    }, 800);
+
+    return () => clearTimeout(configsSaveTimerRef.current);
+  }, [configs, isRestoring, isRestoreBannerOpen]);
+
   const formatBytes = (bytes) => {
     if (!bytes || bytes <= 0) return "0 B";
     const units = ["B", "KB", "MB", "GB"];
     const idx = Math.min(Math.floor(Math.log(bytes) / Math.log(1024)), units.length - 1);
     const value = bytes / Math.pow(1024, idx);
     return `${value.toFixed(idx === 0 ? 0 : 1)} ${units[idx]}`;
+  };
+
+  const saveAutosaveMeta = async (patch) => {
+    try {
+      const prev = (await readAutosaveMeta()) || {};
+      const next = { ...prev, ...patch, savedAt: Date.now() };
+      await idbSet(AUTOSAVE_KEYS.META, next);
+    } catch (err) {
+      console.error("Gagal menyimpan metadata autosave:", err);
+    }
   };
 
   const scanLongestRowSample = (rows, headers) => {
@@ -378,7 +381,7 @@ export default function CetakLokal() {
     }
 
     const compressedPdfBytes = await compressedPdfDoc.save();
-    return new File([compressedPdfBytes], originalFile.name || "compressed_template.pdf", {
+    return new File([compressedPdfBytes], "compressed_template.pdf", {
       type: "application/pdf",
     });
   };
@@ -402,22 +405,34 @@ export default function CetakLokal() {
           const scannedLongest = scanLongestRowSample(rows, fields);
           setLongestRowSample(scannedLongest);
 
-          if (configs.length === 0) {
-            const initialConfigs = fields.map((header, idx) => ({
-              column_name: header,
-              static_text: "",
-              x: (pdfPreviewSize.width - 400) / 2,
-              y: 150 + idx * 60,
-              font_size: 28,
-              max_width: 400,
-              align: "center",
-              enabled: true,
-              page_number: 1,
-            }));
-            setConfigs(initialConfigs);
-            if (fields.length > 0) setActiveColumn(fields[0]);
-          }
+          const initialConfigs = fields.map((header, idx) => ({
+            column_name: header,
+            static_text: "",
+            x: (pdfPreviewSize.width - 400) / 2,
+            y: 150 + idx * 60,
+            font_size: 28,
+            max_width: 400,
+            align: "center",
+            enabled: true,
+            page_number: 1,
+          }));
+          setConfigs(initialConfigs);
+          if (fields.length > 0) setActiveColumn(fields[0]);
         }
+
+        // Autosave: timpa data peserta tersimpan setiap kali CSV baru diunggah.
+        (async () => {
+          try {
+            await idbSet(AUTOSAVE_KEYS.CSV, {
+              headers: results.meta?.fields || [],
+              rows,
+            });
+            await saveAutosaveMeta({ csvName: file.name, csvRowCount: rows.length });
+          } catch (err) {
+            console.error("Gagal autosave CSV:", err);
+            setNotification({ show: true, message: "Autosave data peserta gagal (penyimpanan mungkin penuh).", type: "error" });
+          }
+        })();
       },
       error: (err) => {
         setNotification({ show: true, message: `Gagal membaca CSV: ${err.message}`, type: "error" });
@@ -425,56 +440,24 @@ export default function CetakLokal() {
     });
   };
 
-const renderPdfPage = async (pdf, pageNum) => {
-  if (!pdf) return;
+  const renderPdfPage = async (pdf, pageNum) => {
+    try {
+      const page = await pdf.getPage(pageNum);
+      const viewport = page.getViewport({ scale: 1.0 });
+      setPdfPreviewSize({ width: viewport.width, height: viewport.height });
 
-  try {
-    const page = await pdf.getPage(pageNum);
-    
-    // 1. Ambil DPR untuk mendukung layar Retina / High-DPI agar tidak blur
-    const outputScale = window.devicePixelRatio || 1;
-    const viewport = page.getViewport({ scale: 1.0 });
+      const canvas = canvasRef.current;
+      if (canvas) {
+        const context = canvas.getContext("2d");
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
 
-    setPdfPreviewSize({ width: viewport.width, height: viewport.height });
-
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-
-    const context = canvas.getContext("2d");
-
-    // Adjust canvas resolution internal vs CSS display size
-    canvas.width = Math.floor(viewport.width * outputScale);
-    canvas.height = Math.floor(viewport.height * outputScale);
-    canvas.style.width = `${viewport.width}px`;
-    canvas.style.height = `${viewport.height}px`;
-
-    const transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null;
-
-    // 2. Batalkan render sebelumnya jika masih berjalan (mencegah collision/race condition)
-    if (renderTaskRef.current) {
-      renderTaskRef.current.cancel();
+        await page.render({ canvasContext: context, viewport }).promise;
+      }
+    } catch (err) {
+      console.error("Gagal merender halaman PDF:", err);
     }
-
-    // 3. Jalankan render task baru
-    const renderContext = {
-      canvasContext: context,
-      viewport: viewport,
-      transform: transform,
-    };
-
-    const renderTask = page.render(renderContext);
-    renderTaskRef.current = renderTask;
-
-    await renderTask.promise;
-    renderTaskRef.current = null;
-  } catch (err) {
-    // Abaikan error pembatalan render karena ini adalah perilaku normal saat berpindah halaman cepat
-    if (err?.name === "RenderingCancelledException") {
-      return;
-    }
-    console.error("Gagal merender halaman PDF:", err);
-  }
-};
+  };
 
   const handleTemplateChange = async (e) => {
     const file = e.target.files?.[0];
@@ -486,7 +469,6 @@ const renderPdfPage = async (pdf, pageNum) => {
     try {
       const compressedFile = await compressPdfTemplate(file, compressionScale, compressionQuality);
       setTemplateFile(compressedFile);
-
       const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf");
       pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/legacy/build/pdf.worker.min.mjs`;
 
@@ -496,22 +478,6 @@ const renderPdfPage = async (pdf, pageNum) => {
       setTotalPages(pdf.numPages);
       setCurrentPage(1);
 
-      // 1. Ambil viewport halaman 1 untuk mendapatkan ukuran baru
-      const firstPage = await pdf.getPage(1);
-      const viewport = firstPage.getViewport({ scale: 1.0 });
-      const newWidth = viewport.width;
-      const newHeight = viewport.height;
-
-      // 2. Jalankan Auto-Clamp untuk menyesuaikan posisi elemen teks
-      setConfigs((prevConfigs) =>
-        prevConfigs.map((cfg) => ({
-          ...cfg,
-          x: Math.min(cfg.x, Math.max(0, newWidth - cfg.max_width)),
-          y: Math.min(cfg.y, Math.max(0, newHeight - cfg.font_size)),
-        }))
-      );
-
-      // 3. Simpan ukuran tiap halaman
       const sizes = {};
       for (let p = 1; p <= pdf.numPages; p++) {
         const pg = await pdf.getPage(p);
@@ -521,70 +487,18 @@ const renderPdfPage = async (pdf, pageNum) => {
       setPageSizes(sizes);
 
       await renderPdfPage(pdf, 1);
+
+      // Autosave: timpa template tersimpan setiap kali template baru diunggah.
+      try {
+        await idbSet(AUTOSAVE_KEYS.TEMPLATE, compressedFile);
+        await saveAutosaveMeta({ templateName: file.name, templateSize: compressedFile.size });
+      } catch (err) {
+        console.error("Gagal autosave template:", err);
+        setNotification({ show: true, message: "Autosave template gagal (penyimpanan mungkin penuh).", type: "error" });
+      }
     } catch (err) {
       console.error("Gagal memuat PDF:", err);
       setNotification({ show: true, message: `Gagal memuat PDF: ${err.message}`, type: "error" });
-    }
-  };
-
-  const handleSelectSystemTemplate = async (path) => {
-    setSelectedSystemTemplatePath(path);
-    if (!path) return;
-
-    try {
-      const selected = SYSTEM_TEMPLATES.find((t) => t.path === path);
-      setNotification({ show: true, message: `Memuat "${selected?.name || 'Template'}"...`, type: "success" });
-
-      const response = await fetch(path);
-      if (!response.ok) {
-        throw new Error("File template tidak ditemukan di repository.");
-      }
-
-      const blob = await response.blob();
-      const fileName = path.split("/").pop() || "template_system.pdf";
-      const file = new File([blob], fileName, { type: "application/pdf" });
-
-      await handleTemplateChange({ target: { files: [file] } });
-      setNotification({ show: true, message: `Berhasil memuat ${selected?.name}`, type: "success" });
-    } catch (err) {
-      console.error("Gagal memuat template sistem:", err);
-      setNotification({ show: true, message: `Gagal memuat template: ${err.message}`, type: "error" });
-      setSelectedSystemTemplatePath("");
-    }
-  };
-
-  const handleSelectSystemLayout = async (path) => {
-    setSelectedSystemLayoutPath(path);
-    if (!path) return;
-
-    try {
-      const selected = SYSTEM_LAYOUT_TEMPLATES.find((t) => t.path === path);
-      setNotification({ show: true, message: `Memuat layout "${selected?.name || 'Layout'}"...`, type: "success" });
-
-      const response = await fetch(path);
-      if (!response.ok) {
-        throw new Error("File template layout tidak ditemukan di server.");
-      }
-
-      const importedConfigs = await response.json();
-
-      if (Array.isArray(importedConfigs)) {
-        setConfigs(importedConfigs);
-        if (importedConfigs.length > 0) {
-          setActiveColumn(importedConfigs[0].column_name);
-        }
-        setNotification({
-          show: true,
-          message: `Layout "${selected?.name}" berhasil diterapkan!`,
-          type: "success",
-        });
-      } else {
-        throw new Error("Format file JSON layout tidak valid.");
-      }
-    } catch (err) {
-      console.error("Gagal memuat layout sistem:", err);
-      setNotification({ show: true, message: `Gagal memuat layout: ${err.message}`, type: "error" });
-      setSelectedSystemLayoutPath("");
     }
   };
 
@@ -604,11 +518,76 @@ const renderPdfPage = async (pdf, pageNum) => {
         message: `Template dikompresi: ${formatBytes(recompressedFile.size)}`,
         type: "success",
       });
+
+      try {
+        await idbSet(AUTOSAVE_KEYS.TEMPLATE, recompressedFile);
+        await saveAutosaveMeta({ templateSize: recompressedFile.size });
+      } catch (err) {
+        console.error("Gagal autosave template (recompress):", err);
+      }
     } catch (err) {
       setNotification({ show: true, message: `Gagal kompresi: ${err.message}`, type: "error" });
     } finally {
       setIsRecompressing(false);
     }
+  };
+
+  const handleRestoreSession = async () => {
+    setIsRestoring(true);
+    try {
+      const { template, csv, configs: savedConfigs } = await readFullAutosave();
+
+      if (csv && Array.isArray(csv.rows)) {
+        setCsvFile(new File([], autosaveMeta?.csvName || "data_tersimpan.csv"));
+        setCsvRows(csv.rows);
+        setCsvHeaders(csv.headers || []);
+        const scannedLongest = scanLongestRowSample(csv.rows, csv.headers || []);
+        setLongestRowSample(scannedLongest);
+      }
+
+      if (Array.isArray(savedConfigs)) {
+        setConfigs(savedConfigs);
+        if (savedConfigs.length > 0) setActiveColumn(savedConfigs[0].column_name);
+      }
+
+      if (template) {
+        setTemplateFile(template);
+        setOriginalTemplateRawFile(null);
+        setOriginalTemplateSize(template.size);
+
+        const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf");
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/legacy/build/pdf.worker.min.mjs`;
+
+        const arrayBuffer = await template.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        setPdfDoc(pdf);
+        setTotalPages(pdf.numPages);
+        setCurrentPage(1);
+
+        const sizes = {};
+        for (let p = 1; p <= pdf.numPages; p++) {
+          const pg = await pdf.getPage(p);
+          const vp = pg.getViewport({ scale: 1.0 });
+          sizes[p] = { width: vp.width, height: vp.height };
+        }
+        setPageSizes(sizes);
+        await renderPdfPage(pdf, 1);
+      }
+
+      setIsRestoreBannerOpen(false);
+      setNotification({ show: true, message: "Sesi tersimpan berhasil dipulihkan.", type: "success" });
+    } catch (err) {
+      console.error("Gagal memulihkan sesi:", err);
+      setNotification({ show: true, message: `Gagal memulihkan sesi: ${err.message}`, type: "error" });
+    } finally {
+      setIsRestoring(false);
+    }
+  };
+
+  const handleDiscardAutosave = async () => {
+    await clearAutosave();
+    setAutosaveMeta(null);
+    setIsRestoreBannerOpen(false);
   };
 
   const handleAddStaticText = () => {
@@ -648,14 +627,6 @@ const renderPdfPage = async (pdf, pageNum) => {
     setConfigs((prev) =>
       prev.map((cfg) => (cfg.column_name === colName ? { ...cfg, ...newProps } : cfg))
     );
-  };
-
-  const handleResetConfigs = () => {
-    localStorage.removeItem(LOCAL_STORAGE_KEY_CONFIGS);
-    setConfigs([]);
-    setActiveColumn("");
-    setSelectedSystemLayoutPath("");
-    setNotification({ show: true, message: "Pengaturan tata letak telah direset.", type: "success" });
   };
 
   const handleDrag = (colName, x, y, width) => {
@@ -936,8 +907,8 @@ const renderPdfPage = async (pdf, pageNum) => {
 
   if (loading || !user) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#0D1424]">
-        <Spinner className="w-8 h-8 text-[#A9822E]" />
+      <div className="flex items-center justify-center min-h-screen bg-slate-950">
+        <Spinner className="w-8 h-8 text-rose-500" />
       </div>
     );
   }
@@ -949,10 +920,7 @@ const renderPdfPage = async (pdf, pageNum) => {
   const estimatedTotalBytes = estimatedCertCount * estimatedPerFileBytes;
 
   return (
-    <div
-      className={`${fraunces.variable} ${publicSans.variable} h-screen w-screen bg-[#0D1424] text-[#F2EAD3] flex flex-col overflow-hidden antialiased selection:bg-[#8C2F39]/30 selection:text-[#F2EAD3]`}
-      style={{ fontFamily: "var(--font-body)" }}
-    >
+    <div className="h-screen w-screen bg-slate-950 text-slate-100 flex flex-col overflow-hidden font-sans antialiased selection:bg-rose-500/30 selection:text-rose-200">
       <Notification {...notification} />
       <ValidationModal
         isOpen={isValidationModalOpen}
@@ -961,20 +929,63 @@ const renderPdfPage = async (pdf, pageNum) => {
         onCancel={() => setIsValidationModalOpen(false)}
       />
 
-      {/* TOP HEADER STUDIO BAR */}
-      <header className="h-13 border-b border-[#F2EAD3]/10 bg-[#0D1424]/90 px-4 flex items-center justify-between shrink-0 z-30 backdrop-blur-md">
-        <div className="flex items-center gap-3">
-          <div className="w-6 h-6 rounded-full border-2 border-[#A9822E] flex items-center justify-center text-[#A9822E] font-bold text-[10px]">
-            SG
+      {/* BANNER RESTORE SESI TERSIMPAN */}
+      {isRestoreBannerOpen && (
+        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-slate-900 border border-slate-800 rounded-xl max-w-md w-full p-5 shadow-2xl space-y-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-rose-500/10 rounded-lg text-rose-400 border border-rose-500/20 shrink-0">
+                <IconFolder className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-100">Sesi Tersimpan Ditemukan</h3>
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  {autosaveMeta?.templateName ? `Template: ${autosaveMeta.templateName}` : "Tanpa template"}
+                  {autosaveMeta?.csvName ? ` • CSV: ${autosaveMeta.csvName}` : ""}
+                  {autosaveMeta?.csvRowCount ? ` (${autosaveMeta.csvRowCount} baris)` : ""}
+                </p>
+                {autosaveMeta?.savedAt && (
+                  <p className="text-[10px] text-slate-500 mt-0.5">
+                    Terakhir disimpan: {new Date(autosaveMeta.savedAt).toLocaleString("id-ID")}
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-400">
+              Pulihkan sesi ini untuk melanjutkan pekerjaan sebelumnya, atau mulai baru untuk menghapus data tersimpan.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+              <button
+                onClick={handleDiscardAutosave}
+                disabled={isRestoring}
+                className="px-3.5 py-1.5 text-xs font-medium text-slate-300 hover:text-white bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors disabled:opacity-40"
+              >
+                Mulai Baru
+              </button>
+              <button
+                onClick={handleRestoreSession}
+                disabled={isRestoring}
+                className="px-3.5 py-1.5 text-xs font-medium text-white bg-rose-700 hover:bg-rose-600 rounded-lg shadow transition-colors flex items-center gap-1.5 disabled:opacity-60"
+              >
+                {isRestoring ? <Spinner className="w-3.5 h-3.5" /> : null}
+                {isRestoring ? "Memulihkan..." : "Pulihkan Sesi"}
+              </button>
+            </div>
           </div>
-          <span
-            className="text-xs font-semibold tracking-wide text-[#F2EAD3]"
-            style={{ fontFamily: "var(--font-display)" }}
-          >
-            SertiGen Studio
-          </span>
-          <span className="text-[#F2EAD3]/15">|</span>
-          <span className="text-xs text-[#F2EAD3]/55 font-normal truncate max-w-xs">
+        </div>
+      )}
+
+      {/* TOP HEADER STUDIO BAR */}
+      <header className="h-13 border-b border-slate-800/80 bg-slate-950/90 px-4 flex items-center justify-between shrink-0 z-30 backdrop-blur-md">
+        <div className="flex items-center gap-3">
+          <div className="w-6 h-6 rounded-md bg-gradient-to-tr from-rose-700 to-rose-500 flex items-center justify-center text-white font-bold text-xs shadow-sm">
+            S
+          </div>
+          <span className="text-xs font-semibold tracking-wide text-slate-200">SertiGen Studio</span>
+          <span className="text-slate-800">|</span>
+          <span className="text-xs text-slate-400 font-normal truncate max-w-xs">
             {templateFile ? templateFile.name : "Belum ada template"}
           </span>
         </div>
@@ -984,9 +995,9 @@ const renderPdfPage = async (pdf, pageNum) => {
             type="button"
             onClick={handleDownloadPreview}
             disabled={isProcessing || !templateFile}
-            className="px-3 py-1.5 text-xs font-medium text-[#F2EAD3]/75 bg-[#17233D] hover:bg-[#22304F] border border-[#F2EAD3]/10 rounded-lg transition-colors disabled:opacity-40 flex items-center gap-1.5"
+            className="px-3 py-1.5 text-xs font-medium text-slate-300 bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg transition-colors disabled:opacity-40 flex items-center gap-1.5"
           >
-            <svg className="w-3.5 h-3.5 text-[#F2EAD3]/55" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg className="w-3.5 h-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M2.036 12c1.07-4.516 5.03-8 9.964-8s8.894 3.484 9.964 8c-1.07 4.516-5.03 8-9.964 8s-8.894-3.484-9.964-8z" />
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
@@ -996,7 +1007,7 @@ const renderPdfPage = async (pdf, pageNum) => {
           <button
             onClick={handleStartGenerate}
             disabled={isProcessing || !csvFile || !templateFile}
-            className="px-3.5 py-1.5 text-xs font-medium text-[#F2EAD3] bg-[#8C2F39] hover:bg-[#A23744] disabled:bg-[#17233D] disabled:text-[#F2EAD3]/35 border border-[#8C2F39]/30 rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
+            className="px-3.5 py-1.5 text-xs font-medium text-white bg-rose-700 hover:bg-rose-600 disabled:bg-slate-900 disabled:text-slate-600 border border-rose-600/30 rounded-lg shadow-sm transition-colors flex items-center gap-1.5"
           >
             {isProcessing ? (
               <>
@@ -1013,7 +1024,7 @@ const renderPdfPage = async (pdf, pageNum) => {
 
           <Link
             href="/dashboard"
-            className="p-1.5 text-[#F2EAD3]/55 hover:text-[#F2EAD3]/90 hover:bg-[#17233D] rounded-lg transition-colors ml-1"
+            className="p-1.5 text-slate-400 hover:text-slate-200 hover:bg-slate-900 rounded-lg transition-colors ml-1"
             title="Kembali ke Dashboard"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -1027,7 +1038,7 @@ const renderPdfPage = async (pdf, pageNum) => {
       <div className="flex-1 flex overflow-hidden">
         
         {/* 1. LEFT TOOLBAR DOCK */}
-        <aside className="w-13 bg-[#0D1424] border-r border-[#F2EAD3]/10 flex flex-col items-center py-3 gap-2 shrink-0 z-20">
+        <aside className="w-13 bg-slate-950 border-r border-slate-800/80 flex flex-col items-center py-3 gap-2 shrink-0 z-20">
           {[
             { id: "files", label: "Berkas", Icon: IconFolder },
             { id: "elements", label: "Elemen", Icon: IconEdit },
@@ -1039,8 +1050,8 @@ const renderPdfPage = async (pdf, pageNum) => {
               onClick={() => setActiveTab(tab.id)}
               className={`w-9 h-9 rounded-lg flex flex-col items-center justify-center transition-colors ${
                 activeTab === tab.id
-                  ? "bg-[#22304F]/90 text-[#A9822E] border border-[#F2EAD3]/15"
-                  : "text-[#F2EAD3]/45 hover:text-[#F2EAD3]/75 hover:bg-[#17233D]"
+                  ? "bg-slate-800/90 text-rose-400 border border-slate-700/80"
+                  : "text-slate-500 hover:text-slate-300 hover:bg-slate-900"
               }`}
               title={tab.label}
             >
@@ -1051,25 +1062,25 @@ const renderPdfPage = async (pdf, pageNum) => {
         </aside>
 
         {/* 2. CONTEXTUAL INSPECTOR PANEL */}
-        <div className="w-72 bg-[#17233D]/60 border-r border-[#F2EAD3]/10 flex flex-col shrink-0 z-10 overflow-y-auto">
+        <div className="w-72 bg-slate-900/60 border-r border-slate-800/80 flex flex-col shrink-0 z-10 overflow-y-auto">
           <div className="p-3.5 space-y-4">
             
             {/* PANEL: FILES */}
             {activeTab === "files" && (
               <div className="space-y-4">
-                <div className="border-b border-[#F2EAD3]/10 pb-2">
-                  <h2 className="text-xs font-semibold text-[#F2EAD3]/90">Sumber Berkas</h2>
-                  <p className="text-[11px] text-[#F2EAD3]/55">Unggah CSV data dan PDF template</p>
+                <div className="border-b border-slate-800/80 pb-2">
+                  <h2 className="text-xs font-semibold text-slate-200">Sumber Berkas</h2>
+                  <p className="text-[11px] text-slate-400">Unggah CSV data dan PDF template</p>
                 </div>
 
                 <div className="space-y-3">
                   <div>
-                    <label className="block text-[11px] font-medium text-[#F2EAD3]/75 mb-1">Data Peserta (.csv)</label>
+                    <label className="block text-[11px] font-medium text-slate-300 mb-1">Data Peserta (.csv)</label>
                     <input
                       type="file"
                       accept=".csv"
                       onChange={handleCsvChange}
-                      className="block w-full text-[11px] text-[#F2EAD3]/55 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:font-medium file:bg-[#22304F] file:text-[#F2EAD3]/90 hover:file:bg-[#2E3F63] border border-[#F2EAD3]/10 rounded-lg p-1 bg-[#0D1424]/50"
+                      className="block w-full text-[11px] text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:font-medium file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700 border border-slate-800 rounded-lg p-1 bg-slate-950/50"
                     />
                     {csvRows.length > 0 && (
                       <p className="text-[10px] text-emerald-400 font-medium mt-1 flex items-center gap-1">
@@ -1080,48 +1091,28 @@ const renderPdfPage = async (pdf, pageNum) => {
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-medium text-[#F2EAD3]/75 mb-1">Template Sertifikat (.pdf)</label>
+                    <label className="block text-[11px] font-medium text-slate-300 mb-1">Template Sertifikat (.pdf)</label>
                     <input
                       type="file"
                       accept="application/pdf"
-                      onChange={(e) => {
-                        setSelectedSystemTemplatePath("");
-                        handleTemplateChange(e);
-                      }}
-                      className="block w-full text-[11px] text-[#F2EAD3]/55 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:font-medium file:bg-[#22304F] file:text-[#F2EAD3]/90 hover:file:bg-[#2E3F63] border border-[#F2EAD3]/10 rounded-lg p-1 bg-[#0D1424]/50"
+                      onChange={handleTemplateChange}
+                      className="block w-full text-[11px] text-slate-400 file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-[11px] file:font-medium file:bg-slate-800 file:text-slate-200 hover:file:bg-slate-700 border border-slate-800 rounded-lg p-1 bg-slate-950/50"
                     />
-                    
-                    {/* DROPDOWN TEMPLATE SISTEM */}
-                    <div className="mt-2.5">
-                      <label className="block text-[10px] font-medium text-[#F2EAD3]/55 mb-1">Atau Pilih Template Sistem</label>
-                      <select
-                        value={selectedSystemTemplatePath}
-                        onChange={(e) => handleSelectSystemTemplate(e.target.value)}
-                        className="w-full p-1.5 text-xs border border-[#F2EAD3]/10 rounded-lg bg-[#0D1424] text-[#F2EAD3]/90 focus:outline-none focus:border-[#F2EAD3]/15"
-                      >
-                        <option value="">-- Pilih dari galeri sistem --</option>
-                        {SYSTEM_TEMPLATES.map((tmpl) => (
-                          <option key={tmpl.id} value={tmpl.path}>
-                            {tmpl.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
                   </div>
                 </div>
 
                 {templateFile && (
-                  <div className="bg-[#0D1424]/60 border border-[#F2EAD3]/10 rounded-lg p-3 space-y-2.5">
+                  <div className="bg-slate-950/60 border border-slate-800/80 rounded-lg p-3 space-y-2.5">
                     <div className="flex items-center justify-between text-[11px]">
-                      <span className="font-semibold text-[#F2EAD3]/75">Kompresi PDF</span>
-                      <span className="text-[#F2EAD3]/55 font-mono text-[10px]">
-                        {formatBytes(originalTemplateSize)} → <span className="text-[#A9822E]">{formatBytes(templateFile.size)}</span>
+                      <span className="font-semibold text-slate-300">Kompresi PDF</span>
+                      <span className="text-slate-400 font-mono text-[10px]">
+                        {formatBytes(originalTemplateSize)} → <span className="text-rose-400">{formatBytes(templateFile.size)}</span>
                       </span>
                     </div>
 
                     <div className="space-y-2">
                       <div>
-                        <div className="flex justify-between text-[10px] text-[#F2EAD3]/55 mb-1">
+                        <div className="flex justify-between text-[10px] text-slate-400 mb-1">
                           <span>Skala Resample</span>
                           <span>{compressionScale.toFixed(1)}x</span>
                         </div>
@@ -1132,12 +1123,12 @@ const renderPdfPage = async (pdf, pageNum) => {
                           step="0.1"
                           value={compressionScale}
                           onChange={(e) => setCompressionScale(Number(e.target.value))}
-                          className="w-full accent-[#8C2F39] h-1 bg-[#22304F] rounded"
+                          className="w-full accent-rose-600 h-1 bg-slate-800 rounded"
                         />
                       </div>
 
                       <div>
-                        <div className="flex justify-between text-[10px] text-[#F2EAD3]/55 mb-1">
+                        <div className="flex justify-between text-[10px] text-slate-400 mb-1">
                           <span>Kualitas JPEG</span>
                           <span>{Math.round(compressionQuality * 100)}%</span>
                         </div>
@@ -1148,7 +1139,7 @@ const renderPdfPage = async (pdf, pageNum) => {
                           step="0.05"
                           value={compressionQuality}
                           onChange={(e) => setCompressionQuality(Number(e.target.value))}
-                          className="w-full accent-[#8C2F39] h-1 bg-[#22304F] rounded"
+                          className="w-full accent-rose-600 h-1 bg-slate-800 rounded"
                         />
                       </div>
                     </div>
@@ -1168,8 +1159,8 @@ const renderPdfPage = async (pdf, pageNum) => {
                           }}
                           className={`py-1 text-[10px] font-medium rounded border transition-colors ${
                             compressionScale === preset.scale && compressionQuality === preset.quality
-                              ? "bg-[#22304F] text-[#A9822E] border-[#F2EAD3]/15"
-                              : "bg-[#17233D]/50 text-[#F2EAD3]/55 border-[#F2EAD3]/10 hover:bg-[#22304F]"
+                              ? "bg-slate-800 text-rose-400 border-slate-700"
+                              : "bg-slate-900/50 text-slate-400 border-slate-800/80 hover:bg-slate-800"
                           }`}
                         >
                           {preset.label}
@@ -1181,7 +1172,7 @@ const renderPdfPage = async (pdf, pageNum) => {
                       type="button"
                       onClick={handleRecompress}
                       disabled={isRecompressing || !originalTemplateRawFile}
-                      className="w-full py-1.5 text-xs font-medium text-[#F2EAD3]/90 bg-[#22304F] hover:bg-[#2E3F63] disabled:opacity-40 rounded transition-colors flex items-center justify-center gap-1.5 mt-1"
+                      className="w-full py-1.5 text-xs font-medium text-slate-200 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 rounded transition-colors flex items-center justify-center gap-1.5 mt-1"
                     >
                       {isRecompressing ? <Spinner /> : "Terapkan Kompresi"}
                     </button>
@@ -1193,30 +1184,20 @@ const renderPdfPage = async (pdf, pageNum) => {
             {/* PANEL: ELEMENTS */}
             {activeTab === "elements" && (
               <div className="space-y-4">
-                <div className="flex items-center justify-between border-b border-[#F2EAD3]/10 pb-2">
-                  <h2 className="text-xs font-semibold text-[#F2EAD3]/90">Tata Letak Teks</h2>
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={handleResetConfigs}
-                      className="px-2 py-0.5 text-[10px] font-medium text-[#A9822E] bg-[#8C2F39]/10 hover:bg-[#8C2F39]/20 border border-[#8C2F39]/20 rounded transition-colors"
-                      title="Reset tata letak ke posisi awal"
-                    >
-                      Reset
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleAddStaticText}
-                      className="px-2 py-0.5 text-[11px] font-medium text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded transition-colors"
-                    >
-                      + Teks Statis
-                    </button>
-                  </div>
+                <div className="flex items-center justify-between border-b border-slate-800/80 pb-2">
+                  <h2 className="text-xs font-semibold text-slate-200">Tata Letak Teks</h2>
+                  <button
+                    type="button"
+                    onClick={handleAddStaticText}
+                    className="px-2 py-0.5 text-[11px] font-medium text-emerald-400 bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/20 rounded transition-colors"
+                  >
+                    + Teks Statis
+                  </button>
                 </div>
 
                 {configs.some((c) => !c.enabled) && (
-                  <div className="bg-[#0D1424]/60 border border-[#F2EAD3]/10 rounded-lg p-2.5 space-y-1.5">
-                    <label className="block text-[10px] font-medium text-[#F2EAD3]/55 uppercase tracking-wider">
+                  <div className="bg-slate-950/60 border border-slate-800/80 rounded-lg p-2.5 space-y-1.5">
+                    <label className="block text-[10px] font-medium text-slate-400 uppercase tracking-wider">
                       Elemen Tersembunyi ({configs.filter((c) => !c.enabled).length})
                     </label>
                     <div className="flex flex-wrap gap-1">
@@ -1227,7 +1208,7 @@ const renderPdfPage = async (pdf, pageNum) => {
                             key={cfg.column_name}
                             type="button"
                             onClick={() => handleRestoreElement(cfg.column_name)}
-                            className="px-2 py-0.5 text-[10px] font-medium bg-[#17233D] text-[#F2EAD3]/75 hover:text-[#F2EAD3] border border-[#F2EAD3]/10 rounded transition-colors flex items-center gap-1"
+                            className="px-2 py-0.5 text-[10px] font-medium bg-slate-900 text-slate-300 hover:text-white border border-slate-800 rounded transition-colors flex items-center gap-1"
                           >
                             <span>+</span>
                             {cfg.static_text !== undefined && cfg.static_text !== ""
@@ -1241,11 +1222,11 @@ const renderPdfPage = async (pdf, pageNum) => {
 
                 {configs.length > 0 && (
                   <div>
-                    <label className="block text-[11px] font-medium text-[#F2EAD3]/75 mb-1">Pilih Elemen</label>
+                    <label className="block text-[11px] font-medium text-slate-300 mb-1">Pilih Elemen</label>
                     <select
                       value={activeColumn}
                       onChange={(e) => setActiveColumn(e.target.value)}
-                      className="w-full p-1.5 text-xs border border-[#F2EAD3]/10 rounded-lg bg-[#0D1424] text-[#F2EAD3]/90"
+                      className="w-full p-1.5 text-xs border border-slate-800 rounded-lg bg-slate-950 text-slate-200"
                     >
                       {configs.filter((c) => c.enabled).map((c) => (
                         <option key={c.column_name} value={c.column_name}>
@@ -1262,26 +1243,26 @@ const renderPdfPage = async (pdf, pageNum) => {
                 {configs
                   .filter((c) => c.column_name === activeColumn)
                   .map((cfg) => (
-                    <div key={cfg.column_name} className="space-y-3 bg-[#0D1424]/60 p-3 rounded-lg border border-[#F2EAD3]/10">
+                    <div key={cfg.column_name} className="space-y-3 bg-slate-950/60 p-3 rounded-lg border border-slate-800/80">
                       {cfg.static_text !== undefined && (
                         <div>
-                          <label className="block text-[10px] font-medium text-[#F2EAD3]/55 mb-1">Konten Teks Statis</label>
+                          <label className="block text-[10px] font-medium text-slate-400 mb-1">Konten Teks Statis</label>
                           <input
                             type="text"
                             value={cfg.static_text}
                             onChange={(e) => updateConfig(cfg.column_name, { static_text: e.target.value })}
-                            className="w-full p-1.5 text-xs border border-[#F2EAD3]/10 rounded bg-[#17233D] text-[#F2EAD3]"
+                            className="w-full p-1.5 text-xs border border-slate-800 rounded bg-slate-900 text-slate-100"
                           />
                         </div>
                       )}
 
                       {totalPages > 1 && (
                         <div>
-                          <label className="block text-[10px] font-medium text-[#F2EAD3]/55 mb-1">Target Halaman</label>
+                          <label className="block text-[10px] font-medium text-slate-400 mb-1">Target Halaman</label>
                           <select
                             value={cfg.page_number || 1}
                             onChange={(e) => updateConfig(cfg.column_name, { page_number: Number(e.target.value) })}
-                            className="w-full p-1.5 text-xs border border-[#F2EAD3]/10 rounded bg-[#17233D] text-[#F2EAD3]/90"
+                            className="w-full p-1.5 text-xs border border-slate-800 rounded bg-slate-900 text-slate-200"
                           >
                             {Array.from({ length: totalPages }, (_, i) => i + 1).map((num) => (
                               <option key={num} value={num}>Halaman {num}</option>
@@ -1291,7 +1272,7 @@ const renderPdfPage = async (pdf, pageNum) => {
                       )}
 
                       <div>
-                        <label className="block text-[10px] font-medium text-[#F2EAD3]/55 mb-1">Perataan Teks</label>
+                        <label className="block text-[10px] font-medium text-slate-400 mb-1">Perataan Teks</label>
                         <div className="grid grid-cols-3 gap-1">
                           {[
                             { id: "left", label: "Kiri" },
@@ -1304,8 +1285,8 @@ const renderPdfPage = async (pdf, pageNum) => {
                               onClick={() => updateConfig(cfg.column_name, { align: item.id })}
                               className={`py-1 text-[10px] font-medium rounded border transition-colors ${
                                 cfg.align === item.id
-                                  ? "bg-[#22304F] text-[#A9822E] border-[#F2EAD3]/15"
-                                  : "bg-[#17233D] text-[#F2EAD3]/55 border-[#F2EAD3]/10 hover:bg-[#22304F]"
+                                  ? "bg-slate-800 text-rose-400 border-slate-700"
+                                  : "bg-slate-900 text-slate-400 border-slate-800/80 hover:bg-slate-800"
                               }`}
                             >
                               {item.label}
@@ -1316,42 +1297,42 @@ const renderPdfPage = async (pdf, pageNum) => {
 
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <label className="block text-[10px] font-medium text-[#F2EAD3]/55 mb-1">Ukuran (pt)</label>
+                          <label className="block text-[10px] font-medium text-slate-400 mb-1">Ukuran (pt)</label>
                           <input
                             type="number"
                             value={cfg.font_size}
                             onChange={(e) => updateConfig(cfg.column_name, { font_size: Number(e.target.value) })}
-                            className="w-full p-1.5 text-xs border border-[#F2EAD3]/10 rounded bg-[#17233D] text-[#F2EAD3]"
+                            className="w-full p-1.5 text-xs border border-slate-800 rounded bg-slate-900 text-slate-100"
                           />
                         </div>
 
                         <div>
-                          <label className="block text-[10px] font-medium text-[#F2EAD3]/55 mb-1">Lebar (pt)</label>
+                          <label className="block text-[10px] font-medium text-slate-400 mb-1">Lebar (pt)</label>
                           <input
                             type="number"
                             value={cfg.max_width}
                             onChange={(e) => updateConfig(cfg.column_name, { max_width: Number(e.target.value) })}
-                            className="w-full p-1.5 text-xs border border-[#F2EAD3]/10 rounded bg-[#17233D] text-[#F2EAD3]"
+                            className="w-full p-1.5 text-xs border border-slate-800 rounded bg-slate-900 text-slate-100"
                           />
                         </div>
                       </div>
 
                       <div>
-                        <label className="block text-[10px] font-medium text-[#F2EAD3]/55 mb-1">Warna Teks</label>
+                        <label className="block text-[10px] font-medium text-slate-400 mb-1">Warna Teks</label>
                         <div className="flex items-center gap-2">
                           <input
                             type="color"
                             value={cfg.color || DEFAULT_TEXT_COLOR}
                             onChange={(e) => updateConfig(cfg.column_name, { color: e.target.value })}
-                            className="h-7 w-8 p-0.5 bg-[#17233D] border border-[#F2EAD3]/10 rounded cursor-pointer"
+                            className="h-7 w-8 p-0.5 bg-slate-900 border border-slate-800 rounded cursor-pointer"
                           />
-                          <span className="text-[11px] font-mono text-[#F2EAD3]/55 uppercase">
+                          <span className="text-[11px] font-mono text-slate-400 uppercase">
                             {cfg.color || DEFAULT_TEXT_COLOR}
                           </span>
                           <button
                             type="button"
                             onClick={() => updateConfig(cfg.column_name, { color: DEFAULT_TEXT_COLOR })}
-                            className="ml-auto px-2 py-0.5 text-[10px] font-medium text-[#F2EAD3]/55 hover:text-[#F2EAD3]/90 bg-[#17233D] border border-[#F2EAD3]/10 rounded transition-colors"
+                            className="ml-auto px-2 py-0.5 text-[10px] font-medium text-slate-400 hover:text-slate-200 bg-slate-900 border border-slate-800 rounded transition-colors"
                           >
                             Reset
                           </button>
@@ -1362,7 +1343,7 @@ const renderPdfPage = async (pdf, pageNum) => {
                         <button
                           type="button"
                           onClick={() => handleHideElement(cfg.column_name)}
-                          className="w-full py-1 text-[11px] font-medium text-[#A9822E] hover:bg-[#8C2F39]/20 border border-[#8C2F39]/40 rounded transition-colors"
+                          className="w-full py-1 text-[11px] font-medium text-rose-400 hover:bg-rose-950/30 border border-rose-900/40 rounded transition-colors"
                         >
                           Hapus Elemen
                         </button>
@@ -1375,26 +1356,26 @@ const renderPdfPage = async (pdf, pageNum) => {
             {/* PANEL: FONTS */}
             {activeTab === "fonts" && (
               <div className="space-y-4">
-                <div className="border-b border-[#F2EAD3]/10 pb-2">
-                  <h2 className="text-xs font-semibold text-[#F2EAD3]/90">Font Sistem Perangkat</h2>
-                  <p className="text-[11px] text-[#F2EAD3]/55">Pindai dan gunakan font lokal</p>
+                <div className="border-b border-slate-800/80 pb-2">
+                  <h2 className="text-xs font-semibold text-slate-200">Font Sistem Perangkat</h2>
+                  <p className="text-[11px] text-slate-400">Pindai dan gunakan font lokal</p>
                 </div>
 
-                <div className="flex items-center justify-between gap-2 bg-[#0D1424]/60 border border-[#F2EAD3]/10 rounded-lg px-2.5 py-2">
-                  <span className="text-[10px] font-medium text-[#F2EAD3]/55">Local Font API</span>
+                <div className="flex items-center justify-between gap-2 bg-slate-950/60 border border-slate-800/80 rounded-lg px-2.5 py-2">
+                  <span className="text-[10px] font-medium text-slate-400">Local Font API</span>
                   {localFontApiSupported ? (
                     <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-400 font-medium border border-emerald-500/20">
                       Didukung
                     </span>
                   ) : (
-                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#22304F] text-[#F2EAD3]/55 font-medium border border-[#F2EAD3]/15">
+                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-medium border border-slate-700/80">
                       Tidak Didukung
                     </span>
                   )}
                 </div>
 
                 {!localFontApiSupported ? (
-                  <p className="text-[11px] text-[#F2EAD3]/55 leading-normal">
+                  <p className="text-[11px] text-slate-400 leading-normal">
                     Fitur pemindaian font lokal tersedia di browser berbasis Chromium (Chrome/Edge Desktop).
                   </p>
                 ) : (
@@ -1403,25 +1384,25 @@ const renderPdfPage = async (pdf, pageNum) => {
                       type="button"
                       onClick={handleDetectLocalFonts}
                       disabled={isDetectingFonts}
-                      className="w-full py-1.5 text-xs font-medium text-[#F2EAD3]/90 bg-[#22304F] hover:bg-[#2E3F63] border border-[#F2EAD3]/15 rounded-lg transition-colors flex items-center justify-center gap-1.5"
+                      className="w-full py-1.5 text-xs font-medium text-slate-200 bg-slate-800 hover:bg-slate-700 border border-slate-700/80 rounded-lg transition-colors flex items-center justify-center gap-1.5"
                     >
                       {isDetectingFonts ? <Spinner /> : "Pindai Font Lokal"}
                     </button>
 
                     {fontDetectionError && (
-                      <p className="text-[11px] text-[#A9822E] leading-normal">{fontDetectionError}</p>
+                      <p className="text-[11px] text-rose-400 leading-normal">{fontDetectionError}</p>
                     )}
 
                     {localFontFamilies.length > 0 && (
                       <div>
-                        <label className="block text-[11px] font-medium text-[#F2EAD3]/75 mb-1">
+                        <label className="block text-[11px] font-medium text-slate-300 mb-1">
                           Pilih Font ({localFontFamilies.length})
                         </label>
                         <select
                           value={selectedLocalFontFamily}
                           onChange={(e) => handleSelectLocalFont(e.target.value)}
                           disabled={isLoadingFontBytes}
-                          className="w-full p-1.5 text-xs border border-[#F2EAD3]/10 rounded-lg bg-[#0D1424] text-[#F2EAD3]/90"
+                          className="w-full p-1.5 text-xs border border-slate-800 rounded-lg bg-slate-950 text-slate-200"
                         >
                           <option value="">-- Standard (Helvetica-Bold) --</option>
                           {localFontFamilies.map((family) => (
@@ -1430,7 +1411,7 @@ const renderPdfPage = async (pdf, pageNum) => {
                         </select>
 
                         {isLoadingFontBytes && (
-                          <p className="text-[10px] text-[#F2EAD3]/55 mt-1 flex items-center gap-1">
+                          <p className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
                             <Spinner /> Memuat data font...
                           </p>
                         )}
@@ -1451,47 +1432,24 @@ const renderPdfPage = async (pdf, pageNum) => {
             {/* PANEL: PRESETS */}
             {activeTab === "presets" && (
               <div className="space-y-4">
-                <div className="border-b border-[#F2EAD3]/10 pb-2">
-                  <h2 className="text-xs font-semibold text-[#F2EAD3]/90">Preset Tata Letak</h2>
-                  <p className="text-[11px] text-[#F2EAD3]/55">Pilih layout bawaan atau simpan konfigurasi</p>
+                <div className="border-b border-slate-800/80 pb-2">
+                  <h2 className="text-xs font-semibold text-slate-200">Preset Tata Letak</h2>
+                  <p className="text-[11px] text-slate-400">Simpan atau ekspor konfigurasi</p>
                 </div>
 
-                {/* DROPDOWN TEMPLATE LAYOUT BAWAAN SISTEM */}
-                <div className="space-y-1.5 bg-[#0D1424]/60 p-2.5 rounded-lg border border-[#F2EAD3]/10">
-                  <label className="block text-[10px] font-medium text-[#F2EAD3]/75">
-                    Template Layout Sistem
-                  </label>
-                  <select
-                    value={selectedSystemLayoutPath}
-                    onChange={(e) => handleSelectSystemLayout(e.target.value)}
-                    className="w-full p-1.5 text-xs border border-[#F2EAD3]/10 rounded-lg bg-[#0D1424] text-[#F2EAD3]/90 focus:outline-none focus:border-[#F2EAD3]/15"
-                  >
-                    <option value="">-- Pilih dari galeri layout --</option>
-                    {SYSTEM_LAYOUT_TEMPLATES.map((tmpl) => (
-                      <option key={tmpl.id} value={tmpl.path}>
-                        {tmpl.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div className="space-y-2 pt-1 border-t border-[#F2EAD3]/10">
-                  <label className="block text-[10px] font-medium text-[#F2EAD3]/55 uppercase tracking-wider">
-                    Preset Lokal & Kustom
-                  </label>
-
+                <div className="space-y-2">
                   <div className="flex gap-1.5">
                     <input
                       type="text"
                       placeholder="Nama Preset..."
                       value={presetName}
                       onChange={(e) => setPresetName(e.target.value)}
-                      className="w-full p-1.5 text-xs border border-[#F2EAD3]/10 rounded-lg bg-[#0D1424] text-[#F2EAD3]"
+                      className="w-full p-1.5 text-xs border border-slate-800 rounded-lg bg-slate-950 text-slate-100"
                     />
                     <button
                       type="button"
                       onClick={handleSavePreset}
-                      className="px-3 py-1.5 text-xs font-medium text-[#F2EAD3] bg-[#8C2F39] hover:bg-[#A23744] rounded-lg shrink-0 transition-colors"
+                      className="px-3 py-1.5 text-xs font-medium text-white bg-rose-700 hover:bg-rose-600 rounded-lg shrink-0 transition-colors"
                     >
                       Simpan
                     </button>
@@ -1501,9 +1459,9 @@ const renderPdfPage = async (pdf, pageNum) => {
                     <select
                       onChange={(e) => handleLoadPreset(e.target.value)}
                       defaultValue=""
-                      className="w-full p-1.5 text-xs border border-[#F2EAD3]/10 rounded-lg bg-[#0D1424] text-[#F2EAD3]/90"
+                      className="w-full p-1.5 text-xs border border-slate-800 rounded-lg bg-slate-950 text-slate-200"
                     >
-                      <option value="" disabled>-- Muat Preset Tersimpan --</option>
+                      <option value="" disabled>-- Muat Preset --</option>
                       {savedPresets.map((p) => (
                         <option key={p.id} value={p.id}>{p.name}</option>
                       ))}
@@ -1514,11 +1472,11 @@ const renderPdfPage = async (pdf, pageNum) => {
                     <button
                       type="button"
                       onClick={handleExportJson}
-                      className="py-1.5 text-xs font-medium text-[#F2EAD3]/75 bg-[#22304F] hover:bg-[#2E3F63] rounded-lg transition-colors"
+                      className="py-1.5 text-xs font-medium text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg transition-colors"
                     >
                       Ekspor JSON
                     </button>
-                    <label className="py-1.5 text-xs font-medium text-center text-[#F2EAD3]/75 bg-[#22304F] hover:bg-[#2E3F63] rounded-lg cursor-pointer transition-colors">
+                    <label className="py-1.5 text-xs font-medium text-center text-slate-300 bg-slate-800 hover:bg-slate-700 rounded-lg cursor-pointer transition-colors">
                       Impor JSON
                       <input type="file" accept=".json" onChange={handleImportJson} className="hidden" />
                     </label>
@@ -1526,22 +1484,22 @@ const renderPdfPage = async (pdf, pageNum) => {
                 </div>
 
                 {csvFile && templateFile && estimatedCertCount > 0 && (
-                  <div className="border-t border-[#F2EAD3]/10 pt-3 space-y-2">
-                    <label className="block text-[10px] font-medium text-[#F2EAD3]/55 uppercase tracking-wider">
+                  <div className="border-t border-slate-800/80 pt-3 space-y-2">
+                    <label className="block text-[10px] font-medium text-slate-400 uppercase tracking-wider">
                       Ringkasan Ekspor
                     </label>
                     <div className="grid grid-cols-2 gap-1.5 text-xs">
-                      <div className="bg-[#0D1424]/60 border border-[#F2EAD3]/10 rounded-lg p-2">
-                        <div className="text-[10px] text-[#F2EAD3]/45">Sertifikat</div>
-                        <div className="font-semibold text-[#F2EAD3]/90">{estimatedCertCount.toLocaleString("id-ID")}</div>
+                      <div className="bg-slate-950/60 border border-slate-800/80 rounded-lg p-2">
+                        <div className="text-[10px] text-slate-500">Sertifikat</div>
+                        <div className="font-semibold text-slate-200">{estimatedCertCount.toLocaleString("id-ID")}</div>
                       </div>
-                      <div className="bg-[#0D1424]/60 border border-[#F2EAD3]/10 rounded-lg p-2">
-                        <div className="text-[10px] text-[#F2EAD3]/45">Berkas ZIP</div>
-                        <div className="font-semibold text-[#F2EAD3]/90">{estimatedZipParts} Bagian</div>
+                      <div className="bg-slate-950/60 border border-slate-800/80 rounded-lg p-2">
+                        <div className="text-[10px] text-slate-500">Berkas ZIP</div>
+                        <div className="font-semibold text-slate-200">{estimatedZipParts} Bagian</div>
                       </div>
-                      <div className="bg-[#0D1424]/60 border border-[#F2EAD3]/10 rounded-lg p-2 col-span-2">
-                        <div className="text-[10px] text-[#F2EAD3]/45">Estimasi Ukuran</div>
-                        <div className="font-semibold text-[#A9822E]">{formatBytes(estimatedTotalBytes)}</div>
+                      <div className="bg-slate-950/60 border border-slate-800/80 rounded-lg p-2 col-span-2">
+                        <div className="text-[10px] text-slate-500">Estimasi Ukuran</div>
+                        <div className="font-semibold text-rose-400">{formatBytes(estimatedTotalBytes)}</div>
                       </div>
                     </div>
                   </div>
@@ -1552,22 +1510,22 @@ const renderPdfPage = async (pdf, pageNum) => {
         </div>
 
         {/* 3. WORKSPACE CANVAS STAGE */}
-        <div className="flex-1 bg-[#0D1424] p-6 flex flex-col items-center justify-start overflow-auto relative bg-[radial-gradient(#22304F_1px,transparent_1px)] [background-size:16px_16px]">
+        <div className="flex-1 bg-slate-950 p-6 flex flex-col items-center justify-start overflow-auto relative bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:16px_16px]">
           
           {/* Top Canvas Toolbar */}
-          <div className="w-full max-w-4xl flex items-center justify-between mb-3 text-xs text-[#F2EAD3]/55">
-            <span className="text-[11px] text-[#F2EAD3]/55">
+          <div className="w-full max-w-4xl flex items-center justify-between mb-3 text-xs text-slate-400">
+            <span className="text-[11px] text-slate-400">
               Geser elemen teks di atas canvas untuk mengatur tata letak
             </span>
             {totalPages > 1 && (
-              <div className="flex items-center gap-1 bg-[#17233D] border border-[#F2EAD3]/10 px-2 py-1 rounded-lg">
+              <div className="flex items-center gap-1 bg-slate-900 border border-slate-800 px-2 py-1 rounded-lg">
                 <span className="text-[11px] mr-1">Halaman:</span>
                 {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
                   <button
                     key={pageNum}
                     onClick={() => setCurrentPage(pageNum)}
                     className={`px-2 py-0.5 text-xs rounded transition-colors ${
-                      currentPage === pageNum ? "bg-[#8C2F39] text-[#F2EAD3] font-medium" : "text-[#F2EAD3]/55 hover:text-[#F2EAD3]"
+                      currentPage === pageNum ? "bg-rose-700 text-white font-medium" : "text-slate-400 hover:text-white"
                     }`}
                   >
                     {pageNum}
@@ -1580,17 +1538,17 @@ const renderPdfPage = async (pdf, pageNum) => {
           {/* Canvas Container */}
           <div
             ref={containerRef}
-            className="relative bg-white shadow-xl rounded overflow-hidden shrink-0 border border-[#F2EAD3]/10"
+            className="relative bg-white shadow-xl rounded overflow-hidden shrink-0 border border-slate-800"
             style={{ width: pdfPreviewSize.width, height: pdfPreviewSize.height }}
           >
             <canvas ref={canvasRef} className="absolute top-0 left-0 z-0 pointer-events-none" />
 
             {/* Snap Guides */}
             {activeSnapGuides.x && (
-              <div className="absolute top-0 bottom-0 left-1/2 w-[1px] bg-[#B4434F] z-20 pointer-events-none opacity-80" />
+              <div className="absolute top-0 bottom-0 left-1/2 w-[1px] bg-rose-500 z-20 pointer-events-none opacity-80" />
             )}
             {activeSnapGuides.y && (
-              <div className="absolute left-0 right-0 top-1/2 h-[1px] bg-[#B4434F] z-20 pointer-events-none opacity-80" />
+              <div className="absolute left-0 right-0 top-1/2 h-[1px] bg-rose-500 z-20 pointer-events-none opacity-80" />
             )}
 
             {/* Render Dynamic Elements */}
@@ -1600,12 +1558,12 @@ const renderPdfPage = async (pdf, pageNum) => {
                 const displayText = renderPreviewText(cfg);
                 const isSelected = activeColumn === cfg.column_name;
                 const isStatic = cfg.static_text !== undefined;
-                const outlineColor = isSelected ? "#8C2F39" : isStatic ? "#059669" : "#3D5A99";
+                const outlineColor = isSelected ? "#be123c" : isStatic ? "#059669" : "#2563eb";
                 const boxBg = isSelected
-                  ? "rgba(140,47,57,0.08)"
+                  ? "rgba(190,18,60,0.08)"
                   : isStatic
                   ? "rgba(5,150,105,0.06)"
-                  : "rgba(61,90,153,0.06)";
+                  : "rgba(37,99,235,0.06)";
 
                 return (
                   <Rnd
@@ -1660,23 +1618,23 @@ const renderPdfPage = async (pdf, pageNum) => {
       </div>
 
       {/* FOOTER REAL-TIME STATUS BAR */}
-      <footer className="h-7 bg-[#0D1424] border-t border-[#F2EAD3]/10 px-4 flex items-center justify-between text-[10px] text-[#F2EAD3]/55 shrink-0 z-30">
+      <footer className="h-7 bg-slate-950 border-t border-slate-800/80 px-4 flex items-center justify-between text-[10px] text-slate-400 shrink-0 z-30">
         <div className="flex items-center gap-3">
           <span className="flex items-center gap-1.5">
-            <span className={`w-1.5 h-1.5 rounded-full ${csvRows.length > 0 ? "bg-emerald-400" : "bg-[#3A4E78]"}`} />
-            CSV: <strong className="text-[#F2EAD3]/90 font-medium">{csvRows.length} Baris</strong>
+            <span className={`w-1.5 h-1.5 rounded-full ${csvRows.length > 0 ? "bg-emerald-400" : "bg-slate-600"}`} />
+            CSV: <strong className="text-slate-200 font-medium">{csvRows.length} Baris</strong>
           </span>
-          <span className="text-[#F2EAD3]/15">|</span>
+          <span className="text-slate-800">|</span>
           <span className="flex items-center gap-1.5">
-            <span className={`w-1.5 h-1.5 rounded-full ${templateFile ? "bg-emerald-400" : "bg-[#3A4E78]"}`} />
-            Template: <strong className="text-[#F2EAD3]/90 font-medium">{templateFile ? formatBytes(templateFile.size) : "Kosong"}</strong>
+            <span className={`w-1.5 h-1.5 rounded-full ${templateFile ? "bg-emerald-400" : "bg-slate-600"}`} />
+            Template: <strong className="text-slate-200 font-medium">{templateFile ? formatBytes(templateFile.size) : "Kosong"}</strong>
           </span>
         </div>
 
         <div className="flex items-center gap-3">
           <span>Worker Engine: <strong className="text-emerald-400 font-medium">Siap</strong></span>
-          <span className="text-[#F2EAD3]/15">|</span>
-          <span>Estimasi Output: <strong className="text-[#A9822E] font-medium">≈ {formatBytes(estimatedTotalBytes)}</strong></span>
+          <span className="text-slate-800">|</span>
+          <span>Estimasi Output: <strong className="text-rose-400 font-medium">≈ {formatBytes(estimatedTotalBytes)}</strong></span>
         </div>
       </footer>
     </div>
