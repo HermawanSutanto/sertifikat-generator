@@ -1,21 +1,27 @@
-import { Fraunces, Public_Sans } from "next/font/google";
+import { Archivo_Black, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthContextProvider } from "../context/AuthContext"; // <-- IMPORT
 
-// Font tema SertiGen: Fraunces untuk judul/display, Public Sans untuk body.
-// Disamakan dengan yang dipakai di landing page (page.js) agar konsisten
-// di seluruh aplikasi (login, register, dashboard, dsb).
-const fraunces = Fraunces({
+// Font tema SertiGen: Archivo Black untuk judul/display, Inter untuk body,
+// JetBrains Mono untuk label/UI teknis. Disamakan dengan yang dipakai di
+// landing page (page.js) dan dashboard (dashboard/page.js) agar konsisten
+// di seluruh aplikasi (login, register, blog, dsb).
+const displayFont = Archivo_Black({
   subsets: ["latin"],
-  weight: ["600", "700", "900"],
-  style: ["normal", "italic"],
+  weight: ["400"],
   variable: "--font-display"
 });
 
-const publicSans = Public_Sans({
+const bodyFont = Inter({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   variable: "--font-body"
+});
+
+const monoFont = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-mono"
 });
 
 export const metadata = {
@@ -63,7 +69,7 @@ export default function RootLayout({ children }) {
           rel="stylesheet"
         />
       </head>
-      <body className={`${fraunces.variable} ${publicSans.variable} bg-[#F2EAD3] text-[#17233D]`}>
+      <body className={`${displayFont.variable} ${bodyFont.variable} ${monoFont.variable} bg-[#EBE9E4] text-[#111111]`}>
         <AuthContextProvider>{children}</AuthContextProvider>
       </body>
     </html>

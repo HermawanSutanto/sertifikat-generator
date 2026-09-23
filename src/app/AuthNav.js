@@ -21,16 +21,16 @@ export default function AuthNav() {
 
   if (user) {
     return (
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-4">
         <Link
           href="/dashboard"
-          className="px-4 py-2 text-sm font-medium text-[#17233D] rounded-full hover:bg-[#17233D]/[0.06] transition-colors"
+          className="text-[13px] font-mono uppercase tracking-wider text-[#555555] hover:text-[#0000EE] transition-colors"
         >
           Dashboard
         </Link>
         <button
           onClick={handleLogout}
-          className="px-5 py-2 text-sm font-semibold text-[#F2EAD3] bg-[#17233D] rounded-full hover:bg-[#0F1830] transition-colors"
+          className="px-5 py-2.5 text-xs font-mono font-semibold uppercase tracking-wide text-white bg-[#111111] rounded-[4px] hover:bg-[#0000EE] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0000EE]"
         >
           Logout
         </button>
@@ -39,16 +39,16 @@ export default function AuthNav() {
   }
 
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-4">
       <Link
         href="/login"
-        className="px-4 py-2 text-sm font-medium text-[#17233D] rounded-full hover:bg-[#17233D]/[0.06] transition-colors"
+        className="text-[13px] font-mono uppercase tracking-wider text-[#555555] hover:text-[#0000EE] transition-colors"
       >
         Masuk
       </Link>
       <Link
         href="/register"
-        className="px-5 py-2 text-sm font-semibold text-[#F2EAD3] bg-[#8C2F39] rounded-full shadow-md hover:bg-[#742531] transition-colors"
+        className="px-5 py-2.5 text-xs font-mono font-semibold uppercase tracking-wide text-white bg-[#111111] rounded-[4px] hover:bg-[#0000EE] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0000EE]"
       >
         Daftar Gratis
       </Link>

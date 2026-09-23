@@ -58,20 +58,20 @@ export default function Login() {
   };
 
   return (
-    <main className="relative flex items-center justify-center min-h-screen bg-[radial-gradient(ellipse_at_top,_#FBF3DB,_#F2EAD3)] px-4">
+    <main className="relative flex items-center justify-center min-h-screen bg-[#EBE9E4] px-4">
       <div
-        className="hidden md:block absolute right-16 top-16 w-24 h-24 rounded-full border-2 border-[#A9822E]/40"
+        className="hidden md:block absolute right-16 top-16 w-24 h-24 rounded-full border-2 border-[#111111]/10"
         aria-hidden="true"
       />
       <div
-        className="hidden md:block absolute left-16 bottom-16 w-32 h-32 rounded-full border border-dashed border-[#A9822E]/40"
+        className="hidden md:block absolute left-16 bottom-16 w-32 h-32 rounded-full border border-dashed border-[#111111]/10"
         aria-hidden="true"
       />
 
       <Link
         href="/"
         title="Kembali ke Beranda"
-        className="absolute top-6 left-6 flex items-center justify-center w-10 h-10 rounded-full text-[#17233D] hover:bg-[#17233D]/[0.06] transition-colors"
+        className="absolute top-6 left-6 flex items-center justify-center w-10 h-10 rounded-[4px] text-[#111111] hover:bg-[#111111]/[0.06] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0000EE]"
       >
         <svg
           xmlns="http://www.w3.org/2000/svg"
@@ -89,25 +89,29 @@ export default function Login() {
         </svg>
       </Link>
 
-      <div className="relative w-full max-w-md p-10 space-y-8 bg-[#FCFAF2] rounded-3xl shadow-2xl border border-[#A9822E]/30">
+      <div className="relative w-full max-w-md p-10 space-y-8 bg-[#FFFFFF] rounded-[4px] shadow-2xl border border-[#111111]">
         <div className="flex flex-col items-center gap-3">
-          <span className="flex items-center justify-center w-11 h-11 rounded-full border-2 border-[#A9822E] text-[#A9822E] text-xs font-bold">
-            SG
-          </span>
+          <Link
+            href="/"
+            className="text-lg font-bold uppercase tracking-tight text-[#111111]"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            SERTIGEN.
+          </Link>
           <h1
-            className="text-3xl font-bold text-center text-[#17233D]"
+            className="text-3xl font-bold text-center text-[#111111] uppercase"
             style={{ fontFamily: "var(--font-display)" }}
           >
             Selamat Datang Kembali
           </h1>
-          <p className="text-sm text-[#17233D]/60 text-center">
+          <p className="text-sm text-[#555555] text-center font-mono">
             Masuk untuk melanjutkan membuat sertifikat Anda.
           </p>
         </div>
 
         <form onSubmit={handleLogin} className="space-y-5">
           <div>
-            <label className="block text-sm font-semibold text-[#17233D] mb-2">
+            <label className="block text-xs font-mono font-semibold uppercase tracking-wide text-[#111111] mb-2">
               Email
             </label>
             <input
@@ -115,11 +119,11 @@ export default function Login() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="w-full px-4 py-3 border text-[#17233D] border-[#17233D]/15 bg-white rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-[#8C2F39]/50 focus:border-[#8C2F39] transition"
+              className="w-full px-4 py-3 border text-[#111111] border-[#111111]/20 bg-white rounded-[4px] focus:outline-none focus:ring-2 focus:ring-[#0000EE]/50 focus:border-[#0000EE] transition"
             />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-[#17233D] mb-2">
+            <label className="block text-xs font-mono font-semibold uppercase tracking-wide text-[#111111] mb-2">
               Password
             </label>
             <div className="relative mt-1">
@@ -129,32 +133,32 @@ export default function Login() {
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                className="w-full px-4 py-3 border text-[#17233D] border-[#17233D]/15 bg-white rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-[#8C2F39]/50 focus:border-[#8C2F39] transition"
+                className="w-full px-4 py-3 border text-[#111111] border-[#111111]/20 bg-white rounded-[4px] focus:outline-none focus:ring-2 focus:ring-[#0000EE]/50 focus:border-[#0000EE] transition"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute inset-y-0 right-0 flex items-center px-4 text-[#17233D]/50 hover:text-[#17233D]"
+                className="absolute inset-y-0 right-0 flex items-center px-4 text-[#111111]/50 hover:text-[#111111]"
               >
                 {showPassword ? <EyeSlashIcon /> : <EyeIcon />}
               </button>
             </div>
           </div>
           {error && (
-            <p className="text-[#8C2F39] text-sm font-semibold text-center">
+            <p className="text-[#B3261E] text-sm font-semibold text-center font-mono">
               {error}
             </p>
           )}
           <button
             type="submit"
-            className="w-full py-3.5 font-semibold text-[#F2EAD3] bg-[#8C2F39] rounded-full shadow-lg hover:bg-[#742531] transition-colors"
+            className="w-full py-3.5 font-mono font-semibold uppercase tracking-wide text-white bg-[#111111] rounded-[4px] hover:bg-[#0000EE] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0000EE]"
           >
             Login
           </button>
         </form>
-        <p className="text-center text-sm text-[#17233D]/70">
+        <p className="text-center text-sm text-[#555555] font-mono">
           Belum punya akun?{" "}
-          <Link href="/register" className="font-semibold text-[#8C2F39] hover:underline">
+          <Link href="/register" className="font-semibold text-[#0000EE] hover:underline">
             Register di sini
           </Link>
         </p>

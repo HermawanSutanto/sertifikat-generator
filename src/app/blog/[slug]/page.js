@@ -44,24 +44,20 @@ export default async function PostPage({ params }) {
   });
 
   return (
-    <div className="bg-[#F2EAD3] text-[#17233D] min-h-screen">
+    <div className="bg-[#EBE9E4] text-[#111111] min-h-screen">
       {/* Header Sederhana */}
-      <header className="sticky top-0 z-50 w-full bg-[#F2EAD3]/90 backdrop-blur-md border-b border-[#17233D]/10">
+      <header className="sticky top-0 z-50 w-full bg-[#EBE9E4]/95 backdrop-blur-sm border-b border-[#111111]">
         <div className="max-w-[1140px] mx-auto flex justify-between items-center px-6 md:px-12 py-4">
-          <Link href="/" className="flex items-center gap-2">
-            <span className="flex items-center justify-center w-9 h-9 rounded-full border-2 border-[#A9822E] text-[#A9822E] text-xs font-bold">
-              SG
-            </span>
-            <span
-              className="text-xl font-bold text-[#17233D] tracking-tight"
-              style={{ fontFamily: "var(--font-display)" }}
-            >
-              SertiGen
-            </span>
+          <Link
+            href="/"
+            className="text-xl font-bold uppercase tracking-tight text-[#111111]"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            SERTIGEN.
           </Link>
           <Link
             href="/blog"
-            className="px-4 py-2 text-sm font-medium text-[#17233D] rounded-full hover:bg-[#17233D]/[0.06] transition-colors"
+            className="text-[13px] font-mono uppercase tracking-wider text-[#555555] hover:text-[#0000EE] transition-colors"
           >
             ← Kembali ke Blog
           </Link>
@@ -70,15 +66,15 @@ export default async function PostPage({ params }) {
 
       {/* Konten Artikel */}
       <main className="max-w-[1140px] mx-auto px-6 md:px-12 py-12 md:py-20">
-        <article className="prose lg:prose-xl max-w-4xl mx-auto prose-headings:text-[#17233D] prose-a:text-[#8C2F39]">
+        <article className="prose lg:prose-xl max-w-4xl mx-auto prose-headings:text-[#111111] prose-a:text-[#0000EE]">
           <div className="mb-8 text-center">
             <h1
-              className="text-4xl md:text-5xl font-bold text-[#17233D]"
+              className="text-4xl md:text-5xl font-bold text-[#111111] uppercase"
               style={{ fontFamily: "var(--font-display)" }}
             >
               {post.metadata.title}
             </h1>
-            <p className="text-lg text-[#17233D]/50 mt-4">
+            <p className="text-sm font-mono uppercase tracking-wide text-[#555555] mt-4">
               {new Date(post.metadata.date).toLocaleDateString("id-ID", {
                 year: "numeric",
                 month: "long",

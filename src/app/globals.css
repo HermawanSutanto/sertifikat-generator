@@ -1,15 +1,16 @@
 @import "tailwindcss";
 
-/* Palet SertiGen: krem hangat, navy gelap, merah maroon, dan gold sebagai aksen.
-   Sinkron dengan tema yang dipakai di landing page (page.js). */
+/* Palet SertiGen: monokrom (krem terang & hitam pekat) dengan biru hyperlink
+   klasik (#0000EE) sebagai satu-satunya warna aksen. Sinkron dengan tema
+   yang dipakai di landing page (page.js) dan dashboard (dashboard/page.js). */
 :root {
-  --background: #F2EAD3; /* Krem — background utama */
-  --foreground: #17233D; /* Navy — teks utama */
-  --primary: #8C2F39; /* Maroon — tombol & aksi utama */
-  --primary-hover: #742531;
-  --secondary: #17233D; /* Navy — teks sekunder / tombol gelap */
-  --accent: #A9822E; /* Gold — aksen, ikon, border dekoratif */
-  --surface: #FCFAF2; /* Kartu / permukaan di atas background krem */
+  --background: #EBE9E4; /* Krem terang — background utama */
+  --foreground: #111111; /* Hitam pekat — teks utama */
+  --primary: #111111; /* Hitam — tombol & aksi utama */
+  --primary-hover: #0000EE; /* Biru — hover tombol utama & state aktif */
+  --secondary: #555555; /* Abu-abu — teks sekunder */
+  --accent: #0000EE; /* Biru — aksen, tautan, fokus */
+  --surface: #FFFFFF; /* Kartu / permukaan di atas background krem */
 }
 
 @theme inline {
@@ -21,6 +22,7 @@
   --color-surface: var(--surface);
   --font-sans: var(--font-body);
   --font-display: var(--font-display);
+  --font-mono: var(--font-mono);
 }
 
 body {
