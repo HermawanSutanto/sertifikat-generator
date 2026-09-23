@@ -18,16 +18,26 @@ import {
 // Daftar Template Bawaan dari folder public
 const BUILT_IN_TEMPLATES = [
   {
-    id: "default",
-    name: "Template Bawaan (Default)",
-    pdfPath: "/templates/default_template.pdf",
-    layoutPath: null,
-  },
-  {
     id: "template1",
     name: "Template Sertifikat 1",
-    pdfPath: "/templates/Template 1.pdf",
-    layoutPath: "/layout-templates/preset1.json",
+    pdfPath: "/templates/template_01.pdf",
+    layoutPath: "/layout-templates/template_01.json",
+  },
+  {
+    id: "template2",
+    name: "Template Sertifikat 2",
+    pdfPath: "/templates/template_02.pdf",
+    layoutPath: "/layout-templates/template_02.json",
+  },{
+    id: "template3",
+    name: "Template Sertifikat 3",
+    pdfPath: "/templates/template_03.pdf",
+    layoutPath: "/layout-templates/template_03.json",
+  },{
+    id: "template4",
+    name: "Template Sertifikat 4",
+    pdfPath: "/templates/template_04.pdf",
+    layoutPath: "/layout-templates/template_04.json",
   },
 ];
 
