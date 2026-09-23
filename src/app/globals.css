@@ -12,7 +12,10 @@
   --accent: #0000EE; /* Biru — aksen, tautan, fokus */
   --surface: #FFFFFF; /* Kartu / permukaan di atas background krem */
 }
-
+@keyframes marquee {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
