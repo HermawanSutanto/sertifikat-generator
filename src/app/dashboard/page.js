@@ -77,6 +77,13 @@ const IconMoon = (props) => (
   </svg>
 );
 
+const IconHelp = (props) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M9.879 7.519c1.171-1.025 3.071-1.025 4.242 0 1.172 1.025 1.172 2.687 0 3.712-.203.179-.43.326-.67.442-.745.361-1.45.999-1.45 1.827v.75M12 18h.007v.008H12V18z" />
+    <circle cx="12" cy="12" r="9" strokeWidth={1.75} />
+  </svg>
+);
+
 const Notification = ({ message, type, show, isDark }) => {
   const isSuccess = type === "success";
   return (
@@ -163,6 +170,128 @@ const ValidationModal = ({ isOpen, warnings, onConfirm, onCancel, isDark }) => {
   );
 };
 
+const TutorialModal = ({ isOpen, onClose, isDark }) => {
+  const [currentStep, setCurrentStep] = useState(0);
+
+  if (!isOpen) return null;
+
+  const steps = [
+    {
+      title: "1. Unggah Berkas & Optimasi",
+      tab: "Berkas",
+      desc: "Buka panel 'Berkas' di bilah kiri. Masukkan file CSV data peserta dan PDF template sertifikat Anda. Anda dapat mengatur skala kompresi template agar ukuran arsip ZIP tidak membengkak saat dicetak massal.",
+    },
+    {
+      title: "2. Tata Letak & Tipografi",
+      tab: "Elemen",
+      desc: "Geser kotak teks langsung di atas kanvas pratinjau. Di panel 'Elemen', sesuaikan ukuran font, line height, letter spacing, dan warna tinta teks. Anda juga bisa menambahkan teks statis dinamis dengan tombol '+ Teks Statis'.",
+    },
+    {
+      title: "3. Pintasan Keyboard Kanvas",
+      tab: "Shortcut",
+      desc: "Klik salah satu elemen di kanvas untuk mengaktifkannya:\n• Tombol Panah: Geser posisi 1pt (tahan Shift untuk 10pt)\n• Ctrl/Cmd + D: Duplikat elemen teks statis\n• Delete / Backspace: Sembunyikan elemen aktif\n• Ctrl/Cmd + Z / Y: Urungkan (Undo) atau Ulangi (Redo)",
+    },
+    {
+      title: "4. Pemilihan Font Lokal",
+      tab: "Font",
+      desc: "Buka tab 'Font' untuk memindai font sistem di komputer Anda (fitur ini tersedia di Chromium seperti Chrome/Edge). Pilih font yang diinginkan agar langsung diterapkan di kanvas pratinjau maupun hasil cetak PDF.",
+    },
+    {
+      title: "5. Rentang Baris & Penamaan Berkas",
+      tab: "Preset",
+      desc: "Di tab 'Preset', Anda dapat mengatur pola nama berkas PDF (contoh: sertifikat_{Nama}_{index}) dan memilih mencetak semua peserta atau rentang baris tertentu saja (contoh: baris 1-50) sebelum memulai proses Cetak ZIP.",
+    },
+  ];
+
+  return (
+    <div className="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-4">
+      <div
+        className={`border-2 rounded-[4px] max-w-lg w-full p-6 space-y-5 shadow-2xl transition-colors ${
+          isDark ? "bg-[#111111] border-[#FFFFFF]" : "bg-[#FFFFFF] border-[#111111]"
+        }`}
+      >
+        <div className="flex items-center justify-between border-b pb-3">
+          <div className="flex items-center gap-2">
+            <span className="p-1.5 bg-[#0000EE]/10 text-[#0000EE] border border-[#0000EE] rounded-[2px]">
+              <IconHelp className="w-4 h-4" />
+            </span>
+            <h3 className={`text-sm font-mono font-bold uppercase tracking-wider ${isDark ? "text-[#FFFFFF]" : "text-[#111111]"}`}>
+              [ PANDUAN PENGGUNAAN STUDIO ]
+            </h3>
+          </div>
+          <span className={`text-xs font-mono font-bold ${isDark ? "text-[#888888]" : "text-[#777777]"}`}>
+            {currentStep + 1} / {steps.length}
+          </span>
+        </div>
+
+        <div className="space-y-3 min-h-[140px]">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-[2px] bg-[#0000EE] text-white font-bold">
+              {steps[currentStep].tab}
+            </span>
+            <h4 className={`text-xs font-mono font-bold uppercase ${isDark ? "text-[#FFFFFF]" : "text-[#111111]"}`}>
+              {steps[currentStep].title}
+            </h4>
+          </div>
+          <p className={`text-xs font-mono leading-relaxed whitespace-pre-line ${isDark ? "text-[#EBE9E4]/85" : "text-[#444444]"}`}>
+            {steps[currentStep].desc}
+          </p>
+        </div>
+
+        {/* Indikator Langkah */}
+        <div className="flex items-center justify-center gap-1.5 py-1">
+          {steps.map((_, idx) => (
+            <button
+              key={idx}
+              onClick={() => setCurrentStep(idx)}
+              className={`h-1.5 rounded-none transition-all ${
+                currentStep === idx
+                  ? "w-6 bg-[#0000EE]"
+                  : isDark
+                  ? "w-2 bg-[#333333] hover:bg-[#555555]"
+                  : "w-2 bg-[#CCCCCC] hover:bg-[#999999]"
+              }`}
+              title={`Langkah ${idx + 1}`}
+            />
+          ))}
+        </div>
+
+        <div className={`flex items-center justify-between pt-3 border-t ${isDark ? "border-[#333333]" : "border-[#E5E7EB]"}`}>
+          <button
+            onClick={() => setCurrentStep((prev) => Math.max(0, prev - 1))}
+            disabled={currentStep === 0}
+            className={`px-3 py-1.5 text-xs font-mono uppercase font-bold rounded-[2px] border transition-colors disabled:opacity-20 ${
+              isDark
+                ? "bg-[#222222] text-[#FFFFFF] border-[#444444] hover:bg-[#333333]"
+                : "bg-[#EBE9E4] text-[#111111] border-[#CCCCCC] hover:bg-[#DDDCD7]"
+            }`}
+          >
+            ← Kembali
+          </button>
+
+          <div className="flex items-center gap-2">
+            {currentStep < steps.length - 1 ? (
+              <button
+                onClick={() => setCurrentStep((prev) => Math.min(steps.length - 1, prev + 1))}
+                className="px-4 py-1.5 text-xs font-mono uppercase font-bold text-white bg-[#0000EE] hover:bg-[#0000EE]/85 rounded-[2px] border border-[#0000EE] transition-colors"
+              >
+                Lanjut →
+              </button>
+            ) : (
+              <button
+                onClick={onClose}
+                className="px-4 py-1.5 text-xs font-mono uppercase font-bold text-white bg-[#0000EE] hover:bg-[#0000EE]/85 rounded-[2px] border border-[#0000EE] transition-colors"
+              >
+                Mulai Studio
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function CetakLokal() {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -171,7 +300,8 @@ export default function CetakLokal() {
   const [themeMode, setThemeMode] = useState("light");
   const isDark = themeMode === "dark";
 
-  // Membaca pengaturan tema tersimpan dari cache browser saat awal render
+  const [isTutorialOpen, setIsTutorialOpen] = useState(false);
+
   useEffect(() => {
     const savedTheme = localStorage.getItem("sertigen_theme_mode");
     if (savedTheme === "dark" || savedTheme === "light") {
@@ -179,7 +309,6 @@ export default function CetakLokal() {
     }
   }, []);
 
-  // Fungsi toggle tema yang langsung menyimpan preferensi ke localStorage
   const handleToggleTheme = () => {
     const nextTheme = themeMode === "dark" ? "light" : "dark";
     setThemeMode(nextTheme);
@@ -1220,6 +1349,12 @@ export default function CetakLokal() {
         isDark={isDark}
       />
 
+      <TutorialModal
+        isOpen={isTutorialOpen}
+        onClose={() => setIsTutorialOpen(false)}
+        isDark={isDark}
+      />
+
       {/* BANNER RESTORE SESI TERSIMPAN */}
       {isRestoreBannerOpen && (
         <div className="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-4">
@@ -1304,6 +1439,22 @@ export default function CetakLokal() {
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Tombol Panduan Penggunaan */}
+          <button
+            type="button"
+            onClick={() => setIsTutorialOpen(true)}
+            className={`p-2 rounded-[4px] border transition-colors flex items-center justify-center ${
+              isDark
+                ? "bg-[#222222] text-[#FFFFFF] border-[#444444] hover:bg-[#333333]"
+                : "bg-[#EBE9E4] text-[#111111] border-[#CCCCCC] hover:bg-[#DDDCD7]"
+            }`}
+            title="Panduan Penggunaan"
+            aria-label="Panduan Penggunaan"
+          >
+            <IconHelp className="w-4 h-4" />
+          </button>
+
+          {/* Toggle Mode Terang / Gelap */}
           <button
             type="button"
             onClick={handleToggleTheme}
