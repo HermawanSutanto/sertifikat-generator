@@ -28,12 +28,14 @@ const BUILT_IN_TEMPLATES = [
     name: "Template Sertifikat 2",
     pdfPath: "/templates/template_02.pdf",
     layoutPath: "/layout-templates/template_02.json",
-  },{
+  },
+  {
     id: "template3",
     name: "Template Sertifikat 3",
     pdfPath: "/templates/template_03.pdf",
     layoutPath: "/layout-templates/template_03.json",
-  },{
+  },
+  {
     id: "template4",
     name: "Template Sertifikat 4",
     pdfPath: "/templates/template_04.pdf",
@@ -208,24 +210,24 @@ const TutorialModal = ({ isOpen, onClose, isDark }) => {
       desc: "Buka panel 'Berkas' di bilah kiri. Pilih salah satu Template Bawaan atau unggah file CSV dan PDF sertifikat Anda sendiri. Anda dapat mengatur skala kompresi template agar ukuran arsip ZIP tidak membengkak saat dicetak massal.",
     },
     {
-      title: "2. Tata Letak & Tipografi",
+      title: "2. Tata Letak, Gambar & Teks Variabel",
       tab: "Elemen",
-      desc: "Geser kotak teks langsung di atas kanvas pratinjau. Di panel 'Elemen', sesuaikan ukuran font, line height, letter spacing, dan warna tinta teks. Anda juga bisa menambahkan teks statis dinamis dengan tombol '+ Teks Statis'.",
+      desc: "Geser kotak elemen di kanvas. Anda bisa menambahkan Teks Statis, Gambar (Logo/TTD), serta Teks Variabel mandiri yang nilainya dipisahkan tanda koma untuk melengkapi baris data CSV secara otomatis.",
     },
     {
       title: "3. Pintasan Keyboard Kanvas",
       tab: "Shortcut",
-      desc: "Klik salah satu elemen di kanvas untuk mengaktifkannya:\n• Tombol Panah: Geser posisi 1pt (tahan Shift untuk 10pt)\n• Ctrl/Cmd + D: Duplikat elemen teks statis\n• Delete / Backspace: Sembunyikan elemen aktif\n• Ctrl/Cmd + Z / Y: Urungkan (Undo) atau Ulangi (Redo)",
+      desc: "Klik salah satu elemen di kanvas untuk mengaktifkannya:\n• Tombol Panah: Geser posisi 1pt (tahan Shift untuk 10pt)\n• Ctrl/Cmd + D: Duplikat elemen kustom\n• Delete / Backspace: Sembunyikan elemen aktif\n• Ctrl/Cmd + Z / Y: Urungkan (Undo) atau Ulangi (Redo)",
     },
     {
       title: "4. Pemilihan Font Lokal",
       tab: "Font",
-      desc: "Buka tab 'Font' untuk memindai font sistem di komputer Anda (fitur ini tersedia di Chromium seperti Chrome/Edge). Pilih font yang diinginkan agar langsung diterapkan di kanvas pratinjau maupun hasil cetak PDF.",
+      desc: "Buka tab 'Font' untuk memindai font sistem di komputer Anda (tersedia di browser Chromium). Pilih font yang diinginkan agar langsung diterapkan di kanvas pratinjau maupun hasil cetak PDF.",
     },
     {
       title: "5. Rentang Baris & Penamaan Berkas",
       tab: "Preset",
-      desc: "Di tab 'Preset', Anda dapat mengatur pola nama berkas PDF (contoh: sertifikat_{Nama}_{index}) dan memilih mencetak semua peserta atau rentang baris tertentu saja (contoh: baris 1-50) sebelum memulai proses Cetak ZIP.",
+      desc: "Di tab 'Preset', atur pola nama berkas PDF (misal: sertifikat_{Nama}_{index}) dan tentukan rentang baris data yang ingin dicetak sebelum menekan tombol Cetak ZIP.",
     },
   ];
 
@@ -323,7 +325,6 @@ export default function CetakLokal() {
 
   const [themeMode, setThemeMode] = useState("light");
   const isDark = themeMode === "dark";
-
   const [isTutorialOpen, setIsTutorialOpen] = useState(false);
 
   useEffect(() => {
@@ -352,11 +353,9 @@ export default function CetakLokal() {
   const [compressionQuality, setCompressionQuality] = useState(0.8);
   const [isRecompressing, setIsRecompressing] = useState(false);
 
-  // State Template Bawaan
   const [selectedBuiltInTemplateId, setSelectedBuiltInTemplateId] = useState("");
   const [isLoadingBuiltIn, setIsLoadingBuiltIn] = useState(false);
 
-  // Custom Filename Pattern & Range Slicing State
   const [filenamePattern, setFilenamePattern] = useState("sertifikat_{Nama}_{index}");
   const [sliceMode, setSliceMode] = useState("all");
   const [sliceStart, setSliceStart] = useState(1);
@@ -371,6 +370,8 @@ export default function CetakLokal() {
   const [selectedFontStyle, setSelectedFontStyle] = useState("");
   const [isLoadingFontBytes, setIsLoadingFontBytes] = useState(false);
   const [fontDetectionError, setFontDetectionError] = useState("");
+
+  const imageUploadInputRef = useRef(null);
 
   useEffect(() => {
     setLocalFontApiSupported(typeof window !== "undefined" && "queryLocalFonts" in window);
@@ -583,7 +584,7 @@ export default function CetakLokal() {
 
       if (e.key === "Delete" || e.key === "Backspace") {
         const cfg = configsRef.current.find((c) => c.column_name === activeColumn);
-        if (cfg?.static_text !== undefined) {
+        if (cfg?.static_text !== undefined || cfg?.is_custom_var || cfg?.type === "image") {
           e.preventDefault();
           handleHideElement(activeColumn);
         }
@@ -728,7 +729,6 @@ export default function CetakLokal() {
     await processAndSetPdfTemplate(file);
   };
 
-  // Fungsi memuat template bawaan dari direktori /public
   const handleSelectBuiltInTemplate = async (templateId) => {
     setSelectedBuiltInTemplateId(templateId);
     if (!templateId) return;
@@ -738,7 +738,6 @@ export default function CetakLokal() {
 
     setIsLoadingBuiltIn(true);
     try {
-      // 1. Fetch file PDF
       const res = await fetch(chosen.pdfPath);
       if (!res.ok) throw new Error(`Berkas PDF tidak ditemukan (${res.status})`);
       const blob = await res.blob();
@@ -747,16 +746,21 @@ export default function CetakLokal() {
 
       await processAndSetPdfTemplate(file);
 
-      // 2. Fetch file layout JSON jika disediakan
       if (chosen.layoutPath) {
         try {
           const jsonRes = await fetch(chosen.layoutPath);
           if (jsonRes.ok) {
             const layoutJson = await jsonRes.json();
-            if (Array.isArray(layoutJson)) {
+            const targetConfigs = Array.isArray(layoutJson)
+              ? layoutJson
+              : Array.isArray(layoutJson.configs)
+              ? layoutJson.configs
+              : null;
+
+            if (targetConfigs) {
               pushHistorySnapshot(configsRef.current);
-              setConfigs(layoutJson);
-              if (layoutJson.length > 0) setActiveColumn(layoutJson[0].column_name);
+              setConfigs(targetConfigs);
+              if (targetConfigs.length > 0) setActiveColumn(targetConfigs[0].column_name);
             }
           }
         } catch (e) {
@@ -806,7 +810,6 @@ export default function CetakLokal() {
           const scannedLongest = scanLongestRowSample(rows, fields);
           setLongestRowSample(scannedLongest);
 
-          // Jika configs belum diset oleh layout template bawaan, inisialisasi default
           if (configs.length === 0) {
             const initialConfigs = fields.map((header, idx) => ({
               column_name: header,
@@ -956,7 +959,7 @@ export default function CetakLokal() {
       setHistoryState({ past: [], future: [] });
       setNotification({ show: true, message: "Sesi tersimpan berhasil dipulihkan.", type: "success" });
     } catch (err) {
-      console.error("Gagal memulihkan sesi:", err);
+      console.error("Gagal memuilhkan sesi:", err);
       setNotification({ show: true, message: `Gagal memulihkan sesi: ${err.message}`, type: "error" });
     } finally {
       setIsRestoring(false);
@@ -1025,16 +1028,84 @@ export default function CetakLokal() {
     setActiveColumn(staticId);
   };
 
+  // Tambah Elemen Teks Variabel Mandiri
+  const handleAddCustomVar = () => {
+    const varName = `variabel_${Date.now().toString().slice(-4)}`;
+    const newConfig = {
+      column_name: varName,
+      is_custom_var: true,
+      custom_var_name: varName,
+      custom_var_values: "Nilai 1, Nilai 2, Nilai 3",
+      x: (pdfPreviewSize.width - 300) / 2,
+      y: 120,
+      font_size: 24,
+      line_height: 1.2,
+      letter_spacing: 0,
+      max_width: 300,
+      align: "center",
+      enabled: true,
+      page_number: currentPage,
+    };
+
+    commitConfigs((prev) => [...prev, newConfig]);
+    setActiveColumn(varName);
+  };
+
+  // Tambah Elemen Gambar (Logo / TTD)
+  const handleAddImageElement = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const dataUrl = evt.target.result;
+      const img = new Image();
+      img.onload = () => {
+        const aspect = img.width / img.height || 1;
+        const initialWidth = Math.min(180, pdfPreviewSize.width * 0.4);
+        const initialHeight = initialWidth / aspect;
+
+        const imgId = `image_${Date.now()}`;
+        const newConfig = {
+          type: "image",
+          column_name: imgId,
+          image_name: file.name,
+          data_url: dataUrl,
+          mime_type: file.type || "image/png",
+          x: (pdfPreviewSize.width - initialWidth) / 2,
+          y: 150,
+          max_width: Math.round(initialWidth),
+          height: Math.round(initialHeight),
+          enabled: true,
+          page_number: currentPage,
+        };
+
+        commitConfigs((prev) => [...prev, newConfig]);
+        setActiveColumn(imgId);
+      };
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
   const handleDuplicateElement = (colName) => {
     const source = configsRef.current.find((c) => c.column_name === colName);
-    if (!source || source.static_text === undefined) return;
+    if (!source || (source.static_text === undefined && !source.is_custom_var && source.type !== "image")) return;
 
-    const newId = `static_text_${Date.now()}`;
+    const newId = `${source.type === "image" ? "image" : source.is_custom_var ? "variabel" : "static_text"}_${Date.now()}`;
     const duplicated = {
       ...source,
       column_name: newId,
+      ...(source.is_custom_var ? { custom_var_name: newId } : {}),
       x: Math.min(source.x + 16, Math.max(pdfPreviewSize.width - source.max_width, 0)),
-      y: Math.min(source.y + 16, Math.max(pdfPreviewSize.height - source.font_size * (source.line_height || 1.2), 0)),
+      y: Math.min(
+        source.y + 16,
+        Math.max(
+          pdfPreviewSize.height - (source.type === "image" ? source.height : source.font_size * (source.line_height || 1.2)),
+          0
+        )
+      ),
     };
 
     commitConfigs((prev) => [...prev, duplicated]);
@@ -1074,7 +1145,7 @@ export default function CetakLokal() {
   const handleNudgeActive = (dx, dy) => {
     const cfg = configsRef.current.find((c) => c.column_name === activeColumn);
     if (!cfg) return;
-    const height = cfg.font_size * (cfg.line_height || 1.2);
+    const height = cfg.type === "image" ? cfg.height : cfg.font_size * (cfg.line_height || 1.2);
     const nextX = Math.min(Math.max(cfg.x + dx, 0), Math.max(pdfPreviewSize.width - cfg.max_width, 0));
     const nextY = Math.min(Math.max(cfg.y + dy, 0), Math.max(pdfPreviewSize.height - height, 0));
     updateConfig(activeColumn, { x: nextX, y: nextY });
@@ -1148,10 +1219,16 @@ export default function CetakLokal() {
     reader.onload = (evt) => {
       try {
         const imported = JSON.parse(evt.target.result);
-        if (Array.isArray(imported)) {
+        const targetConfigs = Array.isArray(imported)
+          ? imported
+          : Array.isArray(imported.configs)
+          ? imported.configs
+          : null;
+
+        if (targetConfigs) {
           pushHistorySnapshot(configsRef.current);
-          setConfigs(imported);
-          if (imported.length > 0) setActiveColumn(imported[0].column_name);
+          setConfigs(targetConfigs);
+          if (targetConfigs.length > 0) setActiveColumn(targetConfigs[0].column_name);
           setNotification({ show: true, message: "Preset JSON berhasil diimpor.", type: "success" });
         }
       } catch (err) {
@@ -1162,10 +1239,25 @@ export default function CetakLokal() {
   };
 
   const renderPreviewText = (cfg) => {
+    if (cfg.is_custom_var) {
+      const parts = (cfg.custom_var_values || "").split(",").map((s) => s.trim());
+      return parts[0] || `[${cfg.custom_var_name || cfg.column_name}]`;
+    }
+
     if (cfg.static_text !== undefined && cfg.static_text !== "") {
       let text = cfg.static_text;
-      const matches = text.match(/\{([^}]+)\}/g);
 
+      configs
+        .filter((c) => c.enabled && c.is_custom_var)
+        .forEach((cVar) => {
+          const varKey = cVar.custom_var_name || cVar.column_name;
+          const parts = (cVar.custom_var_values || "").split(",").map((s) => s.trim());
+          const sampleVal = parts[0] || `[${varKey}]`;
+          text = text.replaceAll(`{${varKey}}`, sampleVal);
+          text = text.replaceAll(`{${varKey}:uppercase}`, sampleVal.toUpperCase());
+        });
+
+      const matches = text.match(/\{([^}]+)\}/g);
       if (matches) {
         matches.forEach((match) => {
           const rawKey = match.replace("{", "").replace("}", "");
@@ -1196,6 +1288,64 @@ export default function CetakLokal() {
     };
   };
 
+  const enrichRowsWithCustomVariables = (rows) => {
+    const customVarConfigs = configs.filter((c) => c.enabled && c.is_custom_var);
+    if (customVarConfigs.length === 0) return rows;
+
+    return rows.map((row, idx) => {
+      const cloned = { ...row };
+      customVarConfigs.forEach((cVar) => {
+        const varKey = cVar.custom_var_name || cVar.column_name;
+        const parts = (cVar.custom_var_values || "").split(",").map((s) => s.trim());
+        if (parts.length === rows.length) {
+          cloned[varKey] = parts[idx] !== undefined ? parts[idx] : parts[0] || "";
+        } else {
+          cloned[varKey] = parts[0] || "";
+        }
+      });
+      return cloned;
+    });
+  };
+
+  const bakeImagesIntoPdfTemplate = async (baseFile) => {
+    const imageConfigs = configs.filter((c) => c.enabled && c.type === "image" && c.data_url);
+    if (imageConfigs.length === 0) {
+      const ab = await baseFile.arrayBuffer();
+      return new Uint8Array(ab);
+    }
+
+    const templateArrayBuffer = await baseFile.arrayBuffer();
+    const pdfDocLib = await PDFDocument.load(templateArrayBuffer);
+
+    for (const imgCfg of imageConfigs) {
+      const pageIndex = Math.max(0, (imgCfg.page_number || 1) - 1);
+      const page = pdfDocLib.getPage(pageIndex);
+      const { height: pageH } = page.getSize();
+
+      const res = await fetch(imgCfg.data_url);
+      const imgBytes = await res.arrayBuffer();
+
+      let embedded;
+      if (imgCfg.mime_type?.includes("jpeg") || imgCfg.mime_type?.includes("jpg")) {
+        embedded = await pdfDocLib.embedJpg(imgBytes);
+      } else {
+        embedded = await pdfDocLib.embedPng(imgBytes);
+      }
+
+      const pdfY = pageH - Number(imgCfg.y) - Number(imgCfg.height);
+
+      page.drawImage(embedded, {
+        x: Number(imgCfg.x),
+        y: pdfY,
+        width: Number(imgCfg.max_width),
+        height: Number(imgCfg.height),
+      });
+    }
+
+    const bakedBytes = await pdfDocLib.save();
+    return new Uint8Array(bakedBytes);
+  };
+
   const runPreflightValidation = () => {
     const warnings = [];
     const { rows: selectedRows } = getTargetRows();
@@ -1204,60 +1354,75 @@ export default function CetakLokal() {
       warnings.push("Rentang baris yang dipilih tidak memuat data yang valid.");
     }
 
-    configs.filter((c) => c.enabled).forEach((cfg) => {
-      const targetPage = cfg.page_number || 1;
-      if (targetPage > totalPages) {
-        const label = cfg.static_text !== undefined
-          ? `Teks statis "${cfg.static_text}"`
-          : `Kolom "${cfg.column_name}"`;
-        warnings.push(
-          `${label} menargetkan Halaman ${targetPage}, tetapi template hanya memiliki ${totalPages} halaman.`
-        );
-      }
+    configs
+      .filter((c) => c.enabled)
+      .forEach((cfg) => {
+        const targetPage = cfg.page_number || 1;
+        if (targetPage > totalPages) {
+          const label =
+            cfg.type === "image"
+              ? `Gambar "${cfg.image_name || cfg.column_name}"`
+              : cfg.is_custom_var
+              ? `Variabel "${cfg.custom_var_name || cfg.column_name}"`
+              : cfg.static_text !== undefined
+              ? `Teks statis "${cfg.static_text}"`
+              : `Kolom "${cfg.column_name}"`;
+          warnings.push(
+            `${label} menargetkan Halaman ${targetPage}, tetapi template hanya memiliki ${totalPages} halaman.`
+          );
+        }
 
-      if (cfg.static_text) {
-        const matches = cfg.static_text.match(/\{([^}]+)\}/g);
-        if (matches) {
-          matches.forEach((match) => {
-            const rawKey = match.replace("{", "").replace("}", "");
-            const key = rawKey.endsWith(":uppercase") ? rawKey.replace(":uppercase", "") : rawKey;
+        if (cfg.static_text && cfg.type !== "image") {
+          const matches = cfg.static_text.match(/\{([^}]+)\}/g);
+          if (matches) {
+            matches.forEach((match) => {
+              const rawKey = match.replace("{", "").replace("}", "");
+              const key = rawKey.endsWith(":uppercase") ? rawKey.replace(":uppercase", "") : rawKey;
 
-            if (!csvHeaders.includes(key)) {
-              warnings.push(`Placeholder "${match}" tidak ditemukan pada CSV.`);
+              const isCsvHeader = csvHeaders.includes(key);
+              const isCustomVar = configs.some(
+                (c) => c.enabled && c.is_custom_var && (c.custom_var_name === key || c.column_name === key)
+              );
+
+              if (!isCsvHeader && !isCustomVar) {
+                warnings.push(`Placeholder "${match}" tidak ditemukan pada CSV ataupun Teks Variabel.`);
+              }
+            });
+          }
+        }
+
+        if (!cfg.static_text && !cfg.is_custom_var && cfg.type !== "image" && csvHeaders.includes(cfg.column_name)) {
+          let emptyCount = 0;
+          selectedRows.forEach((row) => {
+            if (!row[cfg.column_name] || String(row[cfg.column_name]).trim() === "") {
+              emptyCount++;
             }
           });
-        }
-      }
 
-      if (!cfg.static_text && csvHeaders.includes(cfg.column_name)) {
-        let emptyCount = 0;
-        selectedRows.forEach((row) => {
-          if (!row[cfg.column_name] || String(row[cfg.column_name]).trim() === "") {
-            emptyCount++;
+          if (emptyCount > 0) {
+            warnings.push(`Ditemukan ${emptyCount} baris data kosong di kolom "${cfg.column_name}".`);
           }
-        });
-
-        if (emptyCount > 0) {
-          warnings.push(`Ditemukan ${emptyCount} baris data kosong di kolom "${cfg.column_name}".`);
         }
-      }
-    });
+      });
 
     return warnings;
   };
 
   const buildFormattedConfigs = () =>
     configs
-      .filter((c) => c.enabled)
+      .filter((c) => c.enabled && c.type !== "image")
       .map((c) => {
         const page = c.page_number || 1;
         const size = pageSizes[page] || pdfPreviewSize;
+
+        const colName = c.is_custom_var ? c.custom_var_name || c.column_name : c.column_name;
+
         return {
-          column_name: c.column_name,
+          column_name: colName,
           static_text: c.static_text || null,
           x: Number(c.x),
           y: Number(c.y),
-          font_size: parseFloat(c.font_size),
+          font_size: parseFloat(c.font_size || 24),
           line_height: parseFloat(c.line_height || 1.2),
           letter_spacing: parseFloat(c.letter_spacing || 0),
           max_width: parseFloat(c.max_width),
@@ -1277,9 +1442,8 @@ export default function CetakLokal() {
     try {
       setNotification({ show: true, message: "Menyusun pratinjau...", type: "success" });
 
-      const templateArrayBuffer = await templateFile.arrayBuffer();
-      const templateUint8 = new Uint8Array(templateArrayBuffer);
-      const sampleCsvRow = [longestRowSample];
+      const templateUint8 = await bakeImagesIntoPdfTemplate(templateFile);
+      const enrichedSample = enrichRowsWithCustomVariables([longestRowSample]);
       const formattedConfigs = buildFormattedConfigs();
 
       const wasm = await import("@/rust_wasm/pkg/pdf_cert_wasm.js");
@@ -1287,7 +1451,7 @@ export default function CetakLokal() {
 
       const zipBytes = wasm.generate_certificates_chunk(
         templateUint8,
-        sampleCsvRow,
+        enrichedSample,
         formattedConfigs,
         0,
         selectedFontBytes || undefined,
@@ -1336,11 +1500,11 @@ export default function CetakLokal() {
       return;
     }
 
-    setProgress({ current: 0, total: selectedRows.length });
+    const enrichedRows = enrichRowsWithCustomVariables(selectedRows);
+    setProgress({ current: 0, total: enrichedRows.length });
 
     try {
-      const templateArrayBuffer = await templateFile.arrayBuffer();
-      const templateUint8 = new Uint8Array(templateArrayBuffer);
+      const templateUint8 = await bakeImagesIntoPdfTemplate(templateFile);
       const formattedConfigs = buildFormattedConfigs();
 
       const worker = new Worker(new URL("./pdfWorker.js", import.meta.url));
@@ -1348,7 +1512,7 @@ export default function CetakLokal() {
       worker.postMessage(
         {
           templateUint8,
-          csvRows: selectedRows,
+          csvRows: enrichedRows,
           configs: formattedConfigs,
           chunkSize: 1000,
           fontBytes: selectedFontBytes || undefined,
@@ -1441,6 +1605,14 @@ export default function CetakLokal() {
         isOpen={isTutorialOpen}
         onClose={() => setIsTutorialOpen(false)}
         isDark={isDark}
+      />
+
+      <input
+        type="file"
+        ref={imageUploadInputRef}
+        accept="image/png, image/jpeg, image/jpg"
+        onChange={handleAddImageElement}
+        className="hidden"
       />
 
       {/* BANNER RESTORE SESI TERSIMPAN */}
@@ -1683,7 +1855,6 @@ export default function CetakLokal() {
                 </div>
 
                 <div className="space-y-4">
-                  {/* Opsi Pilih Template Bawaan dari /public */}
                   <div className={`border rounded-[4px] p-3 space-y-2 ${isDark ? "bg-[#111111] border-[#333333]" : "bg-[#F7F6F3] border-[#CCCCCC]"}`}>
                     <label className={`block text-[10px] font-mono uppercase font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
                       Gunakan Template Bawaan
@@ -1845,11 +2016,11 @@ export default function CetakLokal() {
             {/* PANEL: ELEMENTS */}
             {activeTab === "elements" && (
               <div className="space-y-5">
-                <div className={`flex items-center justify-between border-b pb-3 ${isDark ? "border-[#333333]" : "border-[#E5E7EB]"}`}>
+                <div className={`border-b pb-3 ${isDark ? "border-[#333333]" : "border-[#E5E7EB]"}`}>
                   <h2 className={`text-xs font-bold uppercase tracking-wider font-mono ${isDark ? "text-[#FFFFFF]" : "text-[#111111]"}`}>
-                    [ 02. ELEMEN TEKS ]
+                    [ 02. ELEMEN TATA LETAK ]
                   </h2>
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 mt-2">
                     <button
                       type="button"
                       onClick={handleUndo}
@@ -1879,13 +2050,33 @@ export default function CetakLokal() {
                   </div>
                 </div>
 
-                <div>
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={handleAddStaticText}
+                      className="w-full py-2 text-[11px] font-mono uppercase font-bold text-[#FFFFFF] bg-[#0000EE] hover:bg-[#0000EE]/85 border border-[#0000EE] rounded-[4px] transition-colors"
+                    >
+                      + Teks Statis
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleAddCustomVar}
+                      className="w-full py-2 text-[11px] font-mono uppercase font-bold text-[#FFFFFF] bg-[#0000EE] hover:bg-[#0000EE]/85 border border-[#0000EE] rounded-[4px] transition-colors"
+                    >
+                      + Teks Variabel
+                    </button>
+                  </div>
                   <button
                     type="button"
-                    onClick={handleAddStaticText}
-                    className="w-full py-2.5 text-xs font-mono uppercase font-bold text-[#FFFFFF] bg-[#0000EE] hover:bg-[#0000EE]/85 border border-[#0000EE] rounded-[4px] transition-colors"
+                    onClick={() => imageUploadInputRef.current?.click()}
+                    className={`w-full py-2 text-[11px] font-mono uppercase font-bold rounded-[4px] border transition-colors ${
+                      isDark
+                        ? "bg-[#222222] text-[#FFFFFF] border-[#444444] hover:bg-[#333333]"
+                        : "bg-[#FFFFFF] text-[#111111] border-[#111111] hover:bg-[#EBE9E4]"
+                    }`}
                   >
-                    + Tambah Teks Statis
+                    + Tambah Gambar (Logo / TTD)
                   </button>
                 </div>
 
@@ -1913,7 +2104,11 @@ export default function CetakLokal() {
                             }`}
                           >
                             <span>+</span>
-                            {cfg.static_text !== undefined && cfg.static_text !== ""
+                            {cfg.type === "image"
+                              ? `[IMG] ${cfg.image_name || cfg.column_name}`
+                              : cfg.is_custom_var
+                              ? `[VAR] ${cfg.custom_var_name || cfg.column_name}`
+                              : cfg.static_text !== undefined && cfg.static_text !== ""
                               ? cfg.static_text
                               : cfg.column_name}
                           </button>
@@ -1938,7 +2133,11 @@ export default function CetakLokal() {
                     >
                       {configs.filter((c) => c.enabled).map((c) => (
                         <option key={c.column_name} value={c.column_name}>
-                          {c.static_text !== undefined && c.static_text !== ""
+                          {c.type === "image"
+                            ? `[GAMBAR] ${c.image_name || c.column_name}`
+                            : c.is_custom_var
+                            ? `[VARIABEL] ${c.custom_var_name || c.column_name}`
+                            : c.static_text !== undefined && c.static_text !== ""
                             ? `[STATIS] ${c.static_text}`
                             : `[KOLOM] ${c.column_name}`}
                         </option>
@@ -1956,7 +2155,91 @@ export default function CetakLokal() {
                         isDark ? "bg-[#111111] border-[#333333]" : "bg-[#F7F6F3] border-[#CCCCCC]"
                       }`}
                     >
-                      {cfg.static_text !== undefined && (
+                      {cfg.type === "image" && (
+                        <>
+                          <div>
+                            <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
+                              Nama Berkas Gambar
+                            </label>
+                            <input
+                              type="text"
+                              disabled
+                              value={cfg.image_name || cfg.column_name}
+                              className={`w-full p-2 text-xs font-mono font-medium rounded-[4px] border opacity-70 ${
+                                isDark
+                                  ? "bg-[#181818] text-[#FFFFFF] border-[#444444]"
+                                  : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
+                              }`}
+                            />
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
+                                Lebar (pt)
+                              </label>
+                              <input
+                                type="number"
+                                value={cfg.max_width}
+                                onChange={(e) => updateConfig(cfg.column_name, { max_width: Number(e.target.value) })}
+                                className={`w-full p-2 text-xs font-mono font-bold rounded-[4px] border ${
+                                  isDark ? "bg-[#181818] text-[#FFFFFF] border-[#444444]" : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
+                                }`}
+                              />
+                            </div>
+                            <div>
+                              <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
+                                Tinggi (pt)
+                              </label>
+                              <input
+                                type="number"
+                                value={cfg.height}
+                                onChange={(e) => updateConfig(cfg.column_name, { height: Number(e.target.value) })}
+                                className={`w-full p-2 text-xs font-mono font-bold rounded-[4px] border ${
+                                  isDark ? "bg-[#181818] text-[#FFFFFF] border-[#444444]" : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
+                                }`}
+                              />
+                            </div>
+                          </div>
+                        </>
+                      )}
+
+                      {cfg.is_custom_var && (
+                        <>
+                          <div>
+                            <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
+                              Nama Variabel (Placeholder)
+                            </label>
+                            <input
+                              type="text"
+                              value={cfg.custom_var_name || ""}
+                              onChange={(e) => updateConfig(cfg.column_name, { custom_var_name: e.target.value })}
+                              placeholder="contoh: kota"
+                              className={`w-full p-2 text-xs font-mono font-bold rounded-[4px] border ${
+                                isDark ? "bg-[#181818] text-[#FFFFFF] border-[#444444]" : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
+                              }`}
+                            />
+                          </div>
+                          <div>
+                            <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
+                              Daftar Nilai (Pisahkan dengan koma)
+                            </label>
+                            <textarea
+                              rows={3}
+                              value={cfg.custom_var_values || ""}
+                              onChange={(e) => updateConfig(cfg.column_name, { custom_var_values: e.target.value })}
+                              placeholder="Jakarta, Surabaya, Bandung..."
+                              className={`w-full p-2 text-xs font-mono font-medium rounded-[4px] border ${
+                                isDark ? "bg-[#181818] text-[#FFFFFF] border-[#444444]" : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
+                              }`}
+                            />
+                            <p className={`text-[10px] font-mono mt-1 ${isDark ? "text-[#888888]" : "text-[#666666]"}`}>
+                              Total nilai: {(cfg.custom_var_values || "").split(",").filter((s) => s.trim().length > 0).length} kata/frasa.
+                            </p>
+                          </div>
+                        </>
+                      )}
+
+                      {cfg.static_text !== undefined && !cfg.is_custom_var && cfg.type !== "image" && (
                         <div>
                           <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
                             Isi Teks Statis
@@ -1995,146 +2278,138 @@ export default function CetakLokal() {
                         </div>
                       )}
 
-                      <div>
-                        <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
-                          Perataan Teks
-                        </label>
-                        <div className="grid grid-cols-3 gap-1.5">
-                          {[
-                            { id: "left", label: "Kiri" },
-                            { id: "center", label: "Tengah" },
-                            { id: "right", label: "Kanan" },
-                          ].map((item) => (
-                            <button
-                              key={item.id}
-                              type="button"
-                              onClick={() => updateConfig(cfg.column_name, { align: item.id })}
-                              className={`py-1.5 text-[10px] font-mono uppercase font-bold rounded-[2px] border transition-colors ${
-                                cfg.align === item.id
-                                  ? "bg-[#0000EE] text-[#FFFFFF] border-[#0000EE]"
-                                  : isDark
-                                  ? "bg-[#181818] text-[#EBE9E4] border-[#444444] hover:bg-[#222222]"
-                                  : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC] hover:bg-[#EBE9E4]"
-                              }`}
-                            >
-                              {item.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
+                      {cfg.type !== "image" && (
+                        <>
+                          <div>
+                            <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
+                              Perataan Teks
+                            </label>
+                            <div className="grid grid-cols-3 gap-1.5">
+                              {[
+                                { id: "left", label: "Kiri" },
+                                { id: "center", label: "Tengah" },
+                                { id: "right", label: "Kanan" },
+                              ].map((item) => (
+                                <button
+                                  key={item.id}
+                                  type="button"
+                                  onClick={() => updateConfig(cfg.column_name, { align: item.id })}
+                                  className={`py-1.5 text-[10px] font-mono uppercase font-bold rounded-[2px] border transition-colors ${
+                                    cfg.align === item.id
+                                      ? "bg-[#0000EE] text-[#FFFFFF] border-[#0000EE]"
+                                      : isDark
+                                      ? "bg-[#181818] text-[#EBE9E4] border-[#444444] hover:bg-[#222222]"
+                                      : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC] hover:bg-[#EBE9E4]"
+                                  }`}
+                                >
+                                  {item.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
 
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
-                            Ukuran Font (pt)
-                          </label>
-                          <input
-                            type="number"
-                            value={cfg.font_size}
-                            onChange={(e) => updateConfig(cfg.column_name, { font_size: Number(e.target.value) })}
-                            className={`w-full p-2 text-xs font-mono font-bold rounded-[4px] border ${
-                              isDark
-                                ? "bg-[#181818] text-[#FFFFFF] border-[#444444]"
-                                : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
-                            }`}
-                          />
-                        </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
+                                Ukuran Font (pt)
+                              </label>
+                              <input
+                                type="number"
+                                value={cfg.font_size}
+                                onChange={(e) => updateConfig(cfg.column_name, { font_size: Number(e.target.value) })}
+                                className={`w-full p-2 text-xs font-mono font-bold rounded-[4px] border ${
+                                  isDark ? "bg-[#181818] text-[#FFFFFF] border-[#444444]" : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
+                                }`}
+                              />
+                            </div>
 
-                        <div>
-                          <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
-                            Lebar Kotak (pt)
-                          </label>
-                          <input
-                            type="number"
-                            value={cfg.max_width}
-                            onChange={(e) => updateConfig(cfg.column_name, { max_width: Number(e.target.value) })}
-                            className={`w-full p-2 text-xs font-mono font-bold rounded-[4px] border ${
-                              isDark
-                                ? "bg-[#181818] text-[#FFFFFF] border-[#444444]"
-                                : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
-                            }`}
-                          />
-                        </div>
-                      </div>
+                            <div>
+                              <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
+                                Lebar Kotak (pt)
+                              </label>
+                              <input
+                                type="number"
+                                value={cfg.max_width}
+                                onChange={(e) => updateConfig(cfg.column_name, { max_width: Number(e.target.value) })}
+                                className={`w-full p-2 text-xs font-mono font-bold rounded-[4px] border ${
+                                  isDark ? "bg-[#181818] text-[#FFFFFF] border-[#444444]" : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
+                                }`}
+                              />
+                            </div>
+                          </div>
 
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
-                            Line Height
-                          </label>
-                          <input
-                            type="number"
-                            step="0.1"
-                            min="0.5"
-                            max="3.0"
-                            value={cfg.line_height !== undefined ? cfg.line_height : 1.2}
-                            onChange={(e) => updateConfig(cfg.column_name, { line_height: parseFloat(e.target.value) })}
-                            className={`w-full p-2 text-xs font-mono font-bold rounded-[4px] border ${
-                              isDark
-                                ? "bg-[#181818] text-[#FFFFFF] border-[#444444]"
-                                : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
-                            }`}
-                          />
-                        </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
+                                Line Height
+                              </label>
+                              <input
+                                type="number"
+                                step="0.1"
+                                min="0.5"
+                                max="3.0"
+                                value={cfg.line_height !== undefined ? cfg.line_height : 1.2}
+                                onChange={(e) => updateConfig(cfg.column_name, { line_height: parseFloat(e.target.value) })}
+                                className={`w-full p-2 text-xs font-mono font-bold rounded-[4px] border ${
+                                  isDark ? "bg-[#181818] text-[#FFFFFF] border-[#444444]" : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
+                                }`}
+                              />
+                            </div>
 
-                        <div>
-                          <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
-                            Letter Spacing (pt)
-                          </label>
-                          <input
-                            type="number"
-                            step="0.5"
-                            min="-5"
-                            max="20"
-                            value={cfg.letter_spacing !== undefined ? cfg.letter_spacing : 0}
-                            onChange={(e) => updateConfig(cfg.column_name, { letter_spacing: parseFloat(e.target.value) })}
-                            className={`w-full p-2 text-xs font-mono font-bold rounded-[4px] border ${
-                              isDark
-                                ? "bg-[#181818] text-[#FFFFFF] border-[#444444]"
-                                : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
-                            }`}
-                          />
-                        </div>
-                      </div>
+                            <div>
+                              <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
+                                Letter Spacing (pt)
+                              </label>
+                              <input
+                                type="number"
+                                step="0.5"
+                                min="-5"
+                                max="20"
+                                value={cfg.letter_spacing !== undefined ? cfg.letter_spacing : 0}
+                                onChange={(e) => updateConfig(cfg.column_name, { letter_spacing: parseFloat(e.target.value) })}
+                                className={`w-full p-2 text-xs font-mono font-bold rounded-[4px] border ${
+                                  isDark ? "bg-[#181818] text-[#FFFFFF] border-[#444444]" : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
+                                }`}
+                              />
+                            </div>
+                          </div>
 
-                      <div>
-                        <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
-                          Warna Tinta
-                        </label>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="color"
-                            value={cfg.color || "#111111"}
-                            onChange={(e) => updateConfig(cfg.column_name, { color: e.target.value })}
-                            className="h-8 w-10 p-0.5 bg-transparent border rounded-[2px] cursor-pointer"
-                          />
-                          <span className={`text-xs font-mono font-bold uppercase ${isDark ? "text-[#FFFFFF]" : "text-[#111111]"}`}>
-                            {cfg.color || "#111111"}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => updateConfig(cfg.column_name, { color: "#111111" })}
-                            className={`ml-auto px-2.5 py-1 text-[10px] font-mono uppercase font-bold rounded-[2px] border transition-colors ${
-                              isDark
-                                ? "bg-[#181818] text-[#FFFFFF] border-[#444444] hover:bg-[#222222]"
-                                : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC] hover:bg-[#EBE9E4]"
-                            }`}
-                          >
-                            Reset Hitam
-                          </button>
-                        </div>
-                      </div>
+                          <div>
+                            <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
+                              Warna Tinta
+                            </label>
+                            <div className="flex items-center gap-2">
+                              <input
+                                type="color"
+                                value={cfg.color || "#111111"}
+                                onChange={(e) => updateConfig(cfg.column_name, { color: e.target.value })}
+                                className="h-8 w-10 p-0.5 bg-transparent border rounded-[2px] cursor-pointer"
+                              />
+                              <span className={`text-xs font-mono font-bold uppercase ${isDark ? "text-[#FFFFFF]" : "text-[#111111]"}`}>
+                                {cfg.color || "#111111"}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => updateConfig(cfg.column_name, { color: "#111111" })}
+                                className={`ml-auto px-2.5 py-1 text-[10px] font-mono uppercase font-bold rounded-[2px] border transition-colors ${
+                                  isDark ? "bg-[#181818] text-[#FFFFFF] border-[#444444] hover:bg-[#222222]" : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC] hover:bg-[#EBE9E4]"
+                                }`}
+                              >
+                                Reset Hitam
+                              </button>
+                            </div>
+                          </div>
+                        </>
+                      )}
 
-                      {cfg.static_text !== undefined && (
+                      {(cfg.static_text !== undefined || cfg.is_custom_var || cfg.type === "image") && (
                         <div className="flex items-center gap-2 pt-2">
                           <button
                             type="button"
                             onClick={() => handleDuplicateElement(cfg.column_name)}
                             title="Duplikat (Ctrl+D)"
                             className={`flex-1 py-2 text-xs font-mono uppercase font-bold rounded-[4px] border transition-colors ${
-                              isDark
-                                ? "bg-[#222222] text-[#FFFFFF] border-[#444444] hover:bg-[#333333]"
-                                : "bg-[#FFFFFF] text-[#111111] border-[#111111] hover:bg-[#EBE9E4]"
+                              isDark ? "bg-[#222222] text-[#FFFFFF] border-[#444444] hover:bg-[#333333]" : "bg-[#FFFFFF] text-[#111111] border-[#111111] hover:bg-[#EBE9E4]"
                             }`}
                           >
                             Duplikat
@@ -2277,9 +2552,7 @@ export default function CetakLokal() {
                     }`}
                   />
                   <p className={`text-[10px] font-mono leading-relaxed ${isDark ? "text-[#888888]" : "text-[#666666]"}`}>
-                    Variabel: <span className="text-[#0000EE] font-bold">&#123;index&#125;</span>, atau nama kolom CSV (contoh:{" "}
-                    <span className="text-[#0000EE] font-bold">&#123;Nama&#125;</span> /{" "}
-                    <span className="text-[#0000EE] font-bold">&#123;Nama:uppercase&#125;</span>).
+                    Variabel: <span className="text-[#0000EE] font-bold">&#123;index&#125;</span>, nama kolom CSV, atau nama Teks Variabel.
                   </p>
                 </div>
 
@@ -2367,9 +2640,7 @@ export default function CetakLokal() {
                       value={presetName}
                       onChange={(e) => setPresetName(e.target.value)}
                       className={`w-full p-2 text-xs font-mono font-bold rounded-[4px] border ${
-                        isDark
-                          ? "bg-[#111111] text-[#FFFFFF] border-[#444444]"
-                          : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
+                        isDark ? "bg-[#111111] text-[#FFFFFF] border-[#444444]" : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
                       }`}
                     />
                     <button
@@ -2386,9 +2657,7 @@ export default function CetakLokal() {
                       onChange={(e) => handleLoadPreset(e.target.value)}
                       defaultValue=""
                       className={`w-full p-2 text-xs font-mono font-bold rounded-[4px] border ${
-                        isDark
-                          ? "bg-[#111111] text-[#FFFFFF] border-[#444444]"
-                          : "bg-[#FFFFFF] text-[#111111] border-[#111111]"
+                        isDark ? "bg-[#111111] text-[#FFFFFF] border-[#444444]" : "bg-[#FFFFFF] text-[#111111] border-[#111111]"
                       }`}
                     >
                       <option value="" disabled>-- Muat Preset Tersimpan --</option>
@@ -2403,18 +2672,14 @@ export default function CetakLokal() {
                       type="button"
                       onClick={handleExportJson}
                       className={`py-2 text-xs font-mono uppercase font-bold rounded-[4px] border transition-colors ${
-                        isDark
-                          ? "bg-[#222222] text-[#FFFFFF] border-[#444444] hover:bg-[#333333]"
-                          : "bg-[#FFFFFF] text-[#111111] border-[#111111] hover:bg-[#EBE9E4]"
+                        isDark ? "bg-[#222222] text-[#FFFFFF] border-[#444444] hover:bg-[#333333]" : "bg-[#FFFFFF] text-[#111111] border-[#111111] hover:bg-[#EBE9E4]"
                       }`}
                     >
                       Ekspor JSON
                     </button>
                     <label
                       className={`py-2 text-xs font-mono uppercase font-bold text-center rounded-[4px] border cursor-pointer transition-colors ${
-                        isDark
-                          ? "bg-[#222222] text-[#FFFFFF] border-[#444444] hover:bg-[#333333]"
-                          : "bg-[#FFFFFF] text-[#111111] border-[#111111] hover:bg-[#EBE9E4]"
+                        isDark ? "bg-[#222222] text-[#FFFFFF] border-[#444444] hover:bg-[#333333]" : "bg-[#FFFFFF] text-[#111111] border-[#111111] hover:bg-[#EBE9E4]"
                       }`}
                     >
                       Impor JSON
@@ -2576,24 +2841,41 @@ export default function CetakLokal() {
                 .map((cfg) => {
                   const displayText = renderPreviewText(cfg);
                   const isSelected = activeColumn === cfg.column_name;
+                  const isImage = cfg.type === "image";
+                  const isCustomVar = cfg.is_custom_var;
                   const isStatic = cfg.static_text !== undefined;
-                  const outlineColor = isSelected ? "#0000EE" : isStatic ? "#555555" : "#111111";
+
+                  const outlineColor = isSelected
+                    ? "#0000EE"
+                    : isImage
+                    ? "#9333ea"
+                    : isCustomVar
+                    ? "#0284c7"
+                    : isStatic
+                    ? "#555555"
+                    : "#111111";
+
                   const boxBg = isSelected
                     ? "rgba(0,0,238,0.08)"
+                    : isImage
+                    ? "rgba(147,51,234,0.05)"
+                    : isCustomVar
+                    ? "rgba(2,132,199,0.05)"
                     : isStatic
                     ? "rgba(85,85,85,0.05)"
                     : "rgba(17,17,17,0.05)";
 
                   const lineHeightVal = cfg.line_height !== undefined ? cfg.line_height : 1.2;
                   const letterSpacingVal = cfg.letter_spacing !== undefined ? `${cfg.letter_spacing}px` : "0px";
+                  const elementHeight = isImage ? cfg.height : cfg.font_size * lineHeightVal;
 
                   return (
                     <Rnd
                       key={cfg.column_name}
                       bounds="parent"
                       scale={zoomLevel}
-                      size={{ width: cfg.max_width, height: cfg.font_size * lineHeightVal }}
-                      enableResizing={{ left: true, right: true }}
+                      size={{ width: cfg.max_width, height: elementHeight }}
+                      enableResizing={isImage ? true : { left: true, right: true }}
                       position={{ x: cfg.x, y: cfg.y }}
                       onDrag={(e, d) => {
                         const { x, y } = handleDrag(cfg.column_name, d.x, d.y, cfg.max_width);
@@ -2601,40 +2883,51 @@ export default function CetakLokal() {
                       }}
                       onDragStop={() => setActiveSnapGuides({ x: false, y: false })}
                       onResizeStop={(e, dir, ref, delta, pos) => {
+                        const newWidth = parseFloat(ref.style.width);
+                        const newHeight = parseFloat(ref.style.height);
                         updateConfig(cfg.column_name, {
-                          max_width: parseFloat(ref.style.width),
+                          max_width: newWidth,
+                          ...(isImage ? { height: newHeight } : {}),
                           x: pos.x,
                           y: pos.y,
                         });
                         setActiveColumn(cfg.column_name);
                       }}
                       onClick={() => setActiveColumn(cfg.column_name)}
-                      className="absolute cursor-move z-10"
+                      className="absolute cursor-move z-10 flex items-center justify-center overflow-hidden"
                       style={{ outline: `2px dashed ${outlineColor}`, backgroundColor: boxBg }}
                     >
-                      <span
-                        className="select-none"
-                        style={{
-                          display: "block",
-                          width: "100%",
-                          fontSize: `${cfg.font_size}px`,
-                          lineHeight: lineHeightVal,
-                          letterSpacing: letterSpacingVal,
-                          textAlign: cfg.align || "left",
-                          whiteSpace: "normal",
-                          overflowWrap: "anywhere",
-                          fontKerning: "none",
-                          fontVariantLigatures: "none",
-                          color: cfg.color || "#111111",
-                          fontWeight: previewFontWeight,
-                          fontStyle: previewFontStyle,
-                          fontFamily: selectedLocalFontFamily
-                            ? `"${selectedLocalFontFamily}", Helvetica, Arial, sans-serif`
-                            : 'Helvetica, Arial, "Liberation Sans", sans-serif',
-                        }}
-                      >
-                        {displayText}
-                      </span>
+                      {isImage ? (
+                        <img
+                          src={cfg.data_url}
+                          alt={cfg.image_name || "logo"}
+                          className="w-full h-full object-contain pointer-events-none select-none"
+                        />
+                      ) : (
+                        <span
+                          className="select-none"
+                          style={{
+                            display: "block",
+                            width: "100%",
+                            fontSize: `${cfg.font_size}px`,
+                            lineHeight: lineHeightVal,
+                            letterSpacing: letterSpacingVal,
+                            textAlign: cfg.align || "left",
+                            whiteSpace: "normal",
+                            overflowWrap: "anywhere",
+                            fontKerning: "none",
+                            fontVariantLigatures: "none",
+                            color: cfg.color || "#111111",
+                            fontWeight: previewFontWeight,
+                            fontStyle: previewFontStyle,
+                            fontFamily: selectedLocalFontFamily
+                              ? `"${selectedLocalFontFamily}", Helvetica, Arial, sans-serif`
+                              : 'Helvetica, Arial, "Liberation Sans", sans-serif',
+                          }}
+                        >
+                          {displayText}
+                        </span>
+                      )}
                     </Rnd>
                   );
                 })}

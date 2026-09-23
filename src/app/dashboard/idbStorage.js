@@ -1,11 +1,5 @@
 // idbStorage.js
-// Wrapper IndexedDB minimal (tanpa dependency tambahan) khusus untuk
-// autosave sesi SertiGen: template PDF (Blob/File), data CSV, dan tata letak.
-//
-// Dipilih IndexedDB (bukan localStorage) karena template PDF adalah data
-// binary yang bisa mencapai beberapa MB, sementara localStorage dibatasi
-// ~5-10MB per origin dan hanya menerima string (butuh encoding base64
-// yang menambah ~33% ukuran serta memblokir main thread).
+// Wrapper IndexedDB minimal khusus untuk autosave sesi SertiGen.
 
 const DB_NAME = "sertigen_autosave_db";
 const DB_VERSION = 1;
@@ -85,12 +79,11 @@ export async function idbClearKeys(keys) {
   });
 }
 
-// --- Kunci khusus autosave SertiGen ---
 export const AUTOSAVE_KEYS = {
-  TEMPLATE: "sertigen_autosave_template", // File (PDF terkompresi)
-  CSV: "sertigen_autosave_csv", // { headers, rows }
-  CONFIGS: "sertigen_autosave_configs", // array configs
-  META: "sertigen_autosave_meta", // { templateName, templateSize, csvName, savedAt }
+  TEMPLATE: "sertigen_autosave_template",
+  CSV: "sertigen_autosave_csv",
+  CONFIGS: "sertigen_autosave_configs",
+  META: "sertigen_autosave_meta",
 };
 
 export const ALL_AUTOSAVE_KEYS = Object.values(AUTOSAVE_KEYS);

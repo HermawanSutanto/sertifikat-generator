@@ -7,9 +7,6 @@ use wasm_bindgen::prelude::*;
 use zip::write::SimpleFileOptions;
 use zip::ZipWriter;
 
-// ---------------------------------------------------------------------------
-// Konstanta layout
-// ---------------------------------------------------------------------------
 const DEFAULT_LINE_HEIGHT_RATIO: f32 = 1.2;
 const FALLBACK_ASCENT: f32 = 0.905;
 const FALLBACK_DESCENT: f32 = 0.212;
@@ -19,7 +16,6 @@ const LAST_CHAR: u32 = 255;
 const MISSING_WIDTH: f32 = 500.0;
 const DEFAULT_COLOR: [f32; 3] = [0.1, 0.1, 0.1];
 
-/// Konfigurasi satu elemen teks.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct TextElementConfig {
     pub column_name: String,
@@ -66,9 +62,6 @@ pub fn sanitize_name(nama: &str) -> String {
         .collect()
 }
 
-// ---------------------------------------------------------------------------
-// Encoding WinAnsi
-// ---------------------------------------------------------------------------
 const WINANSI_80_9F: [char; 32] = [
     '€', '\u{81}', '‚', 'ƒ', '„', '…', '†', '‡', 'ˆ', '‰', 'Š', '‹', 'Œ', '\u{8D}', 'Ž', '\u{8F}',
     '\u{90}', '‘', '’', '“', '”', '•', '–', '—', '˜', '™', 'š', '›', 'œ', '\u{9D}', 'ž', 'Ÿ',
@@ -124,9 +117,6 @@ fn helvetica_bold_width(code: u8) -> f32 {
     }
 }
 
-// ---------------------------------------------------------------------------
-// Pengukuran teks
-// ---------------------------------------------------------------------------
 fn face_width_1000(face: &Face, units_per_em: f32, ch: char) -> Option<f32> {
     face.glyph_index(ch)
         .and_then(|gid| face.glyph_hor_advance(gid))
@@ -569,7 +559,6 @@ mod tests {
         let m = FontMetrics::new(None);
         let w_normal = m.text_width("ABC", 10.0, 0.0);
         let w_spaced = m.text_width("ABC", 10.0, 2.0);
-        // "ABC" memiliki 3 huruf (2 celah tambahan * 2.0 pt = 4.0 pt)
         assert!((w_spaced - (w_normal + 4.0)).abs() < 0.01);
     }
 }
