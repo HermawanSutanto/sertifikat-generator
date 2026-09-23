@@ -15,8 +15,6 @@ import {
   clearAutosave,
 } from "./idbStorage";
 
-const DEFAULT_TEXT_COLOR = "#111111";
-
 const Spinner = ({ className = "w-3.5 h-3.5 text-current", ...props }) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className={className} {...props}>
     <path fill="currentColor" d="M12,23a9.63,9.63,0,0,1-8-9.5,9.51,9.51,0,0,1,6.79-9.1A1,1,0,0,1,12,5.19a8.4,8.4,0,0,0-6.1,8.31,8.44,8.44,0,0,0,8.38,8.38A1,1,0,0,1,12,23Z">
@@ -27,25 +25,25 @@ const Spinner = ({ className = "w-3.5 h-3.5 text-current", ...props }) => (
 
 const IconFolder = (props) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.75 7.5A1.5 1.5 0 015.25 6h4.19a1.5 1.5 0 011.06.44l1.5 1.5h6.75a1.5 1.5 0 011.5 1.5v8.25a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5V7.5z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M3.75 7.5A1.5 1.5 0 015.25 6h4.19a1.5 1.5 0 011.06.44l1.5 1.5h6.75a1.5 1.5 0 011.5 1.5v8.25a1.5 1.5 0 01-1.5 1.5H5.25a1.5 1.5 0 01-1.5-1.5V7.5z" />
   </svg>
 );
 
 const IconEdit = (props) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
   </svg>
 );
 
 const IconType = (props) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7.5 4.5h9M12 4.5v15M8.25 19.5h7.5" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M7.5 4.5h9M12 4.5v15M8.25 19.5h7.5" />
   </svg>
 );
 
 const IconBookmark = (props) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.25 6.75v13.5l-5.25-3-5.25 3V6.75a2.25 2.25 0 012.25-2.25h6a2.25 2.25 0 012.25 2.25z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M17.25 6.75v13.5l-5.25-3-5.25 3V6.75a2.25 2.25 0 012.25-2.25h6a2.25 2.25 0 012.25 2.25z" />
   </svg>
 );
 
@@ -57,53 +55,75 @@ const IconBolt = (props) => (
 
 const IconCheck = (props) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.5 12.75l6 6 9-13.5" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M4.5 12.75l6 6 9-13.5" />
   </svg>
 );
 
 const IconAlertTriangle = (props) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
   </svg>
 );
 
-const Notification = ({ message, type, show }) => {
+const IconSun = (props) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 3v2.25m6.364.386l-1.591 1.591M21 12h-2.25m-.386 6.364l-1.591-1.591M12 18.75V21m-4.773-4.227l-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0z" />
+  </svg>
+);
+
+const IconMoon = (props) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M21.752 15.002A9.718 9.718 0 0118 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 003 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 009.002-5.998z" />
+  </svg>
+);
+
+const Notification = ({ message, type, show, isDark }) => {
   const isSuccess = type === "success";
   return (
     <div
-      className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-[4px] border transition-all duration-150 ${
+      className={`fixed top-4 right-4 z-50 flex items-center gap-3 px-4 py-3 rounded-[4px] border shadow-lg transition-all duration-150 ${
         show ? "translate-y-0 opacity-100" : "-translate-y-2 opacity-0 pointer-events-none"
       } ${
         isSuccess
-          ? "bg-[#111111] text-[#FFFFFF] border-[#0000EE]"
+          ? isDark
+            ? "bg-[#111111] text-[#FFFFFF] border-[#0000EE]"
+            : "bg-[#FFFFFF] text-[#111111] border-[#0000EE]"
           : "bg-[#B3261E] text-[#FFFFFF] border-[#B3261E]"
       }`}
     >
-      <span className="font-mono text-[10px] uppercase tracking-wider">
+      <span className="font-mono text-xs font-bold uppercase tracking-wider">
         {isSuccess ? "[ OK ]" : "[ PERINGATAN ]"}
       </span>
-      <span className="text-xs font-mono">{message}</span>
+      <span className="text-xs font-mono font-medium">{message}</span>
     </div>
   );
 };
 
-const ValidationModal = ({ isOpen, warnings, onConfirm, onCancel }) => {
+const ValidationModal = ({ isOpen, warnings, onConfirm, onCancel, isDark }) => {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-[#111111]/80 z-50 flex items-center justify-center p-4">
-      <div className="bg-[#111111] border-2 border-[#E5E7EB] rounded-[4px] max-w-md w-full p-6 space-y-4">
+    <div className="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-4">
+      <div className={`border-2 rounded-[4px] max-w-md w-full p-6 space-y-4 shadow-2xl ${
+        isDark ? "bg-[#111111] border-[#FFFFFF]" : "bg-[#FFFFFF] border-[#111111]"
+      }`}>
         <div className="flex items-start gap-3">
-          <div className="p-2 bg-[#B3261E]/20 text-[#B3261E] border border-[#B3261E]/40 rounded-[2px] shrink-0">
+          <div className="p-2 bg-[#B3261E]/15 text-[#B3261E] border border-[#B3261E] rounded-[2px] shrink-0">
             <IconAlertTriangle className="w-5 h-5" />
           </div>
           <div>
-            <h3 className="text-sm font-bold uppercase tracking-wide text-[#FFFFFF]">Peringatan Validasi</h3>
-            <p className="text-xs text-[#EBE9E4]/60 mt-0.5 font-mono">Ditemukan potensi inkonsistensi sebelum proses cetak</p>
+            <h3 className={`text-sm font-bold uppercase tracking-wide ${isDark ? "text-[#FFFFFF]" : "text-[#111111]"}`}>
+              Peringatan Validasi
+            </h3>
+            <p className={`text-xs mt-0.5 font-mono ${isDark ? "text-[#EBE9E4]/70" : "text-[#555555]"}`}>
+              Ditemukan potensi kendala sebelum proses cetak
+            </p>
           </div>
         </div>
 
-        <div className="max-h-48 overflow-y-auto space-y-2 text-xs bg-[#1A1A1A] p-3 rounded-[2px] border border-[#333333] text-[#EBE9E4] font-mono">
+        <div className={`max-h-48 overflow-y-auto space-y-2 text-xs p-3 rounded-[2px] border font-mono ${
+          isDark ? "bg-[#1A1A1A] border-[#333333] text-[#EBE9E4]" : "bg-[#F5F4F0] border-[#E5E7EB] text-[#111111]"
+        }`}>
           {warnings.map((warn, idx) => (
             <div key={idx} className="flex items-start gap-2">
               <span className="text-[#B3261E] font-bold">[!]</span>
@@ -112,20 +132,24 @@ const ValidationModal = ({ isOpen, warnings, onConfirm, onCancel }) => {
           ))}
         </div>
 
-        <p className="text-xs text-[#EBE9E4]/70">
-          Apakah Anda ingin mengabaikan peringatan ini dan tetap memproses dokumen?
+        <p className={`text-xs ${isDark ? "text-[#EBE9E4]/80" : "text-[#555555]"}`}>
+          Apakah Anda ingin mengabaikan catatan ini dan tetap memproses berkas?
         </p>
 
-        <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#333333]">
+        <div className={`flex items-center justify-end gap-3 pt-3 border-t ${isDark ? "border-[#333333]" : "border-[#E5E7EB]"}`}>
           <button
             onClick={onCancel}
-            className="px-4 py-2 text-xs font-mono uppercase font-semibold text-[#EBE9E4] hover:text-[#FFFFFF] bg-[#222222] hover:bg-[#333333] rounded-[4px] transition-colors"
+            className={`px-4 py-2 text-xs font-mono uppercase font-bold rounded-[4px] border transition-colors ${
+              isDark
+                ? "bg-[#222222] text-[#FFFFFF] border-[#444444] hover:bg-[#333333]"
+                : "bg-[#EBE9E4] text-[#111111] border-[#CCCCCC] hover:bg-[#DDDCD7]"
+            }`}
           >
             Batal & Perbaiki
           </button>
           <button
             onClick={onConfirm}
-            className="px-4 py-2 text-xs font-mono uppercase font-semibold text-[#FFFFFF] bg-[#B3261E] hover:bg-[#B3261E]/80 rounded-[4px] transition-colors"
+            className="px-4 py-2 text-xs font-mono uppercase font-bold text-[#FFFFFF] bg-[#B3261E] hover:bg-[#B3261E]/90 rounded-[4px] border border-[#B3261E] transition-colors"
           >
             Lanjutkan Cetak
           </button>
@@ -138,6 +162,10 @@ const ValidationModal = ({ isOpen, warnings, onConfirm, onCancel }) => {
 export default function CetakLokal() {
   const { user, loading } = useAuth();
   const router = useRouter();
+
+  // Mode Terang / Gelap State
+  const [themeMode, setThemeMode] = useState("dark");
+  const isDark = themeMode === "dark";
 
   const [activeTab, setActiveTab] = useState("files");
 
@@ -959,7 +987,7 @@ export default function CetakLokal() {
           align: c.align || "left",
           page_number: page,
           page_height: size.height,
-          color: c.color || DEFAULT_TEXT_COLOR,
+          color: c.color || "#111111",
         };
       });
 
@@ -998,7 +1026,7 @@ export default function CetakLokal() {
       document.body.removeChild(link);
       URL.revokeObjectURL(downloadUrl);
 
-      setNotification({ show: true, message: "Sampel pratinjau diunduh.", type: "success" });
+      setNotification({ show: true, message: "Sampel pratinjau berhasil diunduh.", type: "success" });
     } catch (err) {
       setNotification({ show: true, message: `Gagal pratinjau: ${err.message || String(err)}`, type: "error" });
     }
@@ -1006,7 +1034,7 @@ export default function CetakLokal() {
 
   const handleStartGenerate = () => {
     if (!csvFile || !templateFile || configs.length === 0) {
-      setNotification({ show: true, message: "Unggah CSV, PDF, dan atur tata letak.", type: "error" });
+      setNotification({ show: true, message: "Unggah CSV, PDF, dan tentukan letak teks.", type: "error" });
       return;
     }
 
@@ -1066,7 +1094,7 @@ export default function CetakLokal() {
         }
 
         if (type === "ERROR") {
-          setNotification({ show: true, message: `Error Worker: ${error}`, type: "error" });
+          setNotification({ show: true, message: `Kendala pemrosesan: ${error}`, type: "error" });
           setIsProcessing(false);
           setProgress(null);
           worker.terminate();
@@ -1088,7 +1116,7 @@ export default function CetakLokal() {
 
   if (loading || !user) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-[#111111]">
+      <div className={`flex items-center justify-center min-h-screen ${isDark ? "bg-[#111111]" : "bg-[#EBE9E4]"}`}>
         <Spinner className="w-8 h-8 text-[#0000EE]" />
       </div>
     );
@@ -1106,54 +1134,67 @@ export default function CetakLokal() {
   const previewFontStyle = /italic|oblique/i.test(selectedFontStyle) ? "italic" : "normal";
 
   return (
-    <div className="h-screen w-screen bg-[#111111] text-[#EBE9E4] flex flex-col overflow-hidden font-sans antialiased selection:bg-[#0000EE] selection:text-white">
-      <Notification {...notification} />
+    <div
+      className={`h-screen w-screen flex flex-col overflow-hidden font-sans antialiased selection:bg-[#0000EE] selection:text-white ${
+        isDark ? "bg-[#111111] text-[#FFFFFF]" : "bg-[#F7F6F3] text-[#111111]"
+      }`}
+    >
+      <Notification {...notification} isDark={isDark} />
       <ValidationModal
         isOpen={isValidationModalOpen}
         warnings={validationWarnings}
         onConfirm={executeBatchRendering}
         onCancel={() => setIsValidationModalOpen(false)}
+        isDark={isDark}
       />
 
       {/* BANNER RESTORE SESI TERSIMPAN */}
       {isRestoreBannerOpen && (
-        <div className="fixed inset-0 bg-[#111111]/80 z-50 flex items-center justify-center p-4">
-          <div className="bg-[#111111] border-2 border-[#E5E7EB] rounded-[4px] max-w-md w-full p-6 space-y-4">
+        <div className="fixed inset-0 bg-black/75 z-50 flex items-center justify-center p-4">
+          <div className={`border-2 rounded-[4px] max-w-md w-full p-6 space-y-4 shadow-2xl ${
+            isDark ? "bg-[#111111] border-[#FFFFFF]" : "bg-[#FFFFFF] border-[#111111]"
+          }`}>
             <div className="flex items-start gap-3">
-              <div className="p-2 bg-[#0000EE]/10 rounded-[2px] text-[#0000EE] border border-[#0000EE]/30 shrink-0">
+              <div className="p-2 bg-[#0000EE]/10 rounded-[2px] text-[#0000EE] border border-[#0000EE] shrink-0">
                 <IconFolder className="w-5 h-5" />
               </div>
               <div>
-                <h3 className="text-sm font-bold uppercase tracking-wide text-[#FFFFFF]">Sesi Tersimpan Ditemukan</h3>
-                <p className="text-xs text-[#EBE9E4]/60 mt-0.5 font-mono">
+                <h3 className={`text-sm font-bold uppercase tracking-wide ${isDark ? "text-[#FFFFFF]" : "text-[#111111]"}`}>
+                  Sesi Tersimpan Ditemukan
+                </h3>
+                <p className={`text-xs mt-0.5 font-mono ${isDark ? "text-[#EBE9E4]/80" : "text-[#555555]"}`}>
                   {autosaveMeta?.templateName ? `Template: ${autosaveMeta.templateName}` : "Tanpa template"}
                   {autosaveMeta?.csvName ? ` • CSV: ${autosaveMeta.csvName}` : ""}
                   {autosaveMeta?.csvRowCount ? ` (${autosaveMeta.csvRowCount} baris)` : ""}
                 </p>
                 {autosaveMeta?.savedAt && (
-                  <p className="text-[10px] text-[#555555] mt-0.5 font-mono">
+                  <p className={`text-[10px] mt-0.5 font-mono ${isDark ? "text-[#888888]" : "text-[#777777]"}`}>
                     Waktu simpan: {new Date(autosaveMeta.savedAt).toLocaleString("id-ID")}
                   </p>
                 )}
               </div>
             </div>
 
-            <p className="text-xs text-[#EBE9E4]/70">
+            <p className={`text-xs leading-relaxed ${isDark ? "text-[#EBE9E4]" : "text-[#444444]"}`}>
               Pulihkan sesi untuk melanjutkan tata letak sebelumnya, atau mulai baru untuk menghapus riwayat cache.
             </p>
 
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-[#333333]">
+            <div className={`flex items-center justify-end gap-3 pt-3 border-t ${isDark ? "border-[#333333]" : "border-[#E5E7EB]"}`}>
               <button
                 onClick={handleDiscardAutosave}
                 disabled={isRestoring}
-                className="px-4 py-2 text-xs font-mono uppercase font-semibold text-[#EBE9E4] hover:text-[#FFFFFF] bg-[#222222] hover:bg-[#333333] rounded-[4px] transition-colors disabled:opacity-40"
+                className={`px-4 py-2 text-xs font-mono uppercase font-bold rounded-[4px] border transition-colors disabled:opacity-40 ${
+                  isDark
+                    ? "bg-[#222222] text-[#FFFFFF] border-[#444444] hover:bg-[#333333]"
+                    : "bg-[#EBE9E4] text-[#111111] border-[#CCCCCC] hover:bg-[#DDDCD7]"
+                }`}
               >
                 Mulai Baru
               </button>
               <button
                 onClick={handleRestoreSession}
                 disabled={isRestoring}
-                className="px-4 py-2 text-xs font-mono uppercase font-semibold text-[#FFFFFF] bg-[#0000EE] hover:bg-[#0000EE]/80 rounded-[4px] transition-colors flex items-center gap-1.5 disabled:opacity-60"
+                className="px-4 py-2 text-xs font-mono uppercase font-bold text-[#FFFFFF] bg-[#0000EE] hover:bg-[#0000EE]/85 rounded-[4px] border border-[#0000EE] transition-colors flex items-center gap-1.5 disabled:opacity-60"
               >
                 {isRestoring ? <Spinner className="w-3.5 h-3.5" /> : null}
                 {isRestoring ? "Memulihkan..." : "Pulihkan Sesi"}
@@ -1164,28 +1205,57 @@ export default function CetakLokal() {
       )}
 
       {/* TOP HEADER STUDIO BAR */}
-      <header className="h-14 border-b border-[#262626] bg-[#111111] px-6 flex items-center justify-between shrink-0 z-30">
+      <header className={`h-14 border-b px-6 flex items-center justify-between shrink-0 z-30 transition-colors ${
+        isDark ? "bg-[#111111] border-[#333333]" : "bg-[#FFFFFF] border-[#CCCCCC]"
+      }`}>
         <div className="flex items-center gap-4">
           <Link
             href="/"
-            className="text-base font-bold uppercase tracking-tight text-[#FFFFFF] hover:text-[#0000EE] transition-colors"
+            className={`text-base font-bold uppercase tracking-tight transition-colors ${
+              isDark ? "text-[#FFFFFF] hover:text-[#0000EE]" : "text-[#111111] hover:text-[#0000EE]"
+            }`}
           >
             SERTIGEN.
           </Link>
-          <span className="text-[#333333] font-mono">|</span>
-          <span className="text-xs font-mono uppercase tracking-wider text-[#555555]">STUDIO ENGINE</span>
-          <span className="text-[#333333] font-mono">/</span>
-          <span className="text-xs text-[#EBE9E4]/70 font-mono truncate max-w-xs">
+          <span className={isDark ? "text-[#444444]" : "text-[#CCCCCC]"}>|</span>
+          <span className={`text-xs font-mono uppercase tracking-wider font-semibold ${
+            isDark ? "text-[#AAAAAA]" : "text-[#555555]"
+          }`}>
+            STUDIO ENGINE
+          </span>
+          <span className={isDark ? "text-[#444444]" : "text-[#CCCCCC]"}>/</span>
+          <span className={`text-xs font-mono truncate max-w-xs font-medium ${
+            isDark ? "text-[#EBE9E4]" : "text-[#333333]"
+          }`}>
             {templateFile ? templateFile.name : "[ TANPA TEMPLATE ]"}
           </span>
         </div>
 
         <div className="flex items-center gap-3">
+          {/* Toggle Mode Terang / Gelap */}
+          <button
+            type="button"
+            onClick={() => setThemeMode(isDark ? "light" : "dark")}
+            className={`p-2 rounded-[4px] border transition-colors flex items-center justify-center ${
+              isDark
+                ? "bg-[#222222] text-[#FFFFFF] border-[#444444] hover:bg-[#333333]"
+                : "bg-[#EBE9E4] text-[#111111] border-[#CCCCCC] hover:bg-[#DDDCD7]"
+            }`}
+            title={isDark ? "Ganti ke Mode Terang" : "Ganti ke Mode Gelap"}
+            aria-label="Ubah Tema"
+          >
+            {isDark ? <IconSun className="w-4 h-4" /> : <IconMoon className="w-4 h-4" />}
+          </button>
+
           <button
             type="button"
             onClick={handleDownloadPreview}
             disabled={isProcessing || !templateFile}
-            className="px-4 py-2 text-xs font-mono uppercase font-semibold text-[#EBE9E4] bg-transparent hover:bg-[#222222] border border-[#444444] rounded-[4px] transition-colors disabled:opacity-40 flex items-center gap-2"
+            className={`px-4 py-2 text-xs font-mono uppercase font-bold rounded-[4px] border transition-colors disabled:opacity-40 flex items-center gap-2 ${
+              isDark
+                ? "bg-[#222222] text-[#FFFFFF] border-[#444444] hover:bg-[#333333]"
+                : "bg-[#FFFFFF] text-[#111111] border-[#111111] hover:bg-[#EBE9E4]"
+            }`}
           >
             Pratinjau Sampel
           </button>
@@ -1193,7 +1263,7 @@ export default function CetakLokal() {
           <button
             onClick={handleStartGenerate}
             disabled={isProcessing || !csvFile || !templateFile}
-            className="px-5 py-2 text-xs font-mono uppercase font-bold text-[#FFFFFF] bg-[#0000EE] hover:bg-[#0000EE]/90 disabled:bg-[#222222] disabled:text-[#555555] rounded-[4px] transition-colors flex items-center gap-2"
+            className="px-5 py-2 text-xs font-mono uppercase font-bold text-[#FFFFFF] bg-[#0000EE] hover:bg-[#0000EE]/85 disabled:bg-[#333333] disabled:text-[#888888] rounded-[4px] border border-[#0000EE] disabled:border-transparent transition-colors flex items-center gap-2 shadow-sm"
           >
             {isProcessing ? (
               <>
@@ -1212,7 +1282,11 @@ export default function CetakLokal() {
 
           <Link
             href="/dashboard"
-            className="px-3 py-2 text-xs font-mono uppercase text-[#555555] hover:text-[#FFFFFF] border border-transparent hover:border-[#333333] rounded-[4px] transition-colors ml-1"
+            className={`px-3 py-2 text-xs font-mono uppercase font-semibold rounded-[4px] border transition-colors ml-1 ${
+              isDark
+                ? "text-[#AAAAAA] hover:text-[#FFFFFF] border-transparent hover:border-[#444444]"
+                : "text-[#555555] hover:text-[#111111] border-transparent hover:border-[#CCCCCC]"
+            }`}
             title="Kembali ke Dashboard"
           >
             Keluar
@@ -1222,8 +1296,10 @@ export default function CetakLokal() {
 
       {/* STRIP PROGRESS PROSES CETAK */}
       {isProcessing && (
-        <div className="h-7 bg-[#1A1A1A] border-b border-[#262626] px-6 flex items-center gap-4 shrink-0 z-20">
-          <div className="flex-1 h-1 bg-[#111111] rounded-none overflow-hidden">
+        <div className={`h-7 border-b px-6 flex items-center gap-4 shrink-0 z-20 ${
+          isDark ? "bg-[#1A1A1A] border-[#333333]" : "bg-[#EBE9E4] border-[#CCCCCC]"
+        }`}>
+          <div className={`flex-1 h-1.5 rounded-none overflow-hidden ${isDark ? "bg-[#111111]" : "bg-[#CCCCCC]"}`}>
             <div
               className="h-full bg-[#0000EE] transition-[width] duration-150 ease-out"
               style={{
@@ -1233,7 +1309,9 @@ export default function CetakLokal() {
               }}
             />
           </div>
-          <span className="text-xs font-mono text-[#EBE9E4]/80 tabular-nums shrink-0">
+          <span className={`text-xs font-mono font-bold tabular-nums shrink-0 ${
+            isDark ? "text-[#FFFFFF]" : "text-[#111111]"
+          }`}>
             {progress && progress.total > 0
               ? `STATUS: ${progress.current}/${progress.total} (${Math.min(100, Math.round((progress.current / progress.total) * 100))}%)`
               : "MENYIAPKAN BUFFER..."}
@@ -1245,7 +1323,9 @@ export default function CetakLokal() {
       <div className="flex-1 flex overflow-hidden">
         
         {/* 1. LEFT TOOLBAR DOCK */}
-        <aside className="w-14 bg-[#111111] border-r border-[#262626] flex flex-col items-center py-4 gap-3 shrink-0 z-20">
+        <aside className={`w-14 border-r flex flex-col items-center py-4 gap-3 shrink-0 z-20 transition-colors ${
+          isDark ? "bg-[#111111] border-[#333333]" : "bg-[#FFFFFF] border-[#CCCCCC]"
+        }`}>
           {[
             { id: "files", label: "Berkas", Icon: IconFolder },
             { id: "elements", label: "Elemen", Icon: IconEdit },
@@ -1257,42 +1337,60 @@ export default function CetakLokal() {
               onClick={() => setActiveTab(tab.id)}
               className={`w-10 h-10 rounded-[4px] flex flex-col items-center justify-center transition-colors ${
                 activeTab === tab.id
-                  ? "bg-[#222222] text-[#FFFFFF] border-2 border-[#0000EE]"
-                  : "text-[#555555] hover:text-[#EBE9E4] hover:bg-[#1A1A1A]"
+                  ? isDark
+                    ? "bg-[#222222] text-[#FFFFFF] border-2 border-[#0000EE]"
+                    : "bg-[#EBE9E4] text-[#111111] border-2 border-[#0000EE]"
+                  : isDark
+                  ? "text-[#888888] hover:text-[#FFFFFF] hover:bg-[#222222]"
+                  : "text-[#555555] hover:text-[#111111] hover:bg-[#EBE9E4]"
               }`}
               title={tab.label}
             >
               <tab.Icon className="w-4 h-4" />
-              <span className="text-[8px] font-mono uppercase mt-0.5">{tab.label}</span>
+              <span className="text-[8px] font-mono font-bold uppercase mt-0.5">{tab.label}</span>
             </button>
           ))}
         </aside>
 
         {/* 2. CONTEXTUAL INSPECTOR PANEL */}
-        <div className="w-80 bg-[#161616] border-r border-[#262626] flex flex-col shrink-0 z-10 overflow-y-auto">
+        <div className={`w-80 border-r flex flex-col shrink-0 z-10 overflow-y-auto transition-colors ${
+          isDark ? "bg-[#181818] border-[#333333]" : "bg-[#FFFFFF] border-[#CCCCCC]"
+        }`}>
           <div className="p-5 space-y-6">
             
             {/* PANEL: FILES */}
             {activeTab === "files" && (
               <div className="space-y-5">
-                <div className="border-b border-[#262626] pb-3">
-                  <h2 className="text-xs font-bold uppercase tracking-wider text-[#FFFFFF] font-mono">[ 01. SUMBER DATA ]</h2>
-                  <p className="text-[11px] text-[#555555] font-mono mt-1">Unggah daftar CSV dan lembar PDF</p>
+                <div className={`border-b pb-3 ${isDark ? "border-[#333333]" : "border-[#E5E7EB]"}`}>
+                  <h2 className={`text-xs font-bold uppercase tracking-wider font-mono ${
+                    isDark ? "text-[#FFFFFF]" : "text-[#111111]"
+                  }`}>
+                    [ 01. SUMBER DATA ]
+                  </h2>
+                  <p className={`text-[11px] font-mono mt-1 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
+                    Unggah daftar CSV dan lembar PDF
+                  </p>
                 </div>
 
                 <div className="space-y-4">
                   <div>
-                    <label className="block text-[11px] font-mono uppercase text-[#EBE9E4]/80 mb-2">
+                    <label className={`block text-[11px] font-mono uppercase font-bold mb-2 ${
+                      isDark ? "text-[#FFFFFF]" : "text-[#111111]"
+                    }`}>
                       Data Peserta (.csv)
                     </label>
                     <input
                       type="file"
                       accept=".csv"
                       onChange={handleCsvChange}
-                      className="block w-full text-[11px] text-[#555555] font-mono file:mr-3 file:py-1.5 file:px-3 file:rounded-[2px] file:border-0 file:text-[10px] file:font-mono file:uppercase file:bg-[#222222] file:text-[#EBE9E4] hover:file:bg-[#333333] border border-[#262626] rounded-[4px] p-1.5 bg-[#111111]"
+                      className={`block w-full text-[11px] font-mono rounded-[4px] p-2 border ${
+                        isDark
+                          ? "bg-[#111111] text-[#EBE9E4] border-[#444444] file:bg-[#222222] file:text-[#FFFFFF] file:border-[#444444] hover:file:bg-[#333333]"
+                          : "bg-[#F7F6F3] text-[#111111] border-[#CCCCCC] file:bg-[#EBE9E4] file:text-[#111111] file:border-[#CCCCCC] hover:file:bg-[#DDDCD7]"
+                      } file:mr-3 file:py-1.5 file:px-3 file:rounded-[2px] file:border file:font-mono file:uppercase`}
                     />
                     {csvRows.length > 0 && (
-                      <p className="text-[10px] text-[#0000EE] font-mono mt-2 flex items-center gap-1.5">
+                      <p className="text-[11px] text-[#0000EE] font-mono font-bold mt-2 flex items-center gap-1.5">
                         <IconCheck className="w-3.5 h-3.5 shrink-0" />
                         Terbaca {csvRows.length} baris ({csvHeaders.length} kolom)
                       </p>
@@ -1300,30 +1398,42 @@ export default function CetakLokal() {
                   </div>
 
                   <div>
-                    <label className="block text-[11px] font-mono uppercase text-[#EBE9E4]/80 mb-2">
+                    <label className={`block text-[11px] font-mono uppercase font-bold mb-2 ${
+                      isDark ? "text-[#FFFFFF]" : "text-[#111111]"
+                    }`}>
                       Template Sertifikat (.pdf)
                     </label>
                     <input
                       type="file"
                       accept="application/pdf"
                       onChange={handleTemplateChange}
-                      className="block w-full text-[11px] text-[#555555] font-mono file:mr-3 file:py-1.5 file:px-3 file:rounded-[2px] file:border-0 file:text-[10px] file:font-mono file:uppercase file:bg-[#222222] file:text-[#EBE9E4] hover:file:bg-[#333333] border border-[#262626] rounded-[4px] p-1.5 bg-[#111111]"
+                      className={`block w-full text-[11px] font-mono rounded-[4px] p-2 border ${
+                        isDark
+                          ? "bg-[#111111] text-[#EBE9E4] border-[#444444] file:bg-[#222222] file:text-[#FFFFFF] file:border-[#444444] hover:file:bg-[#333333]"
+                          : "bg-[#F7F6F3] text-[#111111] border-[#CCCCCC] file:bg-[#EBE9E4] file:text-[#111111] file:border-[#CCCCCC] hover:file:bg-[#DDDCD7]"
+                      } file:mr-3 file:py-1.5 file:px-3 file:rounded-[2px] file:border file:font-mono file:uppercase`}
                     />
                   </div>
                 </div>
 
                 {templateFile && (
-                  <div className="bg-[#111111] border border-[#262626] rounded-[4px] p-4 space-y-3">
+                  <div className={`border rounded-[4px] p-4 space-y-3 ${
+                    isDark ? "bg-[#111111] border-[#333333]" : "bg-[#F7F6F3] border-[#CCCCCC]"
+                  }`}>
                     <div className="flex items-center justify-between text-xs font-mono">
-                      <span className="font-bold text-[#FFFFFF] uppercase">Kompresi PDF</span>
-                      <span className="text-[#555555] text-[10px]">
+                      <span className={`font-bold uppercase ${isDark ? "text-[#FFFFFF]" : "text-[#111111]"}`}>
+                        Kompresi PDF
+                      </span>
+                      <span className={`text-[11px] font-mono font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
                         {formatBytes(originalTemplateSize)} → <span className="text-[#0000EE]">{formatBytes(templateFile.size)}</span>
                       </span>
                     </div>
 
                     <div className="space-y-3 pt-1">
                       <div>
-                        <div className="flex justify-between text-[10px] font-mono text-[#555555] mb-1">
+                        <div className={`flex justify-between text-[10px] font-mono font-bold mb-1 ${
+                          isDark ? "text-[#AAAAAA]" : "text-[#555555]"
+                        }`}>
                           <span>Skala Resample</span>
                           <span>{compressionScale.toFixed(1)}x</span>
                         </div>
@@ -1334,12 +1444,14 @@ export default function CetakLokal() {
                           step="0.1"
                           value={compressionScale}
                           onChange={(e) => setCompressionScale(Number(e.target.value))}
-                          className="w-full accent-[#0000EE] h-1 bg-[#222222] rounded-none cursor-pointer"
+                          className="w-full accent-[#0000EE] h-1.5 bg-[#888888] rounded-none cursor-pointer"
                         />
                       </div>
 
                       <div>
-                        <div className="flex justify-between text-[10px] font-mono text-[#555555] mb-1">
+                        <div className={`flex justify-between text-[10px] font-mono font-bold mb-1 ${
+                          isDark ? "text-[#AAAAAA]" : "text-[#555555]"
+                        }`}>
                           <span>Kualitas JPEG</span>
                           <span>{Math.round(compressionQuality * 100)}%</span>
                         </div>
@@ -1350,7 +1462,7 @@ export default function CetakLokal() {
                           step="0.05"
                           value={compressionQuality}
                           onChange={(e) => setCompressionQuality(Number(e.target.value))}
-                          className="w-full accent-[#0000EE] h-1 bg-[#222222] rounded-none cursor-pointer"
+                          className="w-full accent-[#0000EE] h-1.5 bg-[#888888] rounded-none cursor-pointer"
                         />
                       </div>
                     </div>
@@ -1368,10 +1480,12 @@ export default function CetakLokal() {
                             setCompressionScale(preset.scale);
                             setCompressionQuality(preset.quality);
                           }}
-                          className={`py-1 text-[10px] font-mono uppercase rounded-[2px] border transition-colors ${
+                          className={`py-1.5 text-[10px] font-mono uppercase font-bold rounded-[2px] border transition-colors ${
                             compressionScale === preset.scale && compressionQuality === preset.quality
-                              ? "bg-[#222222] text-[#0000EE] border-[#0000EE]"
-                              : "bg-[#161616] text-[#555555] border-[#262626] hover:bg-[#222222]"
+                              ? "bg-[#0000EE] text-[#FFFFFF] border-[#0000EE]"
+                              : isDark
+                              ? "bg-[#222222] text-[#EBE9E4] border-[#444444] hover:bg-[#333333]"
+                              : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC] hover:bg-[#EBE9E4]"
                           }`}
                         >
                           {preset.label}
@@ -1383,7 +1497,11 @@ export default function CetakLokal() {
                       type="button"
                       onClick={handleRecompress}
                       disabled={isRecompressing || !originalTemplateRawFile}
-                      className="w-full py-2 text-xs font-mono uppercase font-semibold text-[#FFFFFF] bg-[#222222] hover:bg-[#333333] disabled:opacity-40 rounded-[4px] border border-[#333333] transition-colors flex items-center justify-center gap-2 mt-2"
+                      className={`w-full py-2 text-xs font-mono uppercase font-bold rounded-[4px] border transition-colors flex items-center justify-center gap-2 mt-2 ${
+                        isDark
+                          ? "bg-[#222222] text-[#FFFFFF] border-[#444444] hover:bg-[#333333]"
+                          : "bg-[#FFFFFF] text-[#111111] border-[#111111] hover:bg-[#EBE9E4]"
+                      }`}
                     >
                       {isRecompressing ? <Spinner /> : "Terapkan Kompresi"}
                     </button>
@@ -1395,15 +1513,25 @@ export default function CetakLokal() {
             {/* PANEL: ELEMENTS */}
             {activeTab === "elements" && (
               <div className="space-y-5">
-                <div className="flex items-center justify-between border-b border-[#262626] pb-3">
-                  <h2 className="text-xs font-bold uppercase tracking-wider text-[#FFFFFF] font-mono">[ 02. ELEMEN TEKS ]</h2>
+                <div className={`flex items-center justify-between border-b pb-3 ${
+                  isDark ? "border-[#333333]" : "border-[#E5E7EB]"
+                }`}>
+                  <h2 className={`text-xs font-bold uppercase tracking-wider font-mono ${
+                    isDark ? "text-[#FFFFFF]" : "text-[#111111]"
+                  }`}>
+                    [ 02. ELEMEN TEKS ]
+                  </h2>
                   <div className="flex items-center gap-1.5">
                     <button
                       type="button"
                       onClick={handleUndo}
                       disabled={!canUndo}
                       title="Urungkan (Ctrl+Z)"
-                      className="px-2 py-1 text-xs font-mono text-[#EBE9E4] hover:text-white bg-[#111111] hover:bg-[#222222] border border-[#262626] rounded-[2px] transition-colors disabled:opacity-30"
+                      className={`px-2.5 py-1 text-xs font-mono font-bold rounded-[2px] border transition-colors disabled:opacity-30 ${
+                        isDark
+                          ? "bg-[#222222] text-[#FFFFFF] border-[#444444] hover:bg-[#333333]"
+                          : "bg-[#EBE9E4] text-[#111111] border-[#CCCCCC] hover:bg-[#DDDCD7]"
+                      }`}
                     >
                       UNDO
                     </button>
@@ -1412,7 +1540,11 @@ export default function CetakLokal() {
                       onClick={handleRedo}
                       disabled={!canRedo}
                       title="Ulangi (Ctrl+Shift+Z)"
-                      className="px-2 py-1 text-xs font-mono text-[#EBE9E4] hover:text-white bg-[#111111] hover:bg-[#222222] border border-[#262626] rounded-[2px] transition-colors disabled:opacity-30"
+                      className={`px-2.5 py-1 text-xs font-mono font-bold rounded-[2px] border transition-colors disabled:opacity-30 ${
+                        isDark
+                          ? "bg-[#222222] text-[#FFFFFF] border-[#444444] hover:bg-[#333333]"
+                          : "bg-[#EBE9E4] text-[#111111] border-[#CCCCCC] hover:bg-[#DDDCD7]"
+                      }`}
                     >
                       REDO
                     </button>
@@ -1423,15 +1555,19 @@ export default function CetakLokal() {
                   <button
                     type="button"
                     onClick={handleAddStaticText}
-                    className="w-full py-2 text-xs font-mono uppercase font-semibold text-[#FFFFFF] bg-[#222222] hover:bg-[#333333] border border-[#333333] rounded-[4px] transition-colors"
+                    className="w-full py-2.5 text-xs font-mono uppercase font-bold text-[#FFFFFF] bg-[#0000EE] hover:bg-[#0000EE]/85 border border-[#0000EE] rounded-[4px] transition-colors"
                   >
                     + Tambah Teks Statis
                   </button>
                 </div>
 
                 {configs.some((c) => !c.enabled) && (
-                  <div className="bg-[#111111] border border-[#262626] rounded-[4px] p-3 space-y-2">
-                    <label className="block text-[10px] font-mono uppercase text-[#555555]">
+                  <div className={`border rounded-[4px] p-3 space-y-2 ${
+                    isDark ? "bg-[#111111] border-[#333333]" : "bg-[#F7F6F3] border-[#CCCCCC]"
+                  }`}>
+                    <label className={`block text-[10px] font-mono uppercase font-bold ${
+                      isDark ? "text-[#AAAAAA]" : "text-[#555555]"
+                    }`}>
                       Elemen Non-Aktif ({configs.filter((c) => !c.enabled).length})
                     </label>
                     <div className="flex flex-wrap gap-1.5">
@@ -1442,7 +1578,11 @@ export default function CetakLokal() {
                             key={cfg.column_name}
                             type="button"
                             onClick={() => handleRestoreElement(cfg.column_name)}
-                            className="px-2 py-1 text-[10px] font-mono bg-[#222222] text-[#EBE9E4] hover:text-white border border-[#333333] rounded-[2px] transition-colors flex items-center gap-1"
+                            className={`px-2 py-1 text-[10px] font-mono font-bold rounded-[2px] border transition-colors flex items-center gap-1 ${
+                              isDark
+                                ? "bg-[#222222] text-[#FFFFFF] border-[#444444] hover:bg-[#333333]"
+                                : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC] hover:bg-[#EBE9E4]"
+                            }`}
                           >
                             <span>+</span>
                             {cfg.static_text !== undefined && cfg.static_text !== ""
@@ -1456,11 +1596,19 @@ export default function CetakLokal() {
 
                 {configs.length > 0 && (
                   <div>
-                    <label className="block text-[11px] font-mono uppercase text-[#EBE9E4]/80 mb-2">Pilih Elemen Aktif</label>
+                    <label className={`block text-[11px] font-mono uppercase font-bold mb-2 ${
+                      isDark ? "text-[#FFFFFF]" : "text-[#111111]"
+                    }`}>
+                      Pilih Elemen Aktif
+                    </label>
                     <select
                       value={activeColumn}
                       onChange={(e) => setActiveColumn(e.target.value)}
-                      className="w-full p-2 text-xs font-mono border border-[#262626] rounded-[4px] bg-[#111111] text-[#FFFFFF]"
+                      className={`w-full p-2 text-xs font-mono font-bold rounded-[4px] border ${
+                        isDark
+                          ? "bg-[#111111] text-[#FFFFFF] border-[#444444]"
+                          : "bg-[#FFFFFF] text-[#111111] border-[#111111]"
+                      }`}
                     >
                       {configs.filter((c) => c.enabled).map((c) => (
                         <option key={c.column_name} value={c.column_name}>
@@ -1476,26 +1624,47 @@ export default function CetakLokal() {
                 {configs
                   .filter((c) => c.column_name === activeColumn)
                   .map((cfg) => (
-                    <div key={cfg.column_name} className="space-y-4 bg-[#111111] p-4 rounded-[4px] border border-[#262626]">
+                    <div
+                      key={cfg.column_name}
+                      className={`space-y-4 p-4 rounded-[4px] border ${
+                        isDark ? "bg-[#111111] border-[#333333]" : "bg-[#F7F6F3] border-[#CCCCCC]"
+                      }`}
+                    >
                       {cfg.static_text !== undefined && (
                         <div>
-                          <label className="block text-[10px] font-mono uppercase text-[#555555] mb-1.5">Isi Teks Statis</label>
+                          <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${
+                            isDark ? "text-[#AAAAAA]" : "text-[#555555]"
+                          }`}>
+                            Isi Teks Statis
+                          </label>
                           <input
                             type="text"
                             value={cfg.static_text}
                             onChange={(e) => updateConfig(cfg.column_name, { static_text: e.target.value })}
-                            className="w-full p-2 text-xs font-mono border border-[#262626] rounded-[4px] bg-[#161616] text-[#FFFFFF]"
+                            className={`w-full p-2 text-xs font-mono font-medium rounded-[4px] border ${
+                              isDark
+                                ? "bg-[#181818] text-[#FFFFFF] border-[#444444]"
+                                : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
+                            }`}
                           />
                         </div>
                       )}
 
                       {totalPages > 1 && (
                         <div>
-                          <label className="block text-[10px] font-mono uppercase text-[#555555] mb-1.5">Target Halaman</label>
+                          <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${
+                            isDark ? "text-[#AAAAAA]" : "text-[#555555]"
+                          }`}>
+                            Target Halaman
+                          </label>
                           <select
                             value={cfg.page_number || 1}
                             onChange={(e) => updateConfig(cfg.column_name, { page_number: Number(e.target.value) })}
-                            className="w-full p-2 text-xs font-mono border border-[#262626] rounded-[4px] bg-[#161616] text-[#FFFFFF]"
+                            className={`w-full p-2 text-xs font-mono font-bold rounded-[4px] border ${
+                              isDark
+                                ? "bg-[#181818] text-[#FFFFFF] border-[#444444]"
+                                : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
+                            }`}
                           >
                             {Array.from({ length: totalPages }, (_, i) => i + 1).map((num) => (
                               <option key={num} value={num}>Halaman {num}</option>
@@ -1505,7 +1674,11 @@ export default function CetakLokal() {
                       )}
 
                       <div>
-                        <label className="block text-[10px] font-mono uppercase text-[#555555] mb-1.5">Perataan Teks</label>
+                        <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${
+                          isDark ? "text-[#AAAAAA]" : "text-[#555555]"
+                        }`}>
+                          Perataan Teks
+                        </label>
                         <div className="grid grid-cols-3 gap-1.5">
                           {[
                             { id: "left", label: "Kiri" },
@@ -1516,10 +1689,12 @@ export default function CetakLokal() {
                               key={item.id}
                               type="button"
                               onClick={() => updateConfig(cfg.column_name, { align: item.id })}
-                              className={`py-1.5 text-[10px] font-mono uppercase rounded-[2px] border transition-colors ${
+                              className={`py-1.5 text-[10px] font-mono uppercase font-bold rounded-[2px] border transition-colors ${
                                 cfg.align === item.id
-                                  ? "bg-[#222222] text-[#0000EE] border-[#0000EE]"
-                                  : "bg-[#161616] text-[#555555] border-[#262626] hover:bg-[#222222]"
+                                  ? "bg-[#0000EE] text-[#FFFFFF] border-[#0000EE]"
+                                  : isDark
+                                  ? "bg-[#181818] text-[#EBE9E4] border-[#444444] hover:bg-[#222222]"
+                                  : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC] hover:bg-[#EBE9E4]"
                               }`}
                             >
                               {item.label}
@@ -1530,44 +1705,70 @@ export default function CetakLokal() {
 
                       <div className="grid grid-cols-2 gap-3">
                         <div>
-                          <label className="block text-[10px] font-mono uppercase text-[#555555] mb-1.5">Ukuran (pt)</label>
+                          <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${
+                            isDark ? "text-[#AAAAAA]" : "text-[#555555]"
+                          }`}>
+                            Ukuran (pt)
+                          </label>
                           <input
                             type="number"
                             value={cfg.font_size}
                             onChange={(e) => updateConfig(cfg.column_name, { font_size: Number(e.target.value) })}
-                            className="w-full p-2 text-xs font-mono border border-[#262626] rounded-[4px] bg-[#161616] text-[#FFFFFF]"
+                            className={`w-full p-2 text-xs font-mono font-bold rounded-[4px] border ${
+                              isDark
+                                ? "bg-[#181818] text-[#FFFFFF] border-[#444444]"
+                                : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
+                            }`}
                           />
                         </div>
 
                         <div>
-                          <label className="block text-[10px] font-mono uppercase text-[#555555] mb-1.5">Lebar Kotak (pt)</label>
+                          <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${
+                            isDark ? "text-[#AAAAAA]" : "text-[#555555]"
+                          }`}>
+                            Lebar Kotak (pt)
+                          </label>
                           <input
                             type="number"
                             value={cfg.max_width}
                             onChange={(e) => updateConfig(cfg.column_name, { max_width: Number(e.target.value) })}
-                            className="w-full p-2 text-xs font-mono border border-[#262626] rounded-[4px] bg-[#161616] text-[#FFFFFF]"
+                            className={`w-full p-2 text-xs font-mono font-bold rounded-[4px] border ${
+                              isDark
+                                ? "bg-[#181818] text-[#FFFFFF] border-[#444444]"
+                                : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
+                            }`}
                           />
                         </div>
                       </div>
 
                       <div>
-                        <label className="block text-[10px] font-mono uppercase text-[#555555] mb-1.5">Warna Tinta</label>
+                        <label className={`block text-[10px] font-mono uppercase font-bold mb-1.5 ${
+                          isDark ? "text-[#AAAAAA]" : "text-[#555555]"
+                        }`}>
+                          Warna Tinta
+                        </label>
                         <div className="flex items-center gap-2">
                           <input
                             type="color"
-                            value={cfg.color || DEFAULT_TEXT_COLOR}
+                            value={cfg.color || "#111111"}
                             onChange={(e) => updateConfig(cfg.column_name, { color: e.target.value })}
-                            className="h-8 w-10 p-0.5 bg-[#161616] border border-[#262626] rounded-[2px] cursor-pointer"
+                            className="h-8 w-10 p-0.5 bg-transparent border rounded-[2px] cursor-pointer"
                           />
-                          <span className="text-xs font-mono text-[#555555] uppercase">
-                            {cfg.color || DEFAULT_TEXT_COLOR}
+                          <span className={`text-xs font-mono font-bold uppercase ${
+                            isDark ? "text-[#FFFFFF]" : "text-[#111111]"
+                          }`}>
+                            {cfg.color || "#111111"}
                           </span>
                           <button
                             type="button"
-                            onClick={() => updateConfig(cfg.column_name, { color: DEFAULT_TEXT_COLOR })}
-                            className="ml-auto px-2.5 py-1 text-[10px] font-mono uppercase text-[#555555] hover:text-[#FFFFFF] bg-[#161616] border border-[#262626] rounded-[2px] transition-colors"
+                            onClick={() => updateConfig(cfg.column_name, { color: "#111111" })}
+                            className={`ml-auto px-2.5 py-1 text-[10px] font-mono uppercase font-bold rounded-[2px] border transition-colors ${
+                              isDark
+                                ? "bg-[#181818] text-[#FFFFFF] border-[#444444] hover:bg-[#222222]"
+                                : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC] hover:bg-[#EBE9E4]"
+                            }`}
                           >
-                            Reset
+                            Reset Hitam
                           </button>
                         </div>
                       </div>
@@ -1578,14 +1779,18 @@ export default function CetakLokal() {
                             type="button"
                             onClick={() => handleDuplicateElement(cfg.column_name)}
                             title="Duplikat (Ctrl+D)"
-                            className="flex-1 py-1.5 text-xs font-mono uppercase text-[#EBE9E4] bg-[#222222] hover:bg-[#333333] border border-[#333333] rounded-[4px] transition-colors"
+                            className={`flex-1 py-2 text-xs font-mono uppercase font-bold rounded-[4px] border transition-colors ${
+                              isDark
+                                ? "bg-[#222222] text-[#FFFFFF] border-[#444444] hover:bg-[#333333]"
+                                : "bg-[#FFFFFF] text-[#111111] border-[#111111] hover:bg-[#EBE9E4]"
+                            }`}
                           >
                             Duplikat
                           </button>
                           <button
                             type="button"
                             onClick={() => handleHideElement(cfg.column_name)}
-                            className="flex-1 py-1.5 text-xs font-mono uppercase text-[#B3261E] bg-[#111111] hover:bg-[#B3261E]/10 border border-[#B3261E]/40 rounded-[4px] transition-colors"
+                            className="flex-1 py-2 text-xs font-mono uppercase font-bold text-[#FFFFFF] bg-[#B3261E] hover:bg-[#B3261E]/85 border border-[#B3261E] rounded-[4px] transition-colors"
                           >
                             Hapus
                           </button>
@@ -1599,26 +1804,38 @@ export default function CetakLokal() {
             {/* PANEL: FONTS */}
             {activeTab === "fonts" && (
               <div className="space-y-5">
-                <div className="border-b border-[#262626] pb-3">
-                  <h2 className="text-xs font-bold uppercase tracking-wider text-[#FFFFFF] font-mono">[ 03. FONT SISTEM ]</h2>
-                  <p className="text-[11px] text-[#555555] font-mono mt-1">Gunakan font lokal perangkat Anda</p>
+                <div className={`border-b pb-3 ${isDark ? "border-[#333333]" : "border-[#E5E7EB]"}`}>
+                  <h2 className={`text-xs font-bold uppercase tracking-wider font-mono ${
+                    isDark ? "text-[#FFFFFF]" : "text-[#111111]"
+                  }`}>
+                    [ 03. FONT SISTEM ]
+                  </h2>
+                  <p className={`text-[11px] font-mono mt-1 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
+                    Gunakan font lokal perangkat Anda
+                  </p>
                 </div>
 
-                <div className="flex items-center justify-between gap-2 bg-[#111111] border border-[#262626] rounded-[4px] p-3">
-                  <span className="text-xs font-mono text-[#555555]">Local Font API</span>
+                <div className={`border rounded-[4px] p-3 flex items-center justify-between gap-2 ${
+                  isDark ? "bg-[#111111] border-[#333333]" : "bg-[#F7F6F3] border-[#CCCCCC]"
+                }`}>
+                  <span className={`text-xs font-mono font-bold ${isDark ? "text-[#EBE9E4]" : "text-[#111111]"}`}>
+                    Local Font API
+                  </span>
                   {localFontApiSupported ? (
-                    <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-[2px] bg-[#0000EE]/10 text-[#0000EE] border border-[#0000EE]/30">
-                      Aktif
+                    <span className="text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded-[2px] bg-[#0000EE]/10 text-[#0000EE] border border-[#0000EE]">
+                      Didukung
                     </span>
                   ) : (
-                    <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-[2px] bg-[#222222] text-[#555555] border border-[#333333]">
+                    <span className={`text-[10px] font-mono font-bold uppercase px-2 py-0.5 rounded-[2px] border ${
+                      isDark ? "bg-[#222222] text-[#888888] border-[#444444]" : "bg-[#EBE9E4] text-[#555555] border-[#CCCCCC]"
+                    }`}>
                       Tidak Didukung
                     </span>
                   )}
                 </div>
 
                 {!localFontApiSupported ? (
-                  <p className="text-xs font-mono text-[#555555] leading-relaxed">
+                  <p className={`text-xs font-mono leading-relaxed ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
                     Fitur pemindaian font lokal membutuhkan peramban desktop berbasis Chromium seperti Chrome atau Edge.
                   </p>
                 ) : (
@@ -1627,25 +1844,31 @@ export default function CetakLokal() {
                       type="button"
                       onClick={handleDetectLocalFonts}
                       disabled={isDetectingFonts}
-                      className="w-full py-2.5 text-xs font-mono uppercase font-semibold text-[#FFFFFF] bg-[#222222] hover:bg-[#333333] border border-[#333333] rounded-[4px] transition-colors flex items-center justify-center gap-2"
+                      className="w-full py-2.5 text-xs font-mono uppercase font-bold text-[#FFFFFF] bg-[#0000EE] hover:bg-[#0000EE]/85 border border-[#0000EE] rounded-[4px] transition-colors flex items-center justify-center gap-2 shadow-sm"
                     >
                       {isDetectingFonts ? <Spinner /> : "Pindai Font Lokal"}
                     </button>
 
                     {fontDetectionError && (
-                      <p className="text-xs font-mono text-[#B3261E]">{fontDetectionError}</p>
+                      <p className="text-xs font-mono font-bold text-[#B3261E]">{fontDetectionError}</p>
                     )}
 
                     {localFontFamilies.length > 0 && (
                       <div>
-                        <label className="block text-[11px] font-mono uppercase text-[#EBE9E4]/80 mb-2">
+                        <label className={`block text-[11px] font-mono uppercase font-bold mb-2 ${
+                          isDark ? "text-[#FFFFFF]" : "text-[#111111]"
+                        }`}>
                           Pilih Font ({localFontFamilies.length})
                         </label>
                         <select
                           value={selectedLocalFontFamily}
                           onChange={(e) => handleSelectLocalFont(e.target.value)}
                           disabled={isLoadingFontBytes}
-                          className="w-full p-2 text-xs font-mono border border-[#262626] rounded-[4px] bg-[#111111] text-[#FFFFFF]"
+                          className={`w-full p-2 text-xs font-mono font-bold rounded-[4px] border ${
+                            isDark
+                              ? "bg-[#111111] text-[#FFFFFF] border-[#444444]"
+                              : "bg-[#FFFFFF] text-[#111111] border-[#111111]"
+                          }`}
                         >
                           <option value="">-- Standar (Helvetica-Bold) --</option>
                           {localFontFamilies.map((family) => (
@@ -1654,13 +1877,15 @@ export default function CetakLokal() {
                         </select>
 
                         {isLoadingFontBytes && (
-                          <p className="text-xs font-mono text-[#555555] mt-2 flex items-center gap-2">
+                          <p className={`text-xs font-mono font-bold mt-2 flex items-center gap-2 ${
+                            isDark ? "text-[#AAAAAA]" : "text-[#555555]"
+                          }`}>
                             <Spinner /> Memuat berkas font...
                           </p>
                         )}
 
                         {selectedFontBytes && !isLoadingFontBytes && (
-                          <p className="text-xs font-mono text-[#0000EE] mt-2 flex items-center gap-1.5">
+                          <p className="text-xs font-mono font-bold text-[#0000EE] mt-2 flex items-center gap-1.5">
                             <IconCheck className="w-3.5 h-3.5 shrink-0" />
                             "{selectedLocalFontFamily}" siap diterapkan
                           </p>
@@ -1675,9 +1900,15 @@ export default function CetakLokal() {
             {/* PANEL: PRESETS */}
             {activeTab === "presets" && (
               <div className="space-y-5">
-                <div className="border-b border-[#262626] pb-3">
-                  <h2 className="text-xs font-bold uppercase tracking-wider text-[#FFFFFF] font-mono">[ 04. PRESET LAYOUT ]</h2>
-                  <p className="text-[11px] text-[#555555] font-mono mt-1">Ekspor dan impor tata letak koordinat</p>
+                <div className={`border-b pb-3 ${isDark ? "border-[#333333]" : "border-[#E5E7EB]"}`}>
+                  <h2 className={`text-xs font-bold uppercase tracking-wider font-mono ${
+                    isDark ? "text-[#FFFFFF]" : "text-[#111111]"
+                  }`}>
+                    [ 04. PRESET LAYOUT ]
+                  </h2>
+                  <p className={`text-[11px] font-mono mt-1 ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
+                    Ekspor dan impor tata letak koordinat
+                  </p>
                 </div>
 
                 <div className="space-y-3">
@@ -1687,12 +1918,16 @@ export default function CetakLokal() {
                       placeholder="Nama Preset..."
                       value={presetName}
                       onChange={(e) => setPresetName(e.target.value)}
-                      className="w-full p-2 text-xs font-mono border border-[#262626] rounded-[4px] bg-[#111111] text-[#FFFFFF]"
+                      className={`w-full p-2 text-xs font-mono font-bold rounded-[4px] border ${
+                        isDark
+                          ? "bg-[#111111] text-[#FFFFFF] border-[#444444]"
+                          : "bg-[#FFFFFF] text-[#111111] border-[#CCCCCC]"
+                      }`}
                     />
                     <button
                       type="button"
                       onClick={handleSavePreset}
-                      className="px-4 py-2 text-xs font-mono uppercase font-semibold text-[#FFFFFF] bg-[#0000EE] hover:bg-[#0000EE]/90 rounded-[4px] shrink-0 transition-colors"
+                      className="px-4 py-2 text-xs font-mono uppercase font-bold text-[#FFFFFF] bg-[#0000EE] hover:bg-[#0000EE]/85 rounded-[4px] border border-[#0000EE] shrink-0 transition-colors"
                     >
                       Simpan
                     </button>
@@ -1702,7 +1937,11 @@ export default function CetakLokal() {
                     <select
                       onChange={(e) => handleLoadPreset(e.target.value)}
                       defaultValue=""
-                      className="w-full p-2 text-xs font-mono border border-[#262626] rounded-[4px] bg-[#111111] text-[#FFFFFF]"
+                      className={`w-full p-2 text-xs font-mono font-bold rounded-[4px] border ${
+                        isDark
+                          ? "bg-[#111111] text-[#FFFFFF] border-[#444444]"
+                          : "bg-[#FFFFFF] text-[#111111] border-[#111111]"
+                      }`}
                     >
                       <option value="" disabled>-- Muat Preset Tersimpan --</option>
                       {savedPresets.map((p) => (
@@ -1715,11 +1954,19 @@ export default function CetakLokal() {
                     <button
                       type="button"
                       onClick={handleExportJson}
-                      className="py-2 text-xs font-mono uppercase text-[#EBE9E4] bg-[#222222] hover:bg-[#333333] border border-[#333333] rounded-[4px] transition-colors"
+                      className={`py-2 text-xs font-mono uppercase font-bold rounded-[4px] border transition-colors ${
+                        isDark
+                          ? "bg-[#222222] text-[#FFFFFF] border-[#444444] hover:bg-[#333333]"
+                          : "bg-[#FFFFFF] text-[#111111] border-[#111111] hover:bg-[#EBE9E4]"
+                      }`}
                     >
                       Ekspor JSON
                     </button>
-                    <label className="py-2 text-xs font-mono uppercase text-center text-[#EBE9E4] bg-[#222222] hover:bg-[#333333] border border-[#333333] rounded-[4px] cursor-pointer transition-colors">
+                    <label className={`py-2 text-xs font-mono uppercase font-bold text-center rounded-[4px] border cursor-pointer transition-colors ${
+                      isDark
+                        ? "bg-[#222222] text-[#FFFFFF] border-[#444444] hover:bg-[#333333]"
+                        : "bg-[#FFFFFF] text-[#111111] border-[#111111] hover:bg-[#EBE9E4]"
+                    }`}>
                       Impor JSON
                       <input type="file" accept=".json" onChange={handleImportJson} className="hidden" />
                     </label>
@@ -1727,21 +1974,33 @@ export default function CetakLokal() {
                 </div>
 
                 {csvFile && templateFile && estimatedCertCount > 0 && (
-                  <div className="border-t border-[#262626] pt-4 space-y-3">
-                    <label className="block text-[10px] font-mono uppercase text-[#555555]">
+                  <div className={`border-t pt-4 space-y-3 ${isDark ? "border-[#333333]" : "border-[#E5E7EB]"}`}>
+                    <label className={`block text-[10px] font-mono uppercase font-bold ${
+                      isDark ? "text-[#AAAAAA]" : "text-[#555555]"
+                    }`}>
                       Estimasi Pemrosesan
                     </label>
                     <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-                      <div className="bg-[#111111] border border-[#262626] rounded-[4px] p-3">
-                        <div className="text-[10px] text-[#555555]">Dokumen</div>
-                        <div className="font-bold text-[#FFFFFF] mt-1">{estimatedCertCount.toLocaleString("id-ID")} Berkas</div>
+                      <div className={`border rounded-[4px] p-3 ${
+                        isDark ? "bg-[#111111] border-[#333333]" : "bg-[#F7F6F3] border-[#CCCCCC]"
+                      }`}>
+                        <div className={`text-[10px] font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>Dokumen</div>
+                        <div className={`font-bold mt-1 ${isDark ? "text-[#FFFFFF]" : "text-[#111111]"}`}>
+                          {estimatedCertCount.toLocaleString("id-ID")} Berkas
+                        </div>
                       </div>
-                      <div className="bg-[#111111] border border-[#262626] rounded-[4px] p-3">
-                        <div className="text-[10px] text-[#555555]">Arsip ZIP</div>
-                        <div className="font-bold text-[#FFFFFF] mt-1">{estimatedZipParts} Bagian</div>
+                      <div className={`border rounded-[4px] p-3 ${
+                        isDark ? "bg-[#111111] border-[#333333]" : "bg-[#F7F6F3] border-[#CCCCCC]"
+                      }`}>
+                        <div className={`text-[10px] font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>Arsip ZIP</div>
+                        <div className={`font-bold mt-1 ${isDark ? "text-[#FFFFFF]" : "text-[#111111]"}`}>
+                          {estimatedZipParts} Bagian
+                        </div>
                       </div>
-                      <div className="bg-[#111111] border border-[#262626] rounded-[4px] p-3 col-span-2">
-                        <div className="text-[10px] text-[#555555]">Ukuran Total</div>
+                      <div className={`border rounded-[4px] p-3 col-span-2 ${
+                        isDark ? "bg-[#111111] border-[#333333]" : "bg-[#F7F6F3] border-[#CCCCCC]"
+                      }`}>
+                        <div className={`text-[10px] font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>Ukuran Total</div>
                         <div className="font-bold text-[#0000EE] mt-1">{formatBytes(estimatedTotalBytes)}</div>
                       </div>
                     </div>
@@ -1756,23 +2015,33 @@ export default function CetakLokal() {
         <div
           ref={stageScrollRef}
           onWheel={handleStageWheel}
-          className="flex-1 bg-[#EBE9E4] p-8 flex flex-col items-center justify-start overflow-auto relative"
+          className={`flex-1 p-8 flex flex-col items-center justify-start overflow-auto relative transition-colors ${
+            isDark ? "bg-[#0A0A0A]" : "bg-[#EBE9E4]"
+          }`}
         >
           {/* Top Canvas Toolbar */}
-          <div className="w-full max-w-4xl flex items-center justify-between mb-4 text-xs font-mono text-[#555555]">
-            <span>
-              [ KANVAS PRATINJAU INTERAKTIF ]
+          <div className="w-full max-w-4xl flex items-center justify-between mb-4 text-xs font-mono">
+            <span className={`font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
+              [ KANVAS PRATINJAU DOKUMEN ]
             </span>
             <div className="flex items-center gap-3">
               {totalPages > 1 && (
-                <div className="flex items-center gap-1 bg-[#FFFFFF] border border-[#E5E7EB] px-2 py-1 rounded-[4px]">
-                  <span className="text-[11px] mr-1 text-[#555555]">Halaman:</span>
+                <div className={`flex items-center gap-1 border px-2 py-1 rounded-[4px] ${
+                  isDark ? "bg-[#111111] border-[#333333]" : "bg-[#FFFFFF] border-[#CCCCCC]"
+                }`}>
+                  <span className={`text-[11px] mr-1 font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
+                    Halaman:
+                  </span>
                   {Array.from({ length: totalPages }, (_, i) => i + 1).map((pageNum) => (
                     <button
                       key={pageNum}
                       onClick={() => setCurrentPage(pageNum)}
-                      className={`px-2 py-0.5 text-xs rounded-[2px] font-mono transition-colors ${
-                        currentPage === pageNum ? "bg-[#111111] text-white font-bold" : "text-[#555555] hover:text-[#111111]"
+                      className={`px-2 py-0.5 text-xs rounded-[2px] font-mono font-bold transition-colors ${
+                        currentPage === pageNum
+                          ? "bg-[#0000EE] text-white"
+                          : isDark
+                          ? "text-[#AAAAAA] hover:text-[#FFFFFF]"
+                          : "text-[#555555] hover:text-[#111111]"
                       }`}
                     >
                       {pageNum}
@@ -1782,13 +2051,17 @@ export default function CetakLokal() {
               )}
 
               {/* Kontrol Zoom */}
-              <div className="flex items-center gap-1 bg-[#FFFFFF] border border-[#E5E7EB] px-1.5 py-1 rounded-[4px]">
+              <div className={`flex items-center gap-1 border px-1.5 py-1 rounded-[4px] ${
+                isDark ? "bg-[#111111] border-[#333333]" : "bg-[#FFFFFF] border-[#CCCCCC]"
+              }`}>
                 <button
                   type="button"
                   onClick={handleZoomOut}
                   disabled={zoomLevel <= ZOOM_MIN}
                   title="Perkecil"
-                  className="w-6 h-6 flex items-center justify-center font-mono text-[#111111] hover:bg-[#EBE9E4] rounded-[2px] transition-colors disabled:opacity-30"
+                  className={`w-6 h-6 flex items-center justify-center font-mono font-bold rounded-[2px] transition-colors disabled:opacity-30 ${
+                    isDark ? "text-[#FFFFFF] hover:bg-[#222222]" : "text-[#111111] hover:bg-[#EBE9E4]"
+                  }`}
                 >
                   -
                 </button>
@@ -1796,7 +2069,9 @@ export default function CetakLokal() {
                   type="button"
                   onClick={handleZoomReset}
                   title="Reset ke 100%"
-                  className="px-2 h-6 text-xs font-mono font-bold text-[#111111] hover:bg-[#EBE9E4] rounded-[2px] transition-colors tabular-nums"
+                  className={`px-2 h-6 text-xs font-mono font-bold rounded-[2px] transition-colors tabular-nums ${
+                    isDark ? "text-[#FFFFFF] hover:bg-[#222222]" : "text-[#111111] hover:bg-[#EBE9E4]"
+                  }`}
                 >
                   {Math.round(zoomLevel * 100)}%
                 </button>
@@ -1805,7 +2080,9 @@ export default function CetakLokal() {
                   onClick={handleZoomIn}
                   disabled={zoomLevel >= ZOOM_MAX}
                   title="Perbesar"
-                  className="w-6 h-6 flex items-center justify-center font-mono text-[#111111] hover:bg-[#EBE9E4] rounded-[2px] transition-colors disabled:opacity-30"
+                  className={`w-6 h-6 flex items-center justify-center font-mono font-bold rounded-[2px] transition-colors disabled:opacity-30 ${
+                    isDark ? "text-[#FFFFFF] hover:bg-[#222222]" : "text-[#111111] hover:bg-[#EBE9E4]"
+                  }`}
                 >
                   +
                 </button>
@@ -1834,10 +2111,10 @@ export default function CetakLokal() {
 
               {/* Snap Guides */}
               {activeSnapGuides.x && (
-                <div className="absolute top-0 bottom-0 left-1/2 w-[1px] bg-[#0000EE] z-20 pointer-events-none" />
+                <div className="absolute top-0 bottom-0 left-1/2 w-[2px] bg-[#0000EE] z-20 pointer-events-none" />
               )}
               {activeSnapGuides.y && (
-                <div className="absolute left-0 right-0 top-1/2 h-[1px] bg-[#0000EE] z-20 pointer-events-none" />
+                <div className="absolute left-0 right-0 top-1/2 h-[2px] bg-[#0000EE] z-20 pointer-events-none" />
               )}
 
               {/* Render Dynamic Elements */}
@@ -1849,10 +2126,10 @@ export default function CetakLokal() {
                   const isStatic = cfg.static_text !== undefined;
                   const outlineColor = isSelected ? "#0000EE" : isStatic ? "#555555" : "#111111";
                   const boxBg = isSelected
-                    ? "rgba(0,0,238,0.06)"
+                    ? "rgba(0,0,238,0.08)"
                     : isStatic
-                    ? "rgba(85,85,85,0.04)"
-                    : "rgba(17,17,17,0.04)";
+                    ? "rgba(85,85,85,0.05)"
+                    : "rgba(17,17,17,0.05)";
 
                   return (
                     <Rnd
@@ -1877,7 +2154,7 @@ export default function CetakLokal() {
                       }}
                       onClick={() => setActiveColumn(cfg.column_name)}
                       className="absolute cursor-move z-10"
-                      style={{ outline: `1.5px dashed ${outlineColor}`, backgroundColor: boxBg }}
+                      style={{ outline: `2px dashed ${outlineColor}`, backgroundColor: boxBg }}
                     >
                       <span
                         className="select-none"
@@ -1891,7 +2168,7 @@ export default function CetakLokal() {
                           overflowWrap: "anywhere",
                           fontKerning: "none",
                           fontVariantLigatures: "none",
-                          color: cfg.color || DEFAULT_TEXT_COLOR,
+                          color: cfg.color || "#111111",
                           fontWeight: previewFontWeight,
                           fontStyle: previewFontStyle,
                           fontFamily: selectedLocalFontFamily
@@ -1910,29 +2187,39 @@ export default function CetakLokal() {
       </div>
 
       {/* FOOTER REAL-TIME STATUS BAR */}
-      <footer className="h-8 bg-[#111111] border-t border-[#262626] px-6 flex items-center justify-between text-xs font-mono text-[#555555] shrink-0 z-30">
+      <footer className={`h-8 border-t px-6 flex items-center justify-between text-xs font-mono shrink-0 z-30 transition-colors ${
+        isDark ? "bg-[#111111] border-[#333333] text-[#AAAAAA]" : "bg-[#FFFFFF] border-[#CCCCCC] text-[#555555]"
+      }`}>
         <div className="flex items-center gap-4">
           <span className="flex items-center gap-2">
-            <span className={`w-1.5 h-1.5 rounded-full ${csvRows.length > 0 ? "bg-[#0000EE]" : "bg-[#333333]"}`} />
-            CSV: <strong className="text-[#EBE9E4] font-medium">{csvRows.length} Baris</strong>
+            <span className={`w-2 h-2 rounded-full ${csvRows.length > 0 ? "bg-[#0000EE]" : "bg-[#888888]"}`} />
+            CSV: <strong className={isDark ? "text-[#FFFFFF]" : "text-[#111111]"}>{csvRows.length} Baris</strong>
           </span>
-          <span className="text-[#262626]">|</span>
+          <span className={isDark ? "text-[#333333]" : "text-[#E5E7EB]"}>|</span>
           <span className="flex items-center gap-2">
-            <span className={`w-1.5 h-1.5 rounded-full ${templateFile ? "bg-[#0000EE]" : "bg-[#333333]"}`} />
-            TEMPLATE: <strong className="text-[#EBE9E4] font-medium">{templateFile ? formatBytes(templateFile.size) : "Belum Dimuat"}</strong>
+            <span className={`w-2 h-2 rounded-full ${templateFile ? "bg-[#0000EE]" : "bg-[#888888]"}`} />
+            TEMPLATE: <strong className={isDark ? "text-[#FFFFFF]" : "text-[#111111]"}>
+              {templateFile ? formatBytes(templateFile.size) : "Belum Dimuat"}
+            </strong>
           </span>
         </div>
 
         <div className="flex items-center gap-4">
-          <span>STATUS WORKER: <strong className={isProcessing ? "text-[#0000EE] font-bold" : "text-[#EBE9E4]"}>
-            {isProcessing
-              ? (progress && progress.total > 0
-                  ? `MEMPROSES ${progress.current}/${progress.total}`
-                  : "MEMPROSES...")
-              : "SIAP"}
-          </strong></span>
-          <span className="text-[#262626]">|</span>
-          <span>ESTIMASI: <strong className="text-[#EBE9E4]">{formatBytes(estimatedTotalBytes)}</strong></span>
+          <span>
+            WORKER: <strong className={isProcessing ? "text-[#0000EE] font-bold" : isDark ? "text-[#FFFFFF]" : "text-[#111111]"}>
+              {isProcessing
+                ? (progress && progress.total > 0
+                    ? `MEMPROSES ${progress.current}/${progress.total}`
+                    : "MEMPROSES...")
+                : "SIAP"}
+            </strong>
+          </span>
+          <span className={isDark ? "text-[#333333]" : "text-[#E5E7EB]"}>|</span>
+          <span>
+            ESTIMASI: <strong className={isDark ? "text-[#FFFFFF]" : "text-[#111111]"}>
+              {formatBytes(estimatedTotalBytes)}
+            </strong>
+          </span>
         </div>
       </footer>
     </div>
