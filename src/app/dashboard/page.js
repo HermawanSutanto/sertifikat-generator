@@ -203,6 +203,7 @@ const ValidationModal = ({ isOpen, warnings, onConfirm, onCancel, isDark }) => {
     </div>
   );
 };
+
 const TutorialModal = ({ isOpen, onClose, isDark }) => {
   const [currentStep, setCurrentStep] = useState(0);
 
@@ -225,9 +226,9 @@ const TutorialModal = ({ isOpen, onClose, isDark }) => {
       desc: "Teks Variabel memungkinkan Anda membuat kolom baru secara fleksibel:\n• Tentukan nama variabel (contoh: 'prodi') dan daftarnya (contoh: 'Informatika, Elektro, Mesin').\n• Jika jumlah kata sama persis dengan baris peserta, nilainya akan diisi berurutan per peserta.\n• Jika jumlahnya berbeda, sistem otomatis memakai nilai pertama untuk semua peserta.",
     },
     {
-      title: "4. Pengelompokan Berkas ZIP",
+      title: "4. Pengelompokan Berkas ZIP & Optimasi RAM",
       tab: "Pengelompokan",
-      desc: "Di tab 'Preset', Anda dapat memilih cara pemecahan arsip ZIP:\n• Per 1.000 Berkas: Memecah arsip ZIP tiap kuota 1.000 peserta.\n• Berdasarkan Kolom: Memecah arsip ZIP per kategori otomatis (misal: arsip dipisah per Prodi, Kelas, atau Divisi).",
+      desc: "Di tab 'Preset', Anda dapat memilih cara pemecahan arsip ZIP:\n• Berdasarkan Jumlah: Memecah arsip ZIP sesuai kuota kapasitas memori perangkat.\n• Berdasarkan Kolom: Memecah arsip ZIP per kategori otomatis (misal: per Prodi atau Divisi).\n• Sistem otomatis men-stream berkas langsung ke disk untuk menjaga konsumsi RAM tetap rendah.",
     },
     {
       title: "5. Tipografi & Pintasan Kanvas",
@@ -323,6 +324,7 @@ const TutorialModal = ({ isOpen, onClose, isDark }) => {
     </div>
   );
 };
+
 export default function CetakLokal() {
   const { user, loading } = useAuth();
   const router = useRouter();
@@ -365,7 +367,7 @@ export default function CetakLokal() {
   const [sliceStart, setSliceStart] = useState(1);
   const [sliceEnd, setSliceEnd] = useState(1);
 
-  // Fitur Batas Aman & Deteksi Memori Perangkat
+  // Deteksi memori perangkat aman SSR
   const [deviceRamGb, setDeviceRamGb] = useState(8);
   const [maxCertsPerZip, setMaxCertsPerZip] = useState(1000);
   const [zipGroupingMode, setZipGroupingMode] = useState("chunk");
@@ -383,24 +385,21 @@ export default function CetakLokal() {
 
   const imageUploadInputRef = useRef(null);
 
-  // Deteksi kapasitas RAM/CPU yang aman dari SSR dan kompatibel lintas browser
   useEffect(() => {
     if (typeof window === "undefined" || typeof navigator === "undefined") return;
 
     try {
       let detectedRam = 8;
-
       if ("deviceMemory" in navigator && typeof navigator.deviceMemory === "number") {
         detectedRam = navigator.deviceMemory;
       } else if ("hardwareConcurrency" in navigator && typeof navigator.hardwareConcurrency === "number") {
-        // Fallback untuk Safari/Firefox: inti CPU <= 4 diasumsikan perangkat berspesifikasi hemat/rendah
         detectedRam = navigator.hardwareConcurrency <= 4 ? 4 : 8;
       }
 
       setDeviceRamGb(detectedRam);
 
       if (detectedRam <= 4) {
-        setMaxCertsPerZip(500); // Batas aman untuk RAM 4GB ke bawah
+        setMaxCertsPerZip(500);
       } else {
         setMaxCertsPerZip(1000);
       }
@@ -839,7 +838,6 @@ export default function CetakLokal() {
         setSliceStart(1);
         setSliceEnd(rows.length);
 
-        // Jika data > 2000 dan RAM rendah, beri tahu pengguna untuk membagi rentang
         if (rows.length > 2000 && deviceRamGb <= 4) {
           setSliceMode("custom");
           setSliceStart(1);
@@ -1404,10 +1402,9 @@ export default function CetakLokal() {
       warnings.push("Rentang baris yang dipilih tidak memuat data yang valid.");
     }
 
-    // Peringatan otomatis jika batch terlalu besar untuk perangkat
     if (selectedRows.length > 2500 && deviceRamGb <= 4) {
       warnings.push(
-        `Anda memproses ${selectedRows.length} baris dengan memori perangkat rendah (${deviceRamGb} GB). Disarankan menggunakan 'Pilih Rentang' bertahap (maks. 1.000 per cetak).`
+        `Anda memproses ${selectedRows.length} baris dengan memori perangkat rendah (~${deviceRamGb} GB). Disarankan menggunakan 'Pilih Rentang' bertahap (maks. 1.000 per cetak).`
       );
     }
 
@@ -1551,6 +1548,70 @@ export default function CetakLokal() {
     }
   };
 
+  // Helper untuk menyimpan ZIP: Menggunakan Streaming FileSystem Access API jika didukung, atau fallback Blob URL
+  const saveZipResult = async (zipBytes, filename, dirHandle = null) => {
+    if (dirHandle) {
+      try {
+        const fileHandle = await dirHandle.getFileHandle(filename, { create: true });
+        const writable = await fileHandle.createWritable();
+        await writable.write(zipBytes);
+        await writable.close();
+        return;
+      } catch (err) {
+        console.warn("Gagal menulis via DirectoryHandle, fallback ke unduhan langsung:", err);
+      }
+    }
+
+    const blob = new Blob([zipBytes], { type: "application/zip" });
+    const downloadUrl = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = downloadUrl;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(downloadUrl), 1000);
+  };
+
+  // Helper pemrosesan satu batch dengan siklus hidup worker sekali pakai (Terminate on Finish)
+  const processBatchWithFreshWorker = (batchItem, templateUint8, formattedConfigs) => {
+    return new Promise((resolve, reject) => {
+      const worker = new Worker(new URL("./pdfWorker.js", import.meta.url));
+
+      // Duplikat templateUint8 agar buffer dapat ditransfer tanpa merusak referensi batch berikutnya
+      const batchTemplateBuffer = templateUint8.slice().buffer;
+
+      worker.postMessage(
+        {
+          templateUint8: new Uint8Array(batchTemplateBuffer),
+          groupName: batchItem.groupName,
+          rows: batchItem.rows,
+          startOffset: batchItem.startOffset,
+          configs: formattedConfigs,
+          fontBytes: selectedFontBytes || undefined,
+          filenamePattern: filenamePattern.trim() || undefined,
+        },
+        [batchTemplateBuffer]
+      );
+
+      worker.onmessage = (e) => {
+        const { type, zipBytes, groupName, processedCount, error } = e.data;
+        if (type === "BATCH_COMPLETE") {
+          worker.terminate(); // Hancurkan worker dan bebaskan WebAssembly.Memory seketika
+          resolve({ zipBytes, groupName, processedCount });
+        } else if (type === "ERROR") {
+          worker.terminate();
+          reject(new Error(error || "Gagal pada Worker"));
+        }
+      };
+
+      worker.onerror = (err) => {
+        worker.terminate();
+        reject(new Error(err.message || "Worker runtime crash"));
+      };
+    });
+  };
+
   const executeBatchRendering = async () => {
     setIsValidationModalOpen(false);
     setIsProcessing(true);
@@ -1565,7 +1626,6 @@ export default function CetakLokal() {
     const enrichedRows = enrichRowsWithCustomVariables(selectedRows);
     setProgress({ current: 0, total: enrichedRows.length });
 
-    // Batas aman per satu ZIP dari deteksi memori perangkat
     const CHUNK_LIMIT = Math.max(100, parseInt(maxCertsPerZip, 10) || 1000);
 
     const batchQueue = [];
@@ -1580,7 +1640,6 @@ export default function CetakLokal() {
         groups[groupKey].push({ row, globalIndex: offset + idx + 1 });
       });
 
-      // Pecah tiap prodi/kategori menjadi sub-part jika melebihi CHUNK_LIMIT
       Object.entries(groups).forEach(([groupName, items]) => {
         const cleanGroupName = sanitizeName(groupName);
         if (items.length <= CHUNK_LIMIT) {
@@ -1611,62 +1670,45 @@ export default function CetakLokal() {
       }
     }
 
+    // Jika didukung dan batch banyak, minta izin folder tujuan agar stream langsung ke disk
+    let directoryHandle = null;
+    if (batchQueue.length > 1 && typeof window !== "undefined" && "showDirectoryPicker" in window) {
+      try {
+        directoryHandle = await window.showDirectoryPicker({ mode: "readwrite" });
+      } catch {
+        directoryHandle = null; // Pengguna membatalkan picker dialog, lanjut dengan fallback download biasa
+      }
+    }
+
     try {
       const templateUint8 = await bakeImagesIntoPdfTemplate(templateFile);
       const formattedConfigs = buildFormattedConfigs();
 
-      const worker = new Worker(new URL("./pdfWorker.js", import.meta.url));
+      let totalProcessed = 0;
 
-      worker.postMessage(
-        {
+      // Iterasi berurutan: 1 Worker dibuat -> proses batch -> terminate -> buka batch baru
+      for (let b = 0; b < batchQueue.length; b++) {
+        const batchItem = batchQueue[b];
+
+        const { zipBytes, groupName, processedCount } = await processBatchWithFreshWorker(
+          batchItem,
           templateUint8,
-          batchQueue,
-          configs: formattedConfigs,
-          fontBytes: selectedFontBytes || undefined,
-          filenamePattern: filenamePattern.trim() || undefined,
-        },
-        [templateUint8.buffer]
-      );
+          formattedConfigs
+        );
 
-      worker.onmessage = (e) => {
-        const { type, zipBytes, groupName, progress: workerProgress, error } = e.data;
+        totalProcessed += processedCount;
+        setProgress({ current: totalProcessed, total: enrichedRows.length });
 
-        if (type === "GROUP_COMPLETE") {
-          setProgress(workerProgress);
-          const blob = new Blob([zipBytes], { type: "application/zip" });
-          const downloadUrl = URL.createObjectURL(blob);
-          const link = document.createElement("a");
-          link.href = downloadUrl;
-          link.download = `sertifikat_${groupName}_${Date.now()}.zip`;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          URL.revokeObjectURL(downloadUrl);
-        }
+        const filename = `sertifikat_${groupName}_${Date.now()}.zip`;
+        await saveZipResult(zipBytes, filename, directoryHandle);
+      }
 
-        if (type === "ALL_COMPLETE") {
-          setIsProcessing(false);
-          setProgress(null);
-          setNotification({ show: true, message: "Seluruh arsip ZIP berhasil diunduh.", type: "success" });
-          worker.terminate();
-        }
-
-        if (type === "ERROR") {
-          setNotification({ show: true, message: `Kendala pemrosesan: ${error}`, type: "error" });
-          setIsProcessing(false);
-          setProgress(null);
-          worker.terminate();
-        }
-      };
-
-      worker.onerror = (err) => {
-        setNotification({ show: true, message: `Gagal memuat Worker: ${err.message}`, type: "error" });
-        setIsProcessing(false);
-        setProgress(null);
-        worker.terminate();
-      };
+      setIsProcessing(false);
+      setProgress(null);
+      setNotification({ show: true, message: "Seluruh berkas ZIP selesai diproses.", type: "success" });
     } catch (error) {
-      setNotification({ show: true, message: `Terjadi kesalahan: ${error.message}`, type: "error" });
+      console.error("Kesalahan batch rendering:", error);
+      setNotification({ show: true, message: `Kendala: ${error.message}`, type: "error" });
       setIsProcessing(false);
       setProgress(null);
     }
@@ -2738,7 +2780,6 @@ export default function CetakLokal() {
                     </div>
                   )}
 
-                  {/* Batas Maksimum Berkas per ZIP (Sub-chunking) */}
                   <div className="pt-1 border-t border-dashed border-[#444444]/40">
                     <div className="flex justify-between items-center mb-1">
                       <label className={`text-[9px] font-mono uppercase font-bold ${isDark ? "text-[#AAAAAA]" : "text-[#555555]"}`}>
