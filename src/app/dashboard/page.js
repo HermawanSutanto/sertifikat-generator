@@ -383,18 +383,38 @@ export default function CetakLokal() {
 
   const imageUploadInputRef = useRef(null);
 
-  // Deteksi kapasitas RAM perangkat saat inisialisasi
+  // Deteksi kapasitas RAM/CPU yang aman dari SSR dan kompatibel lintas browser
   useEffect(() => {
-    if (typeof navigator !== "undefined" && navigator.deviceMemory) {
-      const ram = navigator.deviceMemory;
-      setDeviceRamGb(ram);
-      if (ram <= 4) {
-        setMaxCertsPerZip(500); // Batasi 500 berkas per ZIP untuk device RAM 4GB ke bawah
+    if (typeof window === "undefined" || typeof navigator === "undefined") return;
+
+    try {
+      let detectedRam = 8;
+
+      if ("deviceMemory" in navigator && typeof navigator.deviceMemory === "number") {
+        detectedRam = navigator.deviceMemory;
+      } else if ("hardwareConcurrency" in navigator && typeof navigator.hardwareConcurrency === "number") {
+        // Fallback untuk Safari/Firefox: inti CPU <= 4 diasumsikan perangkat berspesifikasi hemat/rendah
+        detectedRam = navigator.hardwareConcurrency <= 4 ? 4 : 8;
+      }
+
+      setDeviceRamGb(detectedRam);
+
+      if (detectedRam <= 4) {
+        setMaxCertsPerZip(500); // Batas aman untuk RAM 4GB ke bawah
       } else {
         setMaxCertsPerZip(1000);
       }
+    } catch (err) {
+      console.warn("Gagal mendeteksi spesifikasi memori perangkat:", err);
+      setDeviceRamGb(8);
+      setMaxCertsPerZip(1000);
     }
-    setLocalFontApiSupported(typeof window !== "undefined" && "queryLocalFonts" in window);
+
+    try {
+      setLocalFontApiSupported("queryLocalFonts" in window);
+    } catch {
+      setLocalFontApiSupported(false);
+    }
   }, []);
 
   const handleDetectLocalFonts = async () => {
