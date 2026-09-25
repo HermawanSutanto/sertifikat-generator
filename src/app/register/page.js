@@ -3,14 +3,27 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { createUserWithEmailAndPassword } from "firebase/auth";
-import { auth } from "../../lib/firebase";
+import {
+  createUserWithEmailAndPassword,
+  updateProfile,
+  signInWithPopup,
+  GoogleAuthProvider,
+} from "firebase/auth";
+import {
+  doc,
+  getDoc,
+  setDoc,
+  collection,
+  addDoc,
+  serverTimestamp,
+} from "firebase/firestore";
+import { auth, db } from "@/lib/firebase";
 
 const EyeIcon = (props) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
-    width="20"
-    height="20"
+    width="18"
+    height="18"
     viewBox="0 0 24 24"
     {...props}
   >
@@ -20,11 +33,12 @@ const EyeIcon = (props) => (
     />
   </svg>
 );
+
 const EyeSlashIcon = (props) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
-    width="20"
-    height="20"
+    width="18"
+    height="18"
     viewBox="0 0 24 24"
     {...props}
   >
@@ -35,41 +49,173 @@ const EyeSlashIcon = (props) => (
   </svg>
 );
 
+const IconGoogle = (props) => (
+  <svg viewBox="0 0 24 24" width="16" height="16" {...props}>
+    <path
+      fill="#4285F4"
+      d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"
+    />
+    <path
+      fill="#34A853"
+      d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.25v3.15C3.26 21.36 7.33 24 12 24z"
+    />
+    <path
+      fill="#FBBC05"
+      d="M5.28 14.27c-.25-.72-.38-1.49-.38-2.27s.13-1.55.38-2.27V6.58H1.25C.45 8.18 0 10.03 0 12s.45 3.82 1.25 5.42l4.03-3.15z"
+    />
+    <path
+      fill="#EA4335"
+      d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.26 2.64 1.25 6.58l4.03 3.15c.95-2.83 3.6-4.98 6.72-4.98z"
+    />
+  </svg>
+);
+
 export default function RegisterPage() {
+  const [accountType, setAccountType] = useState("personal"); // "personal" | "organization"
+  const [namaLengkap, setNamaLengkap] = useState("");
+  const [namaOrganisasi, setNamaOrganisasi] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
+  const [isLoading, setIsLoading] = useState(false);
   const router = useRouter();
+
+  const provisionUserAndOrg = async (firebaseUser, customFullName, customOrgName, type = "personal") => {
+    const userDocRef = doc(db, "users", firebaseUser.uid);
+    const userSnap = await getDoc(userDocRef);
+
+    if (userSnap.exists()) return;
+
+    const resolvedFullName =
+      customFullName?.trim() ||
+      firebaseUser.displayName ||
+      firebaseUser.email?.split("@")[0] ||
+      "Pengguna SertiGen";
+
+    const resolvedOrgName =
+      type === "organization"
+        ? (customOrgName?.trim() || `Lembaga ${resolvedFullName}`)
+        : (customOrgName?.trim() || `Ruang Kerja ${resolvedFullName}`);
+
+    // 1. Inisialisasi dokumen organisasi / ruang kerja
+    const orgPayload = {
+      namaOrganisasi: resolvedOrgName,
+      tipeOrganisasi: type,
+      emailResmi: firebaseUser.email || "",
+      website: "",
+      nomorTelepon: "",
+      alamat: { jalan: "", kota: "" },
+      branding: { logoUrl: null, capStempelUrl: null },
+      nomorSuratFormat: {
+        prefix: type === "personal" ? "SERTI" : "SK-SERTI",
+        kodeBagian: type === "personal" ? "IND" : "HRD",
+      },
+      pemilikId: firebaseUser.uid,
+      dibuatPada: serverTimestamp(),
+      diperbaruiPada: serverTimestamp(),
+    };
+
+    const newOrgRef = await addDoc(collection(db, "organizations"), orgPayload);
+    const generatedOrgId = newOrgRef.id;
+
+    // 2. Inisialisasi dokumen users/{uid}
+    const userPayload = {
+      uid: firebaseUser.uid,
+      email: firebaseUser.email,
+      namaLengkap: resolvedFullName,
+      nomorWhatsapp: "",
+      jabatan: type === "personal" ? "Penyelenggara Mandiri" : "Penanggung Jawab",
+      accountType: type,
+      activeOrgId: generatedOrgId,
+      organizations: [
+        {
+          orgId: generatedOrgId,
+          role: "owner",
+          namaOrganisasi: resolvedOrgName,
+        },
+      ],
+      dibuatPada: serverTimestamp(),
+      terakhirLogin: serverTimestamp(),
+    };
+
+    await setDoc(userDocRef, userPayload);
+  };
 
   const handleRegister = async (e) => {
     e.preventDefault();
     setError("");
+
     if (password.length < 6) {
       setError("Password harus memiliki setidaknya 6 karakter.");
       return;
     }
+
+    setIsLoading(true);
     try {
-      await createUserWithEmailAndPassword(auth, email, password);
-      router.push("/dashboard"); // Redirect ke dashboard setelah berhasil
-    } catch (err) {
-      if (err.code === "auth/email-already-in-use") {
-        setError("Alamat email ini sudah terdaftar.");
-      } else {
-        setError("Gagal membuat akun. Silakan coba lagi.");
+      const userCredential = await createUserWithEmailAndPassword(auth, email.trim(), password);
+
+      if (namaLengkap.trim()) {
+        await updateProfile(userCredential.user, {
+          displayName: namaLengkap.trim(),
+        });
       }
-      console.error(err);
+
+      await provisionUserAndOrg(
+        userCredential.user,
+        namaLengkap,
+        namaOrganisasi,
+        accountType
+      );
+
+      router.push("/dashboard");
+    } catch (err) {
+      console.error("Gagal mendaftar:", err);
+      if (err.code === "auth/email-already-in-use") {
+        setError("Alamat email ini sudah terdaftar. Silakan masuk.");
+      } else if (err.code === "auth/invalid-email") {
+        setError("Format alamat email tidak valid.");
+      } else {
+        setError("Gagal membuat akun: " + (err.message || "Terjadi kesalahan."));
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setError("");
+    setIsLoading(true);
+    try {
+      const provider = new GoogleAuthProvider();
+      const result = await signInWithPopup(auth, provider);
+
+      await provisionUserAndOrg(
+        result.user,
+        result.user.displayName,
+        namaOrganisasi,
+        accountType
+      );
+
+      router.push("/dashboard");
+    } catch (err) {
+      console.error("Google sign-in error:", err);
+      if (err.code !== "auth/popup-closed-by-user") {
+        setError("Gagal mendaftar dengan Google: " + err.message);
+      }
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
-    <main className="relative flex items-center justify-center min-h-screen bg-[#EBE9E4] px-4">
+    <main className="relative flex items-center justify-center min-h-screen bg-[#EBE9E4] px-4 py-12">
       <div
-        className="hidden md:block absolute right-16 top-16 w-24 h-24 rounded-full border-2 border-[#111111]/10"
+        className="hidden md:block absolute right-16 top-16 w-24 h-24 rounded-full border-2 border-[#111111]/10 pointer-events-none"
         aria-hidden="true"
       />
       <div
-        className="hidden md:block absolute left-16 bottom-16 w-32 h-32 rounded-full border border-dashed border-[#111111]/10"
+        className="hidden md:block absolute left-16 bottom-16 w-32 h-32 rounded-full border border-dashed border-[#111111]/10 pointer-events-none"
         aria-hidden="true"
       />
 
@@ -94,73 +240,180 @@ export default function RegisterPage() {
         </svg>
       </Link>
 
-      <div className="relative w-full max-w-md p-10 space-y-8 bg-[#FFFFFF] rounded-[4px] shadow-2xl border border-[#111111]">
-        <div className="flex flex-col items-center gap-3">
+      <div className="relative w-full max-w-md p-8 sm:p-10 space-y-6 bg-[#FFFFFF] rounded-[4px] shadow-2xl border border-[#111111]">
+        <div className="flex flex-col items-center gap-2">
           <Link
             href="/"
-            className="text-lg font-bold uppercase tracking-tight text-[#111111]"
-            style={{ fontFamily: "var(--font-display)" }}
+            className="text-lg font-bold uppercase tracking-tight text-[#111111] hover:text-[#0000EE] transition-colors"
+            style={{ fontFamily: "var(--font-display, inherit)" }}
           >
             SERTIGEN.
           </Link>
           <h1
-            className="text-3xl font-bold text-center text-[#111111] uppercase"
-            style={{ fontFamily: "var(--font-display)" }}
+            className="text-2xl sm:text-3xl font-bold text-center text-[#111111] uppercase tracking-tight"
+            style={{ fontFamily: "var(--font-display, inherit)" }}
           >
             Buat Akun Baru
           </h1>
-          <p className="text-sm text-[#555555] text-center font-mono">
-            Gratis untuk 50 sertifikat pertama. Tanpa kartu kredit.
+          <p className="text-xs text-[#555555] text-center font-mono">
+            Generator sertifikat on-demand & ramah multi-tenancy.
           </p>
         </div>
 
-        <form onSubmit={handleRegister} className="space-y-5">
+        {}
+        <div>
+          <label className="block text-[11px] font-mono font-semibold uppercase tracking-wide text-[#111111] mb-1.5">
+            Tipe Penyelenggara
+          </label>
+          <div className="grid grid-cols-2 gap-1 p-1 bg-[#F5F4F0] border border-[#111111]/20 rounded-[4px]">
+            <button
+              type="button"
+              onClick={() => setAccountType("personal")}
+              className={`py-2 text-xs font-mono font-bold uppercase rounded-[2px] transition-all flex items-center justify-center gap-1.5 ${
+                accountType === "personal"
+                  ? "bg-[#111111] text-white shadow-xs"
+                  : "text-[#555555] hover:text-[#111111]"
+              }`}
+            >
+              <span>👤</span>
+              <span>Perorangan</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setAccountType("organization")}
+              className={`py-2 text-xs font-mono font-bold uppercase rounded-[2px] transition-all flex items-center justify-center gap-1.5 ${
+                accountType === "organization"
+                  ? "bg-[#111111] text-white shadow-xs"
+                  : "text-[#555555] hover:text-[#111111]"
+              }`}
+            >
+              <span>🏢</span>
+              <span>Instansi / PT</span>
+            </button>
+          </div>
+          <p className="text-[10px] font-mono text-[#777777] mt-1">
+            {accountType === "personal"
+              ? "Untuk mentor, tutor les, kreator kursus, atau panitia mandiri."
+              : "Untuk PT, CV, universitas, dinas lembaga, atau organisasi formal."}
+          </p>
+        </div>
+
+        {}
+        <button
+          type="button"
+          onClick={handleGoogleSignIn}
+          disabled={isLoading}
+          className="w-full py-2.5 px-4 font-mono text-xs uppercase font-semibold text-[#111111] bg-white border border-[#111111]/30 hover:border-[#111111] rounded-[4px] hover:bg-[#F5F4F0] transition-colors flex items-center justify-center gap-2.5 shadow-xs disabled:opacity-50"
+        >
+          <IconGoogle />
+          <span>Daftar dengan Google</span>
+        </button>
+
+        <div className="relative flex items-center py-0.5">
+          <div className="flex-grow border-t border-[#111111]/15" />
+          <span className="shrink mx-3 text-[#777777] text-[10px] font-mono uppercase tracking-wider">
+            atau lengkapi formulir
+          </span>
+          <div className="flex-grow border-t border-[#111111]/15" />
+        </div>
+
+        {}
+        <form onSubmit={handleRegister} className="space-y-4">
           <div>
-            <label className="block text-xs font-mono font-semibold uppercase tracking-wide text-[#111111] mb-2">
-              Email
+            <label className="block text-[11px] font-mono font-semibold uppercase tracking-wide text-[#111111] mb-1">
+              Nama Lengkap Anda *
+            </label>
+            <input
+              type="text"
+              required
+              placeholder="Contoh: Budi Santoso, S.Kom."
+              value={namaLengkap}
+              onChange={(e) => setNamaLengkap(e.target.value)}
+              className="w-full px-3.5 py-2.5 text-xs text-[#111111] border border-[#111111]/25 bg-white rounded-[4px] focus:outline-none focus:ring-2 focus:ring-[#0000EE]/50 focus:border-[#0000EE] transition"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-mono font-semibold uppercase tracking-wide text-[#111111] mb-1">
+              {accountType === "organization"
+                ? "Nama Instansi / Perusahaan / PT *"
+                : "Nama Jenama / Komunitas / Studio (Opsional)"}
+            </label>
+            <input
+              type="text"
+              required={accountType === "organization"}
+              placeholder={
+                accountType === "organization"
+                  ? "Contoh: PT Teknologi Bangsa Indonesia"
+                  : "Contoh: Budi Studio / Kursus Mandiri"
+              }
+              value={namaOrganisasi}
+              onChange={(e) => setNamaOrganisasi(e.target.value)}
+              className="w-full px-3.5 py-2.5 text-xs text-[#111111] border border-[#111111]/25 bg-white rounded-[4px] focus:outline-none focus:ring-2 focus:ring-[#0000EE]/50 focus:border-[#0000EE] transition"
+            />
+          </div>
+
+          <div>
+            <label className="block text-[11px] font-mono font-semibold uppercase tracking-wide text-[#111111] mb-1">
+              Email *
             </label>
             <input
               type="email"
+              required
+              placeholder="nama@email.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              required
-              className="w-full px-4 py-3 border text-[#111111] border-[#111111]/20 bg-white rounded-[4px] focus:outline-none focus:ring-2 focus:ring-[#0000EE]/50 focus:border-[#0000EE] transition"
+              className="w-full px-3.5 py-2.5 text-xs font-mono text-[#111111] border border-[#111111]/25 bg-white rounded-[4px] focus:outline-none focus:ring-2 focus:ring-[#0000EE]/50 focus:border-[#0000EE] transition"
             />
           </div>
+
           <div>
-            <label className="block text-xs font-mono font-semibold uppercase tracking-wide text-[#111111] mb-2">
-              Password
+            <label className="block text-[11px] font-mono font-semibold uppercase tracking-wide text-[#111111] mb-1">
+              Password (Min. 6 Karakter) *
             </label>
-            <div className="relative mt-1">
+            <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
+                required
+                placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                required
-                className="w-full px-4 py-3 border text-[#111111] border-[#111111]/20 bg-white rounded-[4px] focus:outline-none focus:ring-2 focus:ring-[#0000EE]/50 focus:border-[#0000EE] transition"
+                className="w-full px-3.5 py-2.5 text-xs text-[#111111] border border-[#111111]/25 bg-white rounded-[4px] focus:outline-none focus:ring-2 focus:ring-[#0000EE]/50 focus:border-[#0000EE] transition pr-10"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute inset-y-0 right-0 flex items-center px-4 text-[#111111]/50 hover:text-[#111111]"
+                className="absolute inset-y-0 right-0 flex items-center px-3 text-[#111111]/50 hover:text-[#111111]"
               >
                 {showPassword ? <EyeSlashIcon /> : <EyeIcon />}
               </button>
             </div>
           </div>
+
           {error && (
-            <p className="text-[#B3261E] text-sm font-semibold text-center font-mono">
-              {error}
+            <p className="text-[#B3261E] text-xs font-semibold text-center font-mono bg-[#B3261E]/10 p-2.5 rounded border border-[#B3261E]/30">
+              [!] {error}
             </p>
           )}
+
+          {}
           <button
             type="submit"
-            className="w-full py-3.5 font-mono font-semibold uppercase tracking-wide text-white bg-[#111111] rounded-[4px] hover:bg-[#0000EE] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0000EE]"
+            disabled={isLoading}
+            className="w-full py-3 font-mono text-xs font-semibold uppercase tracking-wide text-white bg-[#111111] rounded-[4px] hover:bg-[#0000EE] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0000EE] disabled:opacity-50 flex items-center justify-center gap-2"
           >
-            Daftar Gratis
+            {isLoading ? (
+              <>
+                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span>Mempersiapkan Ruang Kerja...</span>
+              </>
+            ) : (
+              <span>Daftar Sekarang →</span>
+            )}
           </button>
         </form>
-        <p className="text-center text-sm text-[#555555] font-mono">
+
+        <p className="text-center text-xs text-[#555555] font-mono pt-2 border-t border-[#111111]/10">
           Sudah punya akun?{" "}
           <Link href="/login" className="font-semibold text-[#0000EE] hover:underline">
             Login di sini
