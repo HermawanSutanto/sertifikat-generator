@@ -2194,7 +2194,13 @@ export default function CetakLokal() {
   const estimatedZipParts = estimatedCertCount > 0 ? Math.ceil(estimatedCertCount / CHUNK_LIMIT_COUNT) : 0;
   const estimatedPerFileBytes = templateFile ? templateFile.size : 0;
   const estimatedTotalBytes = estimatedCertCount * estimatedPerFileBytes;
+const disabledReasons = [];
+  if (!templateFile) disabledReasons.push("Template PDF belum dimuat");
+  if (!csvFile && csvRows.length === 0) disabledReasons.push("File CSV peserta belum diunggah");
+  if (estimatedCertCount === 0) disabledReasons.push("Rentang baris data peserta kosong (0 berkas)");
+  if (zipGroupingMode === "column" && !selectedZipGroupColumn) disabledReasons.push("Kolom pengelompokan ZIP belum dipilih");
 
+  const isGenerateDisabled = disabledReasons.length > 0;
   const previewFontWeight = selectedLocalFontFamily
     ? (/bold|black|heavy|semibold/i.test(selectedFontStyle) ? 700 : 400)
     : 700;
@@ -2375,25 +2381,52 @@ export default function CetakLokal() {
             Pratinjau Sampel
           </button>
 
-          <button
-            onClick={handleStartGenerate}
-            disabled={isProcessing || !csvFile || !templateFile || estimatedCertCount === 0}
-            className="px-5 py-2 text-xs font-mono uppercase font-bold text-[#FFFFFF] bg-[#0000EE] hover:bg-[#0000EE]/85 disabled:bg-[#333333] disabled:text-[#888888] rounded-[4px] border border-[#0000EE] disabled:border-transparent transition-colors flex items-center gap-2 shadow-sm"
-          >
-            {isProcessing ? (
-              <>
-                <Spinner className="w-3.5 h-3.5" />
-                <span>
-                  {progress ? `Memproses ${progress.current}/${progress.total}...` : "Memproses..."}
-                </span>
-              </>
-            ) : (
-              <>
-                <IconBolt className="w-3.5 h-3.5" />
-                <span>Cetak ZIP ({estimatedCertCount})</span>
-              </>
-            )}
-          </button>
+          <div className="relative group inline-block">
+  <button
+    type="button"
+    onClick={handleStartGenerate}
+    disabled={isProcessing || isGenerateDisabled}
+    className="px-5 py-2 text-xs font-mono uppercase font-bold text-[#FFFFFF] bg-[#0000EE] hover:bg-[#0000EE]/85 disabled:bg-[#333333] disabled:text-[#888888] rounded-[4px] border border-[#0000EE] disabled:border-transparent transition-colors flex items-center gap-2 shadow-sm disabled:cursor-not-allowed"
+  >
+    {isProcessing ? (
+      <>
+        <Spinner className="w-3.5 h-3.5" />
+        <span>
+          {progress ? `Memproses ${progress.current}/${progress.total}...` : "Memproses..."}
+        </span>
+      </>
+    ) : (
+      <>
+        <IconBolt className="w-3.5 h-3.5" />
+        <span>Cetak ZIP ({estimatedCertCount})</span>
+      </>
+    )}
+  </button>
+
+  {/* Tooltip Hover Peringatan saat Tombol Tidak Bisa Ditekan */}
+  {!isProcessing && isGenerateDisabled && (
+    <div
+      className={`absolute bottom-full right-0 mb-2 w-64 p-3 rounded-[4px] border shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity duration-150 z-50 ${
+        isDark ? "bg-[#181818] border-[#B3261E] text-[#FFFFFF]" : "bg-[#FFFFFF] border-[#B3261E] text-[#111111]"
+      }`}
+    >
+      <div className="flex items-center gap-1.5 text-[10px] font-mono font-bold text-[#B3261E] uppercase tracking-wider mb-1.5 border-b pb-1 border-[#B3261E]/30">
+        <span>[!] Belum Bisa Mengunduh</span>
+      </div>
+      <ul className="space-y-1">
+        {disabledReasons.map((reason, idx) => (
+          <li key={idx} className="text-[10px] font-mono flex items-start gap-1.5 leading-snug">
+            <span className="text-[#B3261E] font-bold">•</span>
+            <span>{reason}</span>
+          </li>
+        ))}
+      </ul>
+      <div className={`mt-2 pt-1 border-t text-[9px] font-mono ${isDark ? "border-[#333333] text-[#888888]" : "border-[#E5E7EB] text-[#777777]"}`}>
+        Lengkapi data di tab bilah kiri.
+      </div>
+    </div>
+  )}
+</div>
 
           <Link
             href={eventId ? `/dashboard/events/${eventId}` : "/dashboard"}
