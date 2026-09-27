@@ -718,6 +718,7 @@ export default function CetakLokal() {
             const list = pesertaSnap.docs.map((d) => d.data());
             list.sort((a, b) => (a.nomorUrut || 0) - (b.nomorUrut || 0));
             const rows = list.map((p) => p.attributes || { Nama: p.nama, Email: p.email || "" });
+            setCsvFile(new File([], "peserta_cloud.csv", { type: "text/csv" }));
             setCsvRows(rows);
             setSliceStart(1);
             setSliceEnd(rows.length);
@@ -2001,7 +2002,8 @@ export default function CetakLokal() {
   };
 
   const handleStartGenerate = () => {
-    if (!csvFile || !templateFile || configs.length === 0) {
+    const hasCsvData = csvFile || csvRows.length > 0;
+    if (!hasCsvData || !templateFile || configs.length === 0) {
       setNotification({ show: true, message: "Unggah CSV, PDF, dan tentukan letak teks.", type: "error" });
       return;
     }
@@ -2385,7 +2387,7 @@ const disabledReasons = [];
   <button
     type="button"
     onClick={handleStartGenerate}
-    disabled={isProcessing || isGenerateDisabled}
+    disabled={isProcessing || (!csvFile && csvRows.length === 0) || !templateFile || estimatedCertCount === 0}
     className="px-5 py-2 text-xs font-mono uppercase font-bold text-[#FFFFFF] bg-[#0000EE] hover:bg-[#0000EE]/85 disabled:bg-[#333333] disabled:text-[#888888] rounded-[4px] border border-[#0000EE] disabled:border-transparent transition-colors flex items-center gap-2 shadow-sm disabled:cursor-not-allowed"
   >
     {isProcessing ? (
