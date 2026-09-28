@@ -23,39 +23,25 @@ const supabase = createClient(
 );
 const ASSET_BUCKET = "project-assets";
 
-const IconBuilding = (props) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.75 21h16.5M4.5 3h15M6 3v18m12-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m-1.5 3h1.5m4.5-9h1.5m-1.5 3h1.5m-1.5 3h1.5m-1.5 3h1.5M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
-  </svg>
-);
-
-const IconUser = (props) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-  </svg>
-);
-
-const IconArrowLeft = (props) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
-  </svg>
-);
-
 export default function ProfilePage() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
-  const [activeTab, setActiveTab] = useState("personal");
+  const [activeTab, setActiveTab] = useState("personal"); // "personal" | "organization"
+
+  // Status State
   const [isLoadingData, setIsLoadingData] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [statusMessage, setStatusMessage] = useState({ text: "", type: "" });
 
+  // State Profil Personal
   const [personalData, setPersonalData] = useState({
     namaLengkap: "",
     nomorWhatsapp: "",
     jabatan: "",
   });
 
+  // State Organisasi / Workspace
   const [orgId, setOrgId] = useState(null);
   const [orgData, setOrgData] = useState({
     namaOrganisasi: "",
@@ -71,6 +57,7 @@ export default function ProfilePage() {
     capStempelUrl: "",
   });
 
+  // Ref berkas upload
   const logoInputRef = useRef(null);
   const stempelInputRef = useRef(null);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
@@ -89,6 +76,7 @@ export default function ProfilePage() {
     }, 4000);
   };
 
+  // Muat data profil pengguna dan organisasi aktif
   useEffect(() => {
     if (!user) return;
 
@@ -126,6 +114,7 @@ export default function ProfilePage() {
           }));
         }
 
+        // Ambil data organisasi terkait
         if (currentActiveOrgId) {
           const orgRef = doc(db, "organizations", currentActiveOrgId);
           const orgSnap = await getDoc(orgRef);
@@ -149,7 +138,7 @@ export default function ProfilePage() {
         }
       } catch (err) {
         console.error("Gagal membaca profil:", err);
-        notify("Kendala membaca data profil: " + err.message, "error");
+        notify("Kendala membaca profil: " + err.message, "error");
       } finally {
         setIsLoadingData(false);
       }
@@ -158,6 +147,7 @@ export default function ProfilePage() {
     loadProfileAndOrg();
   }, [user]);
 
+  // Unggah Logo atau Cap Stempel ke Supabase Storage
   const handleUploadBrandingAsset = async (file, assetType) => {
     if (!file || !user) return;
 
@@ -185,10 +175,10 @@ export default function ProfilePage() {
 
       if (isLogo) {
         setOrgData((prev) => ({ ...prev, logoUrl: urlData.publicUrl }));
-        notify("Logo berhasil diperbarui.", "success");
+        notify("Logo berhasil diunggah!", "success");
       } else {
         setOrgData((prev) => ({ ...prev, capStempelUrl: urlData.publicUrl }));
-        notify("Berkas tanda tangan berhasil diunggah.", "success");
+        notify("Cap / Tanda tangan berhasil diunggah!", "success");
       }
     } catch (err) {
       console.error("Gagal unggah berkas:", err);
@@ -199,6 +189,7 @@ export default function ProfilePage() {
     }
   };
 
+  // Simpan Tab 1: Profil Pribadi
   const handleSavePersonal = async (e) => {
     e.preventDefault();
     if (!user) return;
@@ -207,10 +198,12 @@ export default function ProfilePage() {
     try {
       const trimmedName = personalData.namaLengkap.trim();
 
+      // Sinkronkan ke Firebase Auth agar navbar & dashboard langsung terbarui
       if (auth.currentUser && trimmedName) {
         await updateProfile(auth.currentUser, { displayName: trimmedName });
       }
 
+      // Simpan ke Firestore
       const userRef = doc(db, "users", user.uid);
       await updateDoc(userRef, {
         namaLengkap: trimmedName,
@@ -219,7 +212,7 @@ export default function ProfilePage() {
         diperbaruiPada: serverTimestamp(),
       });
 
-      notify("Data profil pribadi berhasil diperbarui.", "success");
+      notify("Profil pribadi berhasil diperbarui!", "success");
     } catch (err) {
       console.error("Gagal menyimpan profil personal:", err);
       notify("Gagal menyimpan profil: " + err.message, "error");
@@ -228,6 +221,7 @@ export default function ProfilePage() {
     }
   };
 
+  // Simpan Tab 2: Profil Organisasi / Ruang Kerja
   const handleSaveOrganization = async (e) => {
     e.preventDefault();
     if (!user) return;
@@ -267,6 +261,7 @@ export default function ProfilePage() {
       const userRef = doc(db, "users", user.uid);
 
       if (!targetOrgId) {
+        // Pembuatan entitas baru
         payload.dibuatPada = serverTimestamp();
         const newOrgRef = await addDoc(collection(db, "organizations"), payload);
         targetOrgId = newOrgRef.id;
@@ -284,8 +279,10 @@ export default function ProfilePage() {
           ],
         });
       } else {
+        // Pembaruan entitas yang sudah ada
         await updateDoc(doc(db, "organizations", targetOrgId), payload);
 
+        // Ambil data user terkini untuk memperbarui array organizations secara utuh
         const uSnap = await getDoc(userRef);
         if (uSnap.exists()) {
           const currentOrgs = uSnap.data().organizations || [];
@@ -303,10 +300,10 @@ export default function ProfilePage() {
         }
       }
 
-      notify("Pengaturan identitas lembaga berhasil disimpan.", "success");
+      notify("Pengaturan identitas lembaga berhasil disimpan!", "success");
     } catch (err) {
-      console.error("Gagal menyimpan organisasi:", err);
-      notify("Gagal menyimpan data lembaga: " + err.message, "error");
+      console.error("Gagal simpan organisasi:", err);
+      notify("Gagal menyimpan organisasi: " + err.message, "error");
     } finally {
       setIsSaving(false);
     }
@@ -314,9 +311,9 @@ export default function ProfilePage() {
 
   if (loading || !user || isLoadingData) {
     return (
-      <div className="min-h-screen bg-[#FFFFFF] flex flex-col items-center justify-center font-mono text-xs text-[#6B7280] space-y-2">
-        <div className="w-5 h-5 border-2 border-[#111111] border-t-transparent rounded-full animate-spin" />
-        <p>Memuat profil akun dan ruang kerja...</p>
+      <div className="min-h-screen bg-[#EBE9E4] flex flex-col items-center justify-center font-mono text-xs text-[#555555] space-y-2">
+        <div className="w-5 h-5 border-2 border-[#0000EE] border-t-transparent rounded-full animate-spin" />
+        <p>Memuat profil akun & ruang kerja...</p>
       </div>
     );
   }
@@ -324,118 +321,109 @@ export default function ProfilePage() {
   const isPersonalType = orgData.tipeOrganisasi === "personal";
 
   return (
-    <div className="min-h-screen bg-[#FFFFFF] text-[#111111] font-sans antialiased pb-20">
+    <div className="min-h-screen bg-[#EBE9E4] text-[#111111] font-sans pb-16">
       {statusMessage.text && (
         <div
-          className={`fixed top-4 right-4 z-50 px-4 py-2.5 rounded-[4px] border text-xs font-mono transition-all ${
+          className={`fixed top-4 right-4 z-50 px-4 py-2.5 rounded-[4px] shadow-lg text-xs font-mono border transition-all ${
             statusMessage.type === "error"
-              ? "bg-[#FFFFFF] text-[#D92D20] border-[#D92D20]"
+              ? "bg-[#B3261E] text-white border-[#B3261E]"
               : statusMessage.type === "success"
-              ? "bg-[#111111] text-[#FFFFFF] border-[#111111]"
-              : "bg-[#FFFFFF] text-[#111111] border-[#E5E7EB]"
+              ? "bg-[#0000EE] text-white border-[#0000EE]"
+              : "bg-[#111111] text-white border-[#111111]"
           }`}
         >
           {statusMessage.text}
         </div>
       )}
 
-      {/* Top Header Navigation */}
-      <header className="sticky top-0 z-30 bg-[#FFFFFF]/90 border-b border-[#E5E7EB] backdrop-blur-md px-6 h-16 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link
-            href="/dashboard"
-            className="text-base font-medium tracking-tight text-[#111111] hover:text-[#6B7280] transition-colors"
-          >
-            SertiGen
+      {/* Header Navigasi */}
+      <header className="border-b border-[#111111]/20 bg-white px-6 py-4 flex items-center justify-between sticky top-0 z-30 shadow-xs">
+        <div className="flex items-center gap-2 text-sm">
+          <Link href="/dashboard" className="text-[#555555] hover:text-[#111111] font-semibold">
+            Dashboard
           </Link>
-          <span className="text-[#B0B6C3]">/</span>
-          <span className="text-xs font-mono text-[#6B7280] uppercase tracking-wider">
-            Pengaturan Profil
-          </span>
+          <span className="text-[#CCCCCC]">/</span>
+          <span className="font-bold text-[#111111]">Pengaturan Profil & Lembaga</span>
         </div>
 
         <Link
           href="/dashboard"
-          className="text-xs font-mono text-[#6B7280] hover:text-[#111111] transition-colors flex items-center gap-1.5"
+          className="text-xs font-mono text-[#555555] hover:text-[#0000EE] transition font-semibold"
         >
-          <IconArrowLeft className="w-3.5 h-3.5" />
-          <span>Kembali ke Dashboard</span>
+          ← Kembali ke Dashboard
         </Link>
       </header>
 
-      {/* Main Content Form Workspace */}
-      <main className="max-w-[960px] mx-auto px-6 pt-10 space-y-8">
+      {/* Konten Utama */}
+      <main className="max-w-4xl mx-auto p-6 space-y-6">
         <div>
-          <span className="text-[11px] font-mono uppercase tracking-[0.08em] text-[#6B7280]">
-            Konfigurasi Akun
-          </span>
-          <h1 className="text-3xl sm:text-4xl font-light tracking-[-1px] text-[#111111] mt-1">
+          <h1 className="text-2xl font-bold uppercase tracking-tight text-[#111111]">
             Pengaturan Akun & Lembaga
           </h1>
-          <p className="text-xs text-[#6B7280] font-light mt-1">
-            Sesuaikan identitas penanggung jawab dan profil instansi untuk penerbitan sertifikat resmi.
+          <p className="text-xs text-[#555555] font-mono mt-1">
+            Konfigurasikan informasi pribadi dan identitas penyelenggara untuk aset sertifikat resmi.
           </p>
         </div>
 
-        {/* Tab Navigation Controls */}
-        <div className="flex border-b border-[#E5E7EB] text-xs font-mono">
+        {/* Tab Switcher */}
+        <div className="flex border-b border-[#111111]/20">
           <button
             onClick={() => setActiveTab("personal")}
-            className={`py-3 px-5 transition-colors border-b-2 -mb-px flex items-center gap-2 ${
+            className={`py-2.5 px-5 text-xs font-bold font-mono transition-all border-b-2 -mb-px flex items-center gap-2 uppercase tracking-wide ${
               activeTab === "personal"
-                ? "border-[#111111] text-[#111111] font-medium"
-                : "border-transparent text-[#6B7280] hover:text-[#111111]"
+                ? "border-[#0000EE] text-[#0000EE] bg-white rounded-t-[4px]"
+                : "border-transparent text-[#777777] hover:text-[#111111]"
             }`}
           >
-            <IconUser className="w-3.5 h-3.5" />
+            <span>👤</span>
             <span>Profil Pribadi</span>
           </button>
 
           <button
             onClick={() => setActiveTab("organization")}
-            className={`py-3 px-5 transition-colors border-b-2 -mb-px flex items-center gap-2 ${
+            className={`py-2.5 px-5 text-xs font-bold font-mono transition-all border-b-2 -mb-px flex items-center gap-2 uppercase tracking-wide ${
               activeTab === "organization"
-                ? "border-[#111111] text-[#111111] font-medium"
-                : "border-transparent text-[#6B7280] hover:text-[#111111]"
+                ? "border-[#0000EE] text-[#0000EE] bg-white rounded-t-[4px]"
+                : "border-transparent text-[#777777] hover:text-[#111111]"
             }`}
           >
-            <IconBuilding className="w-3.5 h-3.5" />
-            <span>{isPersonalType ? "Ruang Kerja Mandiri" : "Identitas Lembaga"}</span>
+            <span>{isPersonalType ? "🎨" : "🏢"}</span>
+            <span>{isPersonalType ? "Ruang Kerja & Jenama Mandiri" : "Lembaga / Perusahaan (B2B)"}</span>
             {orgData.namaOrganisasi && (
-              <span className="text-[10px] bg-[#F5F5F5] text-[#6B7280] px-1.5 py-0.5 rounded-[2px]">
+              <span className="text-[10px] bg-[#0000EE]/10 text-[#0000EE] border border-[#0000EE]/30 px-1.5 py-0.5 rounded-[2px] font-mono lowercase">
                 {orgData.namaOrganisasi}
               </span>
             )}
           </button>
         </div>
 
-        {/* Tab 1: Personal Profile Form */}
+        {/* TAB 1: FORM PERSONAL */}
         {activeTab === "personal" && (
-          <div className="border border-[#E5E7EB] rounded-md p-6 bg-[#FFFFFF] space-y-6">
-            <div className="border-b border-[#E5E7EB] pb-3">
-              <h2 className="text-base font-normal text-[#111111]">
+          <div className="bg-white border border-[#111111] rounded-[4px] p-6 shadow-md space-y-6">
+            <div className="border-b border-[#111111]/15 pb-3">
+              <h2 className="text-sm font-bold uppercase tracking-tight text-[#111111]">
                 Data Akun Personal
               </h2>
-              <p className="text-xs text-[#6B7280] font-light mt-0.5">
+              <p className="text-xs text-[#555555] font-mono mt-0.5">
                 Informasi identitas penanggung jawab atau pemilik akun platform.
               </p>
             </div>
 
-            <form onSubmit={handleSavePersonal} className="space-y-4 max-w-xl">
+            <form onSubmit={handleSavePersonal} className="space-y-4 max-w-lg">
               <div>
-                <label className="block text-xs font-mono uppercase text-[#6B7280] mb-1.5">
-                  Email Akun
+                <label className="block text-[11px] font-mono font-semibold uppercase tracking-wide text-[#111111] mb-1">
+                  Email Akun (Firebase Auth)
                 </label>
                 <input
                   type="email"
                   disabled
                   value={user.email}
-                  className="w-full text-xs font-mono bg-[#F5F5F5] border border-[#E5E7EB] rounded-[4px] p-2.5 text-[#6B7280] cursor-not-allowed"
+                  className="w-full text-xs font-mono bg-[#F5F4F0] border border-[#111111]/20 rounded-[4px] p-2.5 text-[#777777] cursor-not-allowed"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-mono uppercase text-[#6B7280] mb-1.5">
+                <label className="block text-[11px] font-mono font-semibold uppercase tracking-wide text-[#111111] mb-1">
                   Nama Lengkap Penanggung Jawab *
                 </label>
                 <input
@@ -446,14 +434,14 @@ export default function ProfilePage() {
                   onChange={(e) =>
                     setPersonalData({ ...personalData, namaLengkap: e.target.value })
                   }
-                  className="w-full text-xs border border-[#E5E7EB] bg-white rounded-[4px] p-2.5 outline-none focus:border-[#111111] transition-colors"
+                  className="w-full text-xs border border-[#111111]/25 bg-white rounded-[4px] p-2.5 outline-none focus:border-[#0000EE] focus:ring-1 focus:ring-[#0000EE]"
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-mono uppercase text-[#6B7280] mb-1.5">
-                    Nomor WhatsApp / Kontak
+                  <label className="block text-[11px] font-mono font-semibold uppercase tracking-wide text-[#111111] mb-1">
+                    Nomor WhatsApp / HP
                   </label>
                   <input
                     type="text"
@@ -462,31 +450,31 @@ export default function ProfilePage() {
                     onChange={(e) =>
                       setPersonalData({ ...personalData, nomorWhatsapp: e.target.value })
                     }
-                    className="w-full text-xs border border-[#E5E7EB] bg-white rounded-[4px] p-2.5 outline-none focus:border-[#111111] font-mono transition-colors"
+                    className="w-full text-xs border border-[#111111]/25 bg-white rounded-[4px] p-2.5 outline-none focus:border-[#0000EE] focus:ring-1 focus:ring-[#0000EE] font-mono"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-mono uppercase text-[#6B7280] mb-1.5">
+                  <label className="block text-[11px] font-mono font-semibold uppercase tracking-wide text-[#111111] mb-1">
                     Jabatan / Posisi
                   </label>
                   <input
                     type="text"
-                    placeholder="Contoh: Ketua Panitia / Instruktur"
+                    placeholder="Contoh: Instruktur / Ketua Panitia"
                     value={personalData.jabatan}
                     onChange={(e) =>
                       setPersonalData({ ...personalData, jabatan: e.target.value })
                     }
-                    className="w-full text-xs border border-[#E5E7EB] bg-white rounded-[4px] p-2.5 outline-none focus:border-[#111111] transition-colors"
+                    className="w-full text-xs border border-[#111111]/25 bg-white rounded-[4px] p-2.5 outline-none focus:border-[#0000EE] focus:ring-1 focus:ring-[#0000EE]"
                   />
                 </div>
               </div>
 
-              <div className="pt-4 border-t border-[#E5E7EB]">
+              <div className="pt-4 border-t border-[#111111]/15">
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="px-5 py-2.5 text-xs bg-[#111111] hover:bg-[#333333] text-white rounded-[4px] transition-colors disabled:opacity-50"
+                  className="px-5 py-2.5 text-xs font-mono font-semibold uppercase tracking-wide bg-[#111111] hover:bg-[#0000EE] text-white rounded-[4px] transition shadow-xs disabled:opacity-50"
                 >
                   {isSaving ? "Menyimpan..." : "Simpan Profil Personal"}
                 </button>
@@ -495,73 +483,78 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {/* Tab 2: Organization and Workspace Setup */}
+        {/* TAB 2: FORM ORGANISASI / RUANG KERJA */}
         {activeTab === "organization" && (
-          <div className="border border-[#E5E7EB] rounded-md p-6 bg-[#FFFFFF] space-y-6">
-            <div className="flex flex-wrap items-center justify-between border-b border-[#E5E7EB] pb-3 gap-2">
+          <div className="bg-white border border-[#111111] rounded-[4px] p-6 shadow-md space-y-6">
+            <div className="flex flex-wrap items-center justify-between border-b border-[#111111]/15 pb-3 gap-2">
               <div>
-                <h2 className="text-base font-normal text-[#111111]">
-                  {isPersonalType ? "Identitas Ruang Kerja Mandiri" : "Identitas Lembaga Resmi"}
+                <h2 className="text-sm font-bold uppercase tracking-tight text-[#111111]">
+                  {isPersonalType ? "Identitas Ruang Kerja Mandiri" : "Identitas Entitas Badan Usaha"}
                 </h2>
-                <p className="text-xs text-[#6B7280] font-mono mt-0.5">
-                  ID: <span className="text-[#111111]">{orgId || "Entitas Baru"}</span>
+                <p className="text-xs text-[#555555] font-mono mt-0.5">
+                  ID Dokumen: <code className="bg-[#F5F4F0] px-1.5 py-0.5 rounded border text-[#111111]">organizations/{orgId || "baru"}</code>
                 </p>
               </div>
-              <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-[2px] bg-[#F5F5F5] text-[#6B7280] border border-[#E5E7EB]">
-                {isPersonalType ? "Perorangan" : "Lembaga Formal"}
+              <span className={`text-[10px] font-mono uppercase px-2 py-0.5 rounded-[2px] font-bold border ${
+                isPersonalType
+                  ? "bg-purple-50 text-purple-700 border-purple-200"
+                  : "bg-emerald-50 text-emerald-700 border-emerald-200"
+              }`}>
+                {isPersonalType ? "Akun Perseorangan" : "Multi-Tenancy Siap"}
               </span>
             </div>
 
             <form onSubmit={handleSaveOrganization} className="space-y-6">
-              {/* Section 1: Entity Metadata */}
+              {/* Seksi 1: Data Identitas Penyelenggara */}
               <div className="space-y-4">
-                <span className="text-xs font-mono uppercase text-[#6B7280] block">
-                  Informasi Penyelenggara
-                </span>
+                <h3 className="text-xs font-mono font-bold uppercase text-[#555555] border-b border-[#111111]/10 pb-1">
+                  1. Informasi Penyelenggara
+                </h3>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="sm:col-span-2">
-                    <label className="block text-xs font-mono uppercase text-[#6B7280] mb-1.5">
+                    <label className="block text-[11px] font-mono font-semibold uppercase tracking-wide text-[#111111] mb-1">
                       {isPersonalType
-                        ? "Nama Jenama / Ruang Kerja *"
-                        : "Nama Resmi Instansi / Perusahaan *"}
+                        ? "Nama Jenama / Komunitas / Studio *"
+                        : "Nama Resmi Instansi / Perusahaan / PT *"}
                     </label>
                     <input
                       type="text"
                       required
                       placeholder={
                         isPersonalType
-                          ? "Contoh: Studio Desain Kreatif"
+                          ? "Contoh: Budi Studio / Kursus Desain Mandiri"
                           : "Contoh: PT Teknologi Bangsa Indonesia"
                       }
                       value={orgData.namaOrganisasi}
                       onChange={(e) => setOrgData({ ...orgData, namaOrganisasi: e.target.value })}
-                      className="w-full text-xs border border-[#E5E7EB] bg-white rounded-[4px] p-2.5 outline-none focus:border-[#111111] transition-colors"
+                      className="w-full text-xs border border-[#111111]/25 bg-white rounded-[4px] p-2.5 outline-none focus:border-[#0000EE] font-semibold"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-mono uppercase text-[#6B7280] mb-1.5">
+                    <label className="block text-[11px] font-mono font-semibold uppercase tracking-wide text-[#111111] mb-1">
                       Tipe Penyelenggara
                     </label>
                     <select
                       value={orgData.tipeOrganisasi}
                       onChange={(e) => setOrgData({ ...orgData, tipeOrganisasi: e.target.value })}
-                      className="w-full text-xs border border-[#E5E7EB] bg-white rounded-[4px] p-2.5 outline-none focus:border-[#111111] transition-colors"
+                      className="w-full text-xs border border-[#111111]/25 bg-white rounded-[4px] p-2.5 outline-none focus:border-[#0000EE]"
                     >
-                      <option value="personal">Perseorangan / Mandiri</option>
-                      <option value="pt">Perseroan Terbatas (PT)</option>
-                      <option value="cv">CV / Firma</option>
-                      <option value="universitas">Institusi Pendidikan</option>
-                      <option value="instansi_pemerintah">Instansi Pemerintah</option>
-                      <option value="yayasan">Yayasan / Komunitas</option>
+                      <option value="personal">👤 Perseorangan / Mandiri</option>
+                      <option value="pt">🏢 Perseroan Terbatas (PT)</option>
+                      <option value="cv">💼 CV / Firma</option>
+                      <option value="universitas">🎓 Universitas / Sekolah</option>
+                      <option value="instansi_pemerintah">🏛️ Instansi Pemerintah</option>
+                      <option value="yayasan">🤝 Yayasan / LSM</option>
+                      <option value="komunitas">👥 Komunitas / Organisasi</option>
                     </select>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div>
-                    <label className="block text-xs font-mono uppercase text-[#6B7280] mb-1.5">
+                    <label className="block text-[11px] font-mono font-semibold uppercase tracking-wide text-[#111111] mb-1">
                       Email Kontak Resmi
                     </label>
                     <input
@@ -569,53 +562,53 @@ export default function ProfilePage() {
                       placeholder="kontak@lembaga.com"
                       value={orgData.emailResmi}
                       onChange={(e) => setOrgData({ ...orgData, emailResmi: e.target.value })}
-                      className="w-full text-xs border border-[#E5E7EB] bg-white rounded-[4px] p-2.5 outline-none focus:border-[#111111] font-mono transition-colors"
+                      className="w-full text-xs border border-[#111111]/25 bg-white rounded-[4px] p-2.5 outline-none focus:border-[#0000EE] font-mono"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-mono uppercase text-[#6B7280] mb-1.5">
-                      Situs Web Resmi
+                    <label className="block text-[11px] font-mono font-semibold uppercase tracking-wide text-[#111111] mb-1">
+                      Website / Media Sosial
                     </label>
                     <input
                       type="text"
                       placeholder="https://lembaga.co.id"
                       value={orgData.website}
                       onChange={(e) => setOrgData({ ...orgData, website: e.target.value })}
-                      className="w-full text-xs border border-[#E5E7EB] bg-white rounded-[4px] p-2.5 outline-none focus:border-[#111111] transition-colors"
+                      className="w-full text-xs border border-[#111111]/25 bg-white rounded-[4px] p-2.5 outline-none focus:border-[#0000EE]"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-mono uppercase text-[#6B7280] mb-1.5">
-                      Nomor Telepon
+                    <label className="block text-[11px] font-mono font-semibold uppercase tracking-wide text-[#111111] mb-1">
+                      Nomor Telepon Kantor/HP
                     </label>
                     <input
                       type="text"
-                      placeholder="021-1234567"
+                      placeholder="08123456789"
                       value={orgData.nomorTelepon}
                       onChange={(e) => setOrgData({ ...orgData, nomorTelepon: e.target.value })}
-                      className="w-full text-xs border border-[#E5E7EB] bg-white rounded-[4px] p-2.5 outline-none focus:border-[#111111] font-mono transition-colors"
+                      className="w-full text-xs border border-[#111111]/25 bg-white rounded-[4px] p-2.5 outline-none focus:border-[#0000EE] font-mono"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                   <div className="sm:col-span-2">
-                    <label className="block text-xs font-mono uppercase text-[#6B7280] mb-1.5">
-                      Alamat Jalan
+                    <label className="block text-[11px] font-mono font-semibold uppercase tracking-wide text-[#111111] mb-1">
+                      Alamat / Domisili
                     </label>
                     <input
                       type="text"
                       placeholder="Jl. Sudirman No. 45"
                       value={orgData.alamatJalan}
                       onChange={(e) => setOrgData({ ...orgData, alamatJalan: e.target.value })}
-                      className="w-full text-xs border border-[#E5E7EB] bg-white rounded-[4px] p-2.5 outline-none focus:border-[#111111] transition-colors"
+                      className="w-full text-xs border border-[#111111]/25 bg-white rounded-[4px] p-2.5 outline-none focus:border-[#0000EE]"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-mono uppercase text-[#6B7280] mb-1.5">
+                    <label className="block text-[11px] font-mono font-semibold uppercase tracking-wide text-[#111111] mb-1">
                       Kota & Provinsi
                     </label>
                     <input
@@ -623,83 +616,76 @@ export default function ProfilePage() {
                       placeholder="Jakarta Selatan, DKI"
                       value={orgData.alamatKota}
                       onChange={(e) => setOrgData({ ...orgData, alamatKota: e.target.value })}
-                      className="w-full text-xs border border-[#E5E7EB] bg-white rounded-[4px] p-2.5 outline-none focus:border-[#111111] transition-colors"
+                      className="w-full text-xs border border-[#111111]/25 bg-white rounded-[4px] p-2.5 outline-none focus:border-[#0000EE]"
                     />
                   </div>
                 </div>
               </div>
 
-              {/* Section 2: Certificate Numbering Rule */}
-              <div className="space-y-4 pt-4 border-t border-[#E5E7EB]">
-                <div>
-                  <span className="text-xs font-mono uppercase text-[#6B7280] block">
-                    Format Penomoran Sertifikat
-                  </span>
-                  <p className="text-xs text-[#6B7280] font-light mt-0.5">
-                    Struktur nomor unik yang disematkan secara berurutan pada tiap dokumen.
-                  </p>
-                </div>
+              {/* Seksi 2: Aturan Penomoran Surat / Registrasi */}
+              <div className="space-y-4 pt-2">
+                <h3 className="text-xs font-mono font-bold uppercase text-[#555555] border-b border-[#111111]/10 pb-1">
+                  2. Aturan Pola Penomoran Sertifikat
+                </h3>
+                <p className="text-xs text-[#555555] font-mono">
+                  Pola ini digunakan sebagai nomor unik dokumen sertifikat tiap peserta.
+                </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg">
                   <div>
-                    <label className="block text-xs font-mono uppercase text-[#6B7280] mb-1.5">
-                      Awalan Surat (Prefix)
+                    <label className="block text-[11px] font-mono font-semibold uppercase tracking-wide text-[#111111] mb-1">
+                      Prefix Surat
                     </label>
                     <input
                       type="text"
-                      placeholder="Contoh: SK-SERTI"
+                      placeholder="Contoh: SK-SERTI / NO"
                       value={orgData.nomorSuratPrefix}
                       onChange={(e) => setOrgData({ ...orgData, nomorSuratPrefix: e.target.value })}
-                      className="w-full text-xs font-mono border border-[#E5E7EB] bg-white rounded-[4px] p-2.5 outline-none focus:border-[#111111] transition-colors"
+                      className="w-full text-xs font-mono border border-[#111111]/25 bg-white rounded-[4px] p-2.5 outline-none focus:border-[#0000EE]"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-mono uppercase text-[#6B7280] mb-1.5">
+                    <label className="block text-[11px] font-mono font-semibold uppercase tracking-wide text-[#111111] mb-1">
                       Kode Bagian / Divisi
                     </label>
                     <input
                       type="text"
-                      placeholder="Contoh: HRD / AKD"
+                      placeholder="Contoh: HRD / IND / DIKTI"
                       value={orgData.nomorSuratKode}
                       onChange={(e) => setOrgData({ ...orgData, nomorSuratKode: e.target.value })}
-                      className="w-full text-xs font-mono border border-[#E5E7EB] bg-white rounded-[4px] p-2.5 outline-none focus:border-[#111111] transition-colors"
+                      className="w-full text-xs font-mono border border-[#111111]/25 bg-white rounded-[4px] p-2.5 outline-none focus:border-[#0000EE]"
                     />
                   </div>
                 </div>
 
-                <div className="p-3 bg-[#F5F5F5] border border-[#E5E7EB] rounded-[4px] text-xs font-mono text-[#6B7280]">
-                  Pratinjau Nomor Seri:{" "}
-                  <span className="text-[#111111] font-medium">
+                <div className="p-3 bg-[#F5F4F0] border border-[#111111]/15 rounded-[4px] text-xs font-mono text-[#555555]">
+                  Pratinjau Nomor Unik:{" "}
+                  <strong className="text-[#0000EE]">
                     {orgData.nomorSuratPrefix || "SK"}/{orgData.nomorSuratKode || "HRD"}/2026/0001
-                  </span>
+                  </strong>
                 </div>
               </div>
 
-              {/* Section 3: Official Branding Assets */}
-              <div className="space-y-4 pt-4 border-t border-[#E5E7EB]">
-                <div>
-                  <span className="text-xs font-mono uppercase text-[#6B7280] block">
-                    Aset Visual Lembaga
-                  </span>
-                  <p className="text-xs text-[#6B7280] font-light mt-0.5">
-                    Unggah berkas PNG transparan untuk disematkan pada kanvas sertifikat.
-                  </p>
-                </div>
+              {/* Seksi 3: Aset Branding Visual */}
+              <div className="space-y-4 pt-2">
+                <h3 className="text-xs font-mono font-bold uppercase text-[#555555] border-b border-[#111111]/10 pb-1">
+                  3. Aset Visual Resmi (Supabase Storage)
+                </h3>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  {/* Logo Upload Box */}
-                  <div className="border border-[#E5E7EB] rounded-[4px] p-4 space-y-3 flex flex-col justify-between bg-[#F5F5F5]/40">
+                  {/* Upload Logo */}
+                  <div className="border border-[#111111]/20 rounded-[4px] p-4 space-y-3 flex flex-col justify-between bg-[#F5F4F0]/40">
                     <div>
-                      <span className="text-xs font-normal text-[#111111] block">
-                        Logo Resmi
+                      <span className="text-xs font-bold uppercase text-[#111111] block">
+                        {isPersonalType ? "Logo / Inisial Jenama" : "Logo Lembaga (PNG Transparan)"}
                       </span>
-                      <p className="text-[11px] text-[#6B7280] font-light mt-0.5">
-                        Format PNG transparan resolusi tinggi.
+                      <p className="text-[11px] text-[#555555] font-mono mt-0.5">
+                        Logo utama untuk disematkan pada kop & sertifikat.
                       </p>
                     </div>
 
-                    <div className="h-28 border border-dashed border-[#E5E7EB] rounded-[4px] bg-white flex items-center justify-center p-3 overflow-hidden">
+                    <div className="h-28 border border-dashed border-[#111111]/25 rounded-[4px] bg-white flex items-center justify-center p-2 overflow-hidden">
                       {orgData.logoUrl ? (
                         <img
                           src={orgData.logoUrl}
@@ -707,7 +693,7 @@ export default function ProfilePage() {
                           className="max-h-full max-w-full object-contain"
                         />
                       ) : (
-                        <span className="text-xs text-[#6B7280] font-mono">Belum ada logo</span>
+                        <span className="text-xs text-[#777777] font-mono">Belum ada logo diunggah</span>
                       )}
                     </div>
 
@@ -724,16 +710,17 @@ export default function ProfilePage() {
                         type="button"
                         disabled={isUploadingLogo}
                         onClick={() => logoInputRef.current?.click()}
-                        className="flex-1 py-2 text-xs font-mono rounded-[4px] border border-[#E5E7EB] bg-white hover:bg-[#F5F5F5] text-[#111111] transition-colors"
+                        className="flex-1 py-2 text-xs font-mono uppercase font-bold rounded-[4px] border border-[#111111]/30 bg-white hover:bg-[#EBE9E4] transition"
                       >
-                        {isUploadingLogo ? "Mengunggah..." : "Pilih Berkas Logo"}
+                        {isUploadingLogo ? "Mengunggah..." : "Pilih Logo"}
                       </button>
 
                       {orgData.logoUrl && (
                         <button
                           type="button"
                           onClick={() => setOrgData((prev) => ({ ...prev, logoUrl: "" }))}
-                          className="px-3 py-2 text-xs font-mono text-[#D92D20] hover:bg-red-50 rounded-[4px] border border-red-200 transition-colors"
+                          className="px-3 py-2 text-xs font-mono uppercase font-bold text-[#B3261E] hover:bg-red-50 rounded-[4px] border border-red-200 transition"
+                          title="Hapus Logo"
                         >
                           Hapus
                         </button>
@@ -741,26 +728,30 @@ export default function ProfilePage() {
                     </div>
                   </div>
 
-                  {/* Stamp / Signature Upload Box */}
-                  <div className="border border-[#E5E7EB] rounded-[4px] p-4 space-y-3 flex flex-col justify-between bg-[#F5F5F5]/40">
+                  {/* Upload Cap Stempel atau Tanda Tangan */}
+                  <div className="border border-[#111111]/20 rounded-[4px] p-4 space-y-3 flex flex-col justify-between bg-[#F5F4F0]/40">
                     <div>
-                      <span className="text-xs font-normal text-[#111111] block">
-                        Tanda Tangan / Cap Stempel
+                      <span className="text-xs font-bold uppercase text-[#111111] block">
+                        {isPersonalType
+                          ? "Tanda Tangan Digital (PNG Transparan)"
+                          : "Cap Stempel Resmi (PNG Transparan)"}
                       </span>
-                      <p className="text-[11px] text-[#6B7280] font-light mt-0.5">
-                        Format PNG transparan untuk penempatan tanda tangan.
+                      <p className="text-[11px] text-[#555555] font-mono mt-0.5">
+                        {isPersonalType
+                          ? "Tanda tangan transparan penanggung jawab sertifikat."
+                          : "Cap basah transparan untuk diletakkan di area tanda tangan."}
                       </p>
                     </div>
 
-                    <div className="h-28 border border-dashed border-[#E5E7EB] rounded-[4px] bg-white flex items-center justify-center p-3 overflow-hidden">
+                    <div className="h-28 border border-dashed border-[#111111]/25 rounded-[4px] bg-white flex items-center justify-center p-2 overflow-hidden">
                       {orgData.capStempelUrl ? (
                         <img
                           src={orgData.capStempelUrl}
-                          alt="Cap atau Tanda Tangan"
+                          alt="Cap / TTD"
                           className="max-h-full max-w-full object-contain"
                         />
                       ) : (
-                        <span className="text-xs text-[#6B7280] font-mono">Belum ada tanda tangan</span>
+                        <span className="text-xs text-[#777777] font-mono">Belum ada berkas diunggah</span>
                       )}
                     </div>
 
@@ -777,16 +768,21 @@ export default function ProfilePage() {
                         type="button"
                         disabled={isUploadingStempel}
                         onClick={() => stempelInputRef.current?.click()}
-                        className="flex-1 py-2 text-xs font-mono rounded-[4px] border border-[#E5E7EB] bg-white hover:bg-[#F5F5F5] text-[#111111] transition-colors"
+                        className="flex-1 py-2 text-xs font-mono uppercase font-bold rounded-[4px] border border-[#111111]/30 bg-white hover:bg-[#EBE9E4] transition"
                       >
-                        {isUploadingStempel ? "Mengunggah..." : "Pilih Tanda Tangan"}
+                        {isUploadingStempel
+                          ? "Mengunggah..."
+                          : isPersonalType
+                          ? "Pilih Tanda Tangan"
+                          : "Pilih Cap Stempel"}
                       </button>
 
                       {orgData.capStempelUrl && (
                         <button
                           type="button"
                           onClick={() => setOrgData((prev) => ({ ...prev, capStempelUrl: "" }))}
-                          className="px-3 py-2 text-xs font-mono text-[#D92D20] hover:bg-red-50 rounded-[4px] border border-red-200 transition-colors"
+                          className="px-3 py-2 text-xs font-mono uppercase font-bold text-[#B3261E] hover:bg-red-50 rounded-[4px] border border-red-200 transition"
+                          title="Hapus Berkas"
                         >
                           Hapus
                         </button>
@@ -796,12 +792,18 @@ export default function ProfilePage() {
                 </div>
               </div>
 
-              {/* Form Submission Button */}
-              <div className="pt-4 border-t border-[#E5E7EB] flex items-center justify-end">
+              {/* Tombol Simpan */}
+              <div className="pt-4 border-t border-[#111111]/15 flex items-center justify-between">
+                <span className="text-xs font-mono text-[#777777]">
+                  {isPersonalType
+                    ? "Dapat ditingkatkan ke status Badan Hukum/PT kapan saja."
+                    : "Identitas ini otomatis terhubung pada seluruh sertifikat event."}
+                </span>
+
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="px-6 py-2.5 text-xs bg-[#111111] hover:bg-[#333333] text-white rounded-[4px] transition-colors disabled:opacity-50"
+                  className="px-6 py-2.5 text-xs font-mono font-semibold uppercase tracking-wide bg-[#111111] hover:bg-[#0000EE] text-white rounded-[4px] transition shadow-xs disabled:opacity-50"
                 >
                   {isSaving ? "Menyimpan ke Cloud..." : "Simpan Pengaturan Lembaga"}
                 </button>
