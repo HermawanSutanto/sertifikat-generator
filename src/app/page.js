@@ -354,7 +354,7 @@ style={{ fontFamily: "var(--font-sans), sans-serif" }}
         <a href="#faq" className="hover:text-[#111111] transition-colors">
           FAQ
         </a>
-        <a href="#blog" className="hover:text-[#111111] transition-colors">
+        <a href="/blog" className="hover:text-[#111111] transition-colors">
           Blog
         </a>
       </nav>
