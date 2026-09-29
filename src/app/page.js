@@ -354,9 +354,9 @@ style={{ fontFamily: "var(--font-sans), sans-serif" }}
         <a href="#faq" className="hover:text-[#111111] transition-colors">
           FAQ
         </a>
-        {/* <a href="#blog" className="hover:text-[#111111] transition-colors">
+        <a href="#blog" className="hover:text-[#111111] transition-colors">
           Blog
-        </a> */}
+        </a>
       </nav>
 
       <Suspense fallback={<div className="h-9 w-20 bg-[#F5F5F5] rounded-[4px]" />}>
