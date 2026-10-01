@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { auth, db } from "@/lib/firebase";
-import { signOut } from "firebase/auth";
+import { signOut, sendEmailVerification } from "firebase/auth";
 import {
   collection,
   query,
@@ -49,12 +49,30 @@ const IconEdit = (props) => (
   </svg>
 );
 
+const IconMail = (props) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21.75 6.75v10.5a2.25 2.25 0 01-2.25 2.25h-15a2.25 2.25 0 01-2.25-2.25V6.75m19.5 0A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25m19.5 0v.243a2.25 2.25 0 01-1.07 1.916l-7.5 4.615a2.25 2.25 0 01-2.36 0L3.32 8.91a2.25 2.25 0 01-1.07-1.916V6.75" />
+  </svg>
+);
+
+const IconLock = (props) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16.5 10.5V6.75a4.5 4.5 0 10-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 002.25-2.25v-6.75a2.25 2.25 0 00-2.25-2.25H6.75a2.25 2.25 0 00-2.25 2.25v6.75a2.25 2.25 0 002.25 2.25z" />
+  </svg>
+);
+
 export default function DashboardPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
 
   const [events, setEvents] = useState([]);
   const [isLoadingEvents, setIsLoadingEvents] = useState(true);
+
+  // Status Verifikasi Email Firebase
+  const [isEmailVerified, setIsEmailVerified] = useState(true);
+  const [isCheckingStatus, setIsCheckingStatus] = useState(false);
+  const [isResending, setIsResending] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [namaEvent, setNamaEvent] = useState("");
@@ -78,6 +96,57 @@ export default function DashboardPage() {
     setTimeout(() => {
       setStatusMessage({ text: "", type: "" });
     }, 4000);
+  };
+
+  useEffect(() => {
+    if (auth.currentUser) {
+      setIsEmailVerified(auth.currentUser.emailVerified);
+    } else if (user) {
+      setIsEmailVerified(user.emailVerified ?? false);
+    }
+  }, [user]);
+
+  // Hitung mundur tombol kirim ulang verifikasi
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setResendCooldown((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [resendCooldown]);
+
+  const handleCheckVerification = async () => {
+    if (!auth.currentUser) return;
+    setIsCheckingStatus(true);
+    try {
+      await auth.currentUser.reload();
+      if (auth.currentUser.emailVerified) {
+        setIsEmailVerified(true);
+        notify("Selamat! Email Anda telah terverifikasi. Seluruh fitur Cloud telah aktif.", "success");
+      } else {
+        notify("Email belum diverifikasi. Silakan buka inbox atau folder spam dan klik tautan dari Firebase.", "error");
+      }
+    } catch (err) {
+      console.error("Gagal memeriksa status email:", err);
+      notify("Gagal memeriksa status: " + (err.message || "Terjadi kesalahan."), "error");
+    } finally {
+      setIsCheckingStatus(false);
+    }
+  };
+
+  const handleResendEmail = async () => {
+    if (!auth.currentUser || resendCooldown > 0 || isResending) return;
+    setIsResending(true);
+    try {
+      await sendEmailVerification(auth.currentUser);
+      notify("Tautan verifikasi baru berhasil dikirim ke alamat email Anda.", "success");
+      setResendCooldown(60);
+    } catch (err) {
+      console.error("Gagal kirim ulang email verifikasi:", err);
+      notify("Gagal mengirim email: " + (err.message || "Coba beberapa saat lagi."), "error");
+    } finally {
+      setIsResending(false);
+    }
   };
 
   const fetchEvents = useCallback(async () => {
@@ -117,6 +186,11 @@ export default function DashboardPage() {
   const handleCreateEvent = async (e) => {
     e.preventDefault();
     if (!namaEvent.trim() || !user) return;
+
+    if (!isEmailVerified) {
+      notify("Akses Dibatasi: Anda wajib memverifikasi email sebelum membuat event Cloud baru.", "error");
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -169,7 +243,6 @@ export default function DashboardPage() {
 
       const filesToDelete = [];
 
-      // Catat path dari storageRefs jika terdata
       if (targetEvent?.storageRefs?.templatePdf?.path) {
         filesToDelete.push(targetEvent.storageRefs.templatePdf.path);
       }
@@ -182,7 +255,6 @@ export default function DashboardPage() {
         });
       }
 
-      // Pindai langsung direktori folder acara di bucket Supabase
       try {
         const folderPath = `${user.uid}/${eventId}`;
         const { data: rootFolderFiles } = await supabase.storage
@@ -333,13 +405,66 @@ export default function DashboardPage() {
       </header>
 
       {}
+      {!isEmailVerified && (
+        <div className="bg-amber-50 border-b border-amber-200 px-6 py-3.5">
+          <div className="max-w-[1200px] mx-auto flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
+            <div className="flex items-start gap-2.5">
+              <div className="p-1 rounded bg-amber-100 text-amber-800 shrink-0 mt-0.5">
+                <IconMail className="w-4 h-4" />
+              </div>
+              <div className="space-y-0.5">
+                <p className="font-semibold text-amber-900">
+                  Verifikasi Email Diperlukan untuk Mengelola Event Cloud
+                </p>
+                <p className="text-amber-700 leading-relaxed font-light">
+                  Tautan aktivasi telah dikirim ke <strong className="font-medium text-amber-900">{user.email}</strong>. 
+                  Fitur pembuatan event dan sinkronisasi database cloud akan aktif secara otomatis setelah Anda mengklik tautan tersebut.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 shrink-0 pt-1 md:pt-0">
+              <button
+                type="button"
+                onClick={handleResendEmail}
+                disabled={resendCooldown > 0 || isResending}
+                className="px-3 py-1.5 text-xs font-mono rounded-[4px] border border-amber-300 bg-white text-amber-900 hover:bg-amber-100 transition-colors disabled:opacity-50"
+              >
+                {isResending
+                  ? "Mengirim..."
+                  : resendCooldown > 0
+                  ? `Kirim Ulang (${resendCooldown}s)`
+                  : "Kirim Ulang Email"}
+              </button>
+
+              <button
+                type="button"
+                onClick={handleCheckVerification}
+                disabled={isCheckingStatus}
+                className="px-3.5 py-1.5 text-xs font-mono uppercase rounded-[4px] bg-amber-900 hover:bg-amber-950 text-white transition-colors disabled:opacity-50 flex items-center gap-1.5 shadow-xs"
+              >
+                {isCheckingStatus ? (
+                  <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                ) : null}
+                <span>Cek Status Verifikasi</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {}
       <main className="max-w-[1200px] mx-auto px-6 pt-10 space-y-12">
         {/* Banner Selamat Datang & Quick Actions */}
         <div className="border border-[#E5E7EB] rounded-md p-8 bg-[#FFFFFF] flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
             <div className="flex items-center gap-3">
-              <span className="text-[11px] font-mono uppercase text-[#6B7280] tracking-wider">
-                Akun Terverifikasi
+              <span className={`text-[11px] font-mono uppercase tracking-wider px-2 py-0.5 rounded-[2px] border ${
+                isEmailVerified
+                  ? "bg-emerald-50 text-emerald-800 border-emerald-200"
+                  : "bg-amber-50 text-amber-800 border-amber-200"
+              }`}>
+                {isEmailVerified ? "Akun Terverifikasi" : "Menunggu Verifikasi Email"}
               </span>
               <span className="text-[#B0B6C3]">/</span>
               <Link
@@ -367,10 +492,23 @@ export default function DashboardPage() {
             </Link>
 
             <button
-              onClick={() => setShowCreateModal(true)}
-              className="px-4 py-2.5 h-10 text-xs rounded-[4px] bg-[#111111] hover:bg-[#333333] text-white flex items-center gap-2 transition-colors"
+              onClick={() => {
+                if (!isEmailVerified) {
+                  notify("Verifikasi email Anda terlebih dahulu untuk membuat event cloud baru.", "error");
+                }
+                setShowCreateModal(true);
+              }}
+              className={`px-4 py-2.5 h-10 text-xs rounded-[4px] flex items-center gap-2 transition-colors ${
+                isEmailVerified
+                  ? "bg-[#111111] hover:bg-[#333333] text-white"
+                  : "bg-[#F3F4F6] text-[#9CA3AF] border border-[#E5E7EB] hover:border-amber-300 hover:text-amber-800"
+              }`}
             >
-              <IconPlus className="w-3.5 h-3.5" />
+              {isEmailVerified ? (
+                <IconPlus className="w-3.5 h-3.5" />
+              ) : (
+                <IconLock className="w-3.5 h-3.5 text-amber-600" />
+              )}
               <span>Buat Event Baru</span>
             </button>
           </div>
@@ -411,10 +549,23 @@ export default function DashboardPage() {
                 Mulai buat event pertama Anda untuk mengimpor daftar peserta dan mencetak sertifikat langsung dari peramban.
               </p>
               <button
-                onClick={() => setShowCreateModal(true)}
-                className="px-4 py-2 text-xs bg-[#111111] hover:bg-[#333333] text-white rounded-[4px] transition-colors inline-flex items-center gap-1.5"
+                onClick={() => {
+                  if (!isEmailVerified) {
+                    notify("Verifikasi email Anda terlebih dahulu untuk membuat event cloud baru.", "error");
+                  }
+                  setShowCreateModal(true);
+                }}
+                className={`px-4 py-2 text-xs rounded-[4px] transition-colors inline-flex items-center gap-1.5 ${
+                  isEmailVerified
+                    ? "bg-[#111111] hover:bg-[#333333] text-white"
+                    : "bg-[#F3F4F6] text-[#6B7280] border border-[#E5E7EB] hover:bg-[#E5E7EB]"
+                }`}
               >
-                <IconPlus className="w-3.5 h-3.5" />
+                {isEmailVerified ? (
+                  <IconPlus className="w-3.5 h-3.5" />
+                ) : (
+                  <IconLock className="w-3.5 h-3.5 text-amber-600" />
+                )}
                 <span>Buat Event Pertama</span>
               </button>
             </div>
@@ -503,50 +654,99 @@ export default function DashboardPage() {
               </p>
             </div>
 
-            <form onSubmit={handleCreateEvent} className="space-y-4">
-              <div>
-                <label className="block text-xs font-mono uppercase text-[#6B7280] mb-1.5">
-                  Nama Acara / Event
-                </label>
-                <input
-                  type="text"
-                  required
-                  placeholder="Contoh: Lokakarya Desain 2026"
-                  value={namaEvent}
-                  onChange={(e) => setNamaEvent(e.target.value)}
-                  className="w-full text-xs border border-[#E5E7EB] rounded-[4px] p-2.5 outline-none focus:border-[#111111] transition-colors"
-                />
-              </div>
+            {!isEmailVerified ? (
+              <div className="space-y-4">
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-[4px] space-y-2 text-xs text-amber-900">
+                  <div className="flex items-center gap-1.5 font-semibold text-amber-950">
+                    <IconLock className="w-4 h-4 text-amber-700" />
+                    <span>Email Belum Diverifikasi</span>
+                  </div>
+                  <p className="text-amber-800 text-[11px] leading-relaxed">
+                    Untuk mencegah bot dan melindungi kuota penyimpanan database, pembuatan event baru hanya dapat dilakukan setelah email <strong>{user.email}</strong> terverifikasi.
+                  </p>
+                </div>
 
-              <div>
-                <label className="block text-xs font-mono uppercase text-[#6B7280] mb-1.5">
-                  Tanggal Pelaksanaan
-                </label>
-                <input
-                  type="date"
-                  value={tanggalEvent}
-                  onChange={(e) => setTanggalEvent(e.target.value)}
-                  className="w-full text-xs font-mono border border-[#E5E7EB] rounded-[4px] p-2.5 outline-none focus:border-[#111111] transition-colors"
-                />
-              </div>
+                <div className="flex flex-col gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={handleCheckVerification}
+                    disabled={isCheckingStatus}
+                    className="w-full py-2 text-xs font-mono uppercase bg-[#111111] hover:bg-[#333333] text-white rounded-[4px] transition-colors flex items-center justify-center gap-2"
+                  >
+                    {isCheckingStatus ? (
+                      <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : null}
+                    <span>Saya Sudah Klik Link di Email</span>
+                  </button>
 
-              <div className="flex justify-end gap-2 pt-4 border-t border-[#E5E7EB]">
-                <button
-                  type="button"
-                  onClick={() => setShowCreateModal(false)}
-                  className="px-3.5 py-2 text-xs text-[#6B7280] hover:text-[#111111] hover:bg-[#F5F5F5] rounded-[4px] transition-colors"
-                >
-                  Batal
-                </button>
-                <button
-                  type="submit"
-                  disabled={isSubmitting}
-                  className="px-4 py-2 text-xs bg-[#111111] hover:bg-[#333333] text-white rounded-[4px] transition-colors disabled:opacity-40"
-                >
-                  {isSubmitting ? "Menyimpan..." : "Lanjut ke Detail"}
-                </button>
+                  <button
+                    type="button"
+                    onClick={handleResendEmail}
+                    disabled={resendCooldown > 0 || isResending}
+                    className="w-full py-2 text-xs font-mono rounded-[4px] border border-[#E5E7EB] text-[#111111] hover:bg-[#F5F5F5] transition-colors disabled:opacity-50"
+                  >
+                    {isResending
+                      ? "Mengirim..."
+                      : resendCooldown > 0
+                      ? `Kirim Ulang (${resendCooldown}s)`
+                      : "Kirim Ulang Tautan Verifikasi"}
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateModal(false)}
+                    className="w-full py-1.5 text-xs font-mono text-[#6B7280] hover:text-[#111111]"
+                  >
+                    Tutup
+                  </button>
+                </div>
               </div>
-            </form>
+            ) : (
+              <form onSubmit={handleCreateEvent} className="space-y-4">
+                <div>
+                  <label className="block text-xs font-mono uppercase text-[#6B7280] mb-1.5">
+                    Nama Acara / Event
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Contoh: Lokakarya Desain 2026"
+                    value={namaEvent}
+                    onChange={(e) => setNamaEvent(e.target.value)}
+                    className="w-full text-xs border border-[#E5E7EB] rounded-[4px] p-2.5 outline-none focus:border-[#111111] transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-mono uppercase text-[#6B7280] mb-1.5">
+                    Tanggal Pelaksanaan
+                  </label>
+                  <input
+                    type="date"
+                    value={tanggalEvent}
+                    onChange={(e) => setTanggalEvent(e.target.value)}
+                    className="w-full text-xs font-mono border border-[#E5E7EB] rounded-[4px] p-2.5 outline-none focus:border-[#111111] transition-colors"
+                  />
+                </div>
+
+                <div className="flex justify-end gap-2 pt-4 border-t border-[#E5E7EB]">
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateModal(false)}
+                    className="px-3.5 py-2 text-xs text-[#6B7280] hover:text-[#111111] hover:bg-[#F5F5F5] rounded-[4px] transition-colors"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="px-4 py-2 text-xs bg-[#111111] hover:bg-[#333333] text-white rounded-[4px] transition-colors disabled:opacity-40"
+                  >
+                    {isSubmitting ? "Menyimpan..." : "Lanjut ke Detail"}
+                  </button>
+                </div>
+              </form>
+            )}
           </div>
         </div>
       )}
