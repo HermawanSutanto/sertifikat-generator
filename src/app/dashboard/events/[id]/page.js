@@ -161,6 +161,11 @@ export default function EventDetailPage() {
     isDeleting: false,
   });
 
+  // State Laporan Revisi Nama dari Peserta Publik
+  const [revisions, setRevisions] = useState([]);
+  const [showRevisionsModal, setShowRevisionsModal] = useState(false);
+  const [isProcessingRevision, setIsProcessingRevision] = useState(false);
+
   // State Pemrosesan Render Wasm Sisi Klien
   const [isRendering, setIsRendering] = useState(false);
   const [renderProgress, setRenderProgress] = useState(null);
@@ -295,6 +300,19 @@ export default function EventDetailPage() {
       } catch (subErr) {
         console.warn("Subkoleksi peserta kosong atau gagal dibaca:", subErr.message);
         setParticipants([]);
+      }
+
+      // 3. Ambil data usulan revisi nama dari peserta publik
+      try {
+        const revisiColRef = collection(db, `events/${eventId}/revisi_nama`);
+        const revisiSnap = await getDocs(revisiColRef);
+        const revList = revisiSnap.docs
+          .map((d) => ({ id: d.id, ...d.data() }))
+          .filter((r) => r.status !== "approved" && r.status !== "rejected");
+        setRevisions(revList);
+      } catch (revErr) {
+        console.warn("Tidak ada laporan revisi:", revErr);
+        setRevisions([]);
       }
     } catch (err) {
       console.error("Gagal memuat data event:", err);
@@ -710,6 +728,50 @@ export default function EventDetailPage() {
     }
   };
 
+  // Menyetujui dan langsung menerapkan nama baru peserta ke database
+  const handleApproveRevision = async (rev) => {
+    setIsProcessingRevision(true);
+    try {
+      // 1. Update nama pada dokumen peserta
+      const pesertaRef = doc(db, `events/${eventId}/peserta`, rev.participantId);
+      await updateDoc(pesertaRef, {
+        nama: rev.namaBaru,
+        "attributes.Nama": rev.namaBaru,
+        diperbaruiPada: serverTimestamp(),
+      });
+
+      // 2. Hapus atau update status di subkoleksi revisi
+      await deleteDoc(doc(db, `events/${eventId}/revisi_nama`, rev.id));
+
+      // 3. Optimistic UI update
+      setParticipants((prev) =>
+        prev.map((p) =>
+          p.id === rev.participantId
+            ? { ...p, nama: rev.namaBaru, attributes: { ...(p.attributes || {}), Nama: rev.namaBaru } }
+            : p
+        )
+      );
+      setRevisions((prev) => prev.filter((r) => r.id !== rev.id));
+      notify(`Nama berhasil diperbarui menjadi "${rev.namaBaru}".`, "success");
+    } catch (err) {
+      console.error("Gagal menyetujui revisi:", err);
+      notify("Gagal memperbarui nama: " + err.message, "error");
+    } finally {
+      setIsProcessingRevision(false);
+    }
+  };
+
+  // Menolak laporan perbaikan nama
+  const handleRejectRevision = async (revId) => {
+    try {
+      await deleteDoc(doc(db, `events/${eventId}/revisi_nama`, revId));
+      setRevisions((prev) => prev.filter((r) => r.id !== revId));
+      notify("Laporan perbaikan telah diabaikan.", "info");
+    } catch (err) {
+      notify("Gagal menolak revisi: " + err.message, "error");
+    }
+  };
+
   // Filter pencarian peserta berdasarkan nama atau email
   const filteredParticipants = useMemo(() => {
     if (!searchQuery.trim()) return participants;
@@ -1109,6 +1171,19 @@ export default function EventDetailPage() {
                 <IconPlus className="w-3.5 h-3.5" />
                 <span>Tambah Manual</span>
               </button>
+
+              {}
+              {revisions.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setShowRevisionsModal(true)}
+                  className="px-3 py-2 text-xs font-mono uppercase border border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900 rounded-[4px] transition-colors flex items-center gap-1.5"
+                  title="Lihat permintaan perbaikan ejaan nama dari peserta"
+                >
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                  <span>Revisi Nama ({revisions.length})</span>
+                </button>
+              )}
 
               {participants.length > 0 && (
                 <button
@@ -1529,6 +1604,88 @@ export default function EventDetailPage() {
                 ) : (
                   "Hapus"
                 )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {}
+      {/* Modal Daftar Laporan Revisi Nama dari Peserta */}
+      {showRevisionsModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
+          <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-md max-w-lg w-full p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-[#E5E7EB] pb-3">
+              <div>
+                <h3 className="text-sm font-medium text-[#111111]">Laporan Revisi Ejaan Nama</h3>
+                <p className="text-xs text-[#6B7280] font-mono mt-0.5">
+                  Permintaan perbaikan nama yang diajukan oleh peserta melalui link publik.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRevisionsModal(false)}
+                className="text-xs font-mono text-[#6B7280] hover:text-[#111111]"
+              >
+                Tutup ✕
+              </button>
+            </div>
+
+            <div className="max-h-72 overflow-y-auto divide-y divide-[#E5E7EB] pr-1">
+              {revisions.length === 0 ? (
+                <div className="py-8 text-center text-xs font-mono text-[#6B7280]">
+                  Semua laporan perbaikan nama telah diproses.
+                </div>
+              ) : (
+                revisions.map((rev) => (
+                  <div key={rev.id} className="py-3 flex items-center justify-between gap-3 text-xs">
+                    <div className="space-y-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-mono uppercase bg-red-50 text-red-700 px-1.5 py-0.5 rounded border border-red-200 line-through">
+                          {rev.namaLama}
+                        </span>
+                        <span className="text-[#6B7280]">→</span>
+                        <strong className="text-[11px] font-medium text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200">
+                          {rev.namaBaru}
+                        </strong>
+                      </div>
+                      {rev.email && (
+                        <p className="text-[10px] font-mono text-[#6B7280] truncate">
+                          Email: {rev.email}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 shrink-0">
+                      <button
+                        type="button"
+                        disabled={isProcessingRevision}
+                        onClick={() => handleRejectRevision(rev.id)}
+                        className="px-2.5 py-1 text-[11px] font-mono rounded-[3px] border border-[#E5E7EB] text-[#6B7280] hover:text-red-600 hover:bg-[#F5F5F5] transition-colors"
+                      >
+                        Abaikan
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isProcessingRevision}
+                        onClick={() => handleApproveRevision(rev)}
+                        className="px-3 py-1 text-[11px] font-mono uppercase bg-[#111111] hover:bg-[#333333] text-white rounded-[3px] transition-colors disabled:opacity-40"
+                      >
+                        Terapkan
+                      </button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="pt-3 border-t border-[#E5E7EB] flex justify-end">
+              <button
+                type="button"
+                onClick={() => setShowRevisionsModal(false)}
+                className="px-4 py-1.5 text-xs font-mono rounded-[4px] border border-[#E5E7EB] text-[#111111] hover:bg-[#F5F5F5]"
+              >
+                Selesai
               </button>
             </div>
           </div>

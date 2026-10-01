@@ -12,6 +12,8 @@ import {
   getDocs,
   query,
   limit,
+  addDoc,
+  serverTimestamp,
 } from "firebase/firestore";
 import { PDFDocument } from "pdf-lib";
 
@@ -452,16 +454,31 @@ export default function ParticipantCertificateViewer() {
     }
   };
 
-  const handleSendReport = (e) => {
+  const handleSendReport = async (e) => {
     e.preventDefault();
-    if (!reportNote.trim()) return;
-    setReportSent(true);
-    setTimeout(() => {
-      setShowReportModal(false);
-      setReportSent(false);
-      setReportNote("");
-      notify("Catatan perbaikan telah tercatat untuk panitia.", "success");
-    }, 1500);
+    if (!reportNote.trim() || !selectedParticipant || !eventId) return;
+
+    try {
+      await addDoc(collection(db, `events/${eventId}/revisi_nama`), {
+        participantId: selectedParticipant.id,
+        namaLama: selectedParticipant.nama,
+        email: selectedParticipant.email || "",
+        namaBaru: reportNote.trim(),
+        status: "pending",
+        dibuatPada: serverTimestamp(),
+      });
+
+      setReportSent(true);
+      setTimeout(() => {
+        setShowReportModal(false);
+        setReportSent(false);
+        setReportNote("");
+        notify("Laporan perbaikan ejaan berhasil dikirim ke panitia.", "success");
+      }, 1500);
+    } catch (err) {
+      console.error("Gagal mengirim laporan perbaikan:", err);
+      notify("Gagal mengirim laporan: " + err.message, "error");
+    }
   };
 
   return (
