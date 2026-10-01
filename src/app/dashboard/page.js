@@ -75,6 +75,7 @@ export default function DashboardPage() {
   const [resendCooldown, setResendCooldown] = useState(0);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [namaEvent, setNamaEvent] = useState("");
   const [tanggalEvent, setTanggalEvent] = useState(
     new Date().toISOString().split("T")[0]
@@ -183,12 +184,36 @@ export default function DashboardPage() {
     }
   }, [user, loading, router, fetchEvents]);
 
+  const handleOpenCreateEvent = () => {
+    if (!isEmailVerified) {
+      notify("Verifikasi email Anda terlebih dahulu untuk membuat event cloud baru.", "error");
+      setShowCreateModal(true);
+      return;
+    }
+
+    // Batasi kuota akun cloud gratis hanya 1 event aktif
+    if (events.length >= 1) {
+      setShowPremiumModal(true);
+      return;
+    }
+
+    setShowCreateModal(true);
+  };
+
   const handleCreateEvent = async (e) => {
     e.preventDefault();
     if (!namaEvent.trim() || !user) return;
 
     if (!isEmailVerified) {
       notify("Akses Dibatasi: Anda wajib memverifikasi email sebelum membuat event Cloud baru.", "error");
+      return;
+    }
+
+    // Validasi kuota 1 event di sisi klien sebelum menulis ke database
+    if (events.length >= 1) {
+      setShowCreateModal(false);
+      setShowPremiumModal(true);
+      notify("Batas kuota tercapai: Akun Gratis hanya dapat menyimpan 1 event aktif.", "error");
       return;
     }
 
@@ -467,6 +492,10 @@ export default function DashboardPage() {
                 {isEmailVerified ? "Akun Terverifikasi" : "Menunggu Verifikasi Email"}
               </span>
               <span className="text-[#B0B6C3]">/</span>
+              <span className="text-[11px] font-mono text-[#6B7280]">
+                Slot Cloud: <strong className={events.length >= 1 ? "text-amber-800 font-medium" : "text-[#111111] font-medium"}>{events.length}/1 Event</strong>
+              </span>
+              <span className="text-[#B0B6C3]">/</span>
               <Link
                 href="/dashboard/profile"
                 className="text-[11px] font-mono text-[#6B7280] hover:text-[#111111] transition-colors underline underline-offset-2"
@@ -491,25 +520,33 @@ export default function DashboardPage() {
               <span>Studio Instan (Offline)</span>
             </Link>
 
+            {}
             <button
-              onClick={() => {
-                if (!isEmailVerified) {
-                  notify("Verifikasi email Anda terlebih dahulu untuk membuat event cloud baru.", "error");
-                }
-                setShowCreateModal(true);
-              }}
+              onClick={handleOpenCreateEvent}
               className={`px-4 py-2.5 h-10 text-xs rounded-[4px] flex items-center gap-2 transition-colors ${
-                isEmailVerified
+                events.length >= 1
+                  ? "bg-[#FFFFFF] text-[#111111] border border-[#E5E7EB] hover:bg-[#F5F5F5]"
+                  : isEmailVerified
                   ? "bg-[#111111] hover:bg-[#333333] text-white"
                   : "bg-[#F3F4F6] text-[#9CA3AF] border border-[#E5E7EB] hover:border-amber-300 hover:text-amber-800"
               }`}
             >
-              {isEmailVerified ? (
-                <IconPlus className="w-3.5 h-3.5" />
+              {events.length >= 1 ? (
+                <>
+                  <IconPlus className="w-3.5 h-3.5 text-[#6B7280]" />
+                  <span>Tambah Event (Premium)</span>
+                </>
+              ) : isEmailVerified ? (
+                <>
+                  <IconPlus className="w-3.5 h-3.5" />
+                  <span>Buat Event Baru</span>
+                </>
               ) : (
-                <IconLock className="w-3.5 h-3.5 text-amber-600" />
+                <>
+                  <IconLock className="w-3.5 h-3.5 text-amber-600" />
+                  <span>Buat Event Baru</span>
+                </>
               )}
-              <span>Buat Event Baru</span>
             </button>
           </div>
         </div>
@@ -522,7 +559,7 @@ export default function DashboardPage() {
                 Event & Acara Tersimpan
               </h2>
               <span className="text-[11px] font-mono text-[#6B7280] bg-[#F5F5F5] px-2 py-0.5 rounded-[4px]">
-                {events.length}
+                {events.length} / 1 Kuota Gratis
               </span>
             </div>
 
@@ -549,12 +586,7 @@ export default function DashboardPage() {
                 Mulai buat event pertama Anda untuk mengimpor daftar peserta dan mencetak sertifikat langsung dari peramban.
               </p>
               <button
-                onClick={() => {
-                  if (!isEmailVerified) {
-                    notify("Verifikasi email Anda terlebih dahulu untuk membuat event cloud baru.", "error");
-                  }
-                  setShowCreateModal(true);
-                }}
+                onClick={handleOpenCreateEvent}
                 className={`px-4 py-2 text-xs rounded-[4px] transition-colors inline-flex items-center gap-1.5 ${
                   isEmailVerified
                     ? "bg-[#111111] hover:bg-[#333333] text-white"
@@ -656,76 +688,62 @@ export default function DashboardPage() {
 
             {!isEmailVerified ? (
               <div className="space-y-4">
-                <div className="p-3 bg-amber-50 border border-amber-200 rounded-[4px] space-y-2 text-xs text-amber-900">
-                  <div className="flex items-center gap-1.5 font-semibold text-amber-950">
-                    <IconLock className="w-4 h-4 text-amber-700" />
-                    <span>Email Belum Diverifikasi</span>
-                  </div>
-                  <p className="text-amber-800 text-[11px] leading-relaxed">
-                    Untuk mencegah bot dan melindungi kuota penyimpanan database, pembuatan event baru hanya dapat dilakukan setelah email <strong>{user.email}</strong> terverifikasi.
+                <div className="p-3 bg-amber-50 border border-amber-200 rounded-[4px] space-y-1.5">
+                  <p className="text-xs font-semibold text-amber-900 flex items-center gap-1.5">
+                    <IconLock className="w-3.5 h-3.5 text-amber-700" />
+                    <span>Verifikasi Email Diperlukan</span>
+                  </p>
+                  <p className="text-[11px] text-amber-800 leading-relaxed font-light">
+                    Silakan buka email Anda ({user?.email}) dan klik tautan verifikasi agar dapat membuat dan menyimpan event di cloud.
                   </p>
                 </div>
 
-                <div className="flex flex-col gap-2 pt-1">
+                <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#E5E7EB]">
+                  <button
+                    type="button"
+                    onClick={() => setShowCreateModal(false)}
+                    className="px-3.5 py-1.5 text-xs font-mono rounded-[4px] border border-[#E5E7EB] text-[#6B7280] hover:text-[#111111] hover:bg-[#F5F5F5] transition-colors"
+                  >
+                    Tutup
+                  </button>
                   <button
                     type="button"
                     onClick={handleCheckVerification}
                     disabled={isCheckingStatus}
-                    className="w-full py-2 text-xs font-mono uppercase bg-[#111111] hover:bg-[#333333] text-white rounded-[4px] transition-colors flex items-center justify-center gap-2"
+                    className="px-3.5 py-1.5 text-xs font-mono uppercase rounded-[4px] bg-amber-900 hover:bg-amber-950 text-white transition-colors disabled:opacity-50 flex items-center gap-1.5"
                   >
                     {isCheckingStatus ? (
                       <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     ) : null}
-                    <span>Saya Sudah Klik Link di Email</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleResendEmail}
-                    disabled={resendCooldown > 0 || isResending}
-                    className="w-full py-2 text-xs font-mono rounded-[4px] border border-[#E5E7EB] text-[#111111] hover:bg-[#F5F5F5] transition-colors disabled:opacity-50"
-                  >
-                    {isResending
-                      ? "Mengirim..."
-                      : resendCooldown > 0
-                      ? `Kirim Ulang (${resendCooldown}s)`
-                      : "Kirim Ulang Tautan Verifikasi"}
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => setShowCreateModal(false)}
-                    className="w-full py-1.5 text-xs font-mono text-[#6B7280] hover:text-[#111111]"
-                  >
-                    Tutup
+                    <span>Cek Status</span>
                   </button>
                 </div>
               </div>
             ) : (
               <form onSubmit={handleCreateEvent} className="space-y-4">
                 <div>
-                  <label className="block text-xs font-mono uppercase text-[#6B7280] mb-1.5">
-                    Nama Acara / Event
+                  <label className="block text-[11px] font-mono uppercase text-[#6B7280] mb-1.5">
+                    Nama Acara / Event *
                   </label>
                   <input
                     type="text"
                     required
-                    placeholder="Contoh: Lokakarya Desain 2026"
+                    placeholder="Contoh: Webinar Nasional 2026"
                     value={namaEvent}
                     onChange={(e) => setNamaEvent(e.target.value)}
-                    className="w-full text-xs border border-[#E5E7EB] rounded-[4px] p-2.5 outline-none focus:border-[#111111] transition-colors"
+                    className="w-full px-3 py-2 text-xs font-sans border border-[#E5E7EB] rounded-[4px] bg-[#FFFFFF] text-[#111111] focus:outline-none focus:border-[#111111] transition-colors"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-mono uppercase text-[#6B7280] mb-1.5">
-                    Tanggal Pelaksanaan
+                  <label className="block text-[11px] font-mono uppercase text-[#6B7280] mb-1.5">
+                    Tanggal Acara
                   </label>
                   <input
                     type="date"
                     value={tanggalEvent}
                     onChange={(e) => setTanggalEvent(e.target.value)}
-                    className="w-full text-xs font-mono border border-[#E5E7EB] rounded-[4px] p-2.5 outline-none focus:border-[#111111] transition-colors"
+                    className="w-full px-3 py-2 text-xs font-mono border border-[#E5E7EB] rounded-[4px] bg-[#FFFFFF] text-[#111111] focus:outline-none focus:border-[#111111] transition-colors"
                   />
                 </div>
 
@@ -733,20 +751,101 @@ export default function DashboardPage() {
                   <button
                     type="button"
                     onClick={() => setShowCreateModal(false)}
-                    className="px-3.5 py-2 text-xs text-[#6B7280] hover:text-[#111111] hover:bg-[#F5F5F5] rounded-[4px] transition-colors"
+                    className="px-3.5 py-2 text-xs text-[#6B7280] hover:text-[#111111] hover:bg-[#F5F5F5] rounded-[4px] transition-colors font-mono"
                   >
                     Batal
                   </button>
                   <button
                     type="submit"
                     disabled={isSubmitting}
-                    className="px-4 py-2 text-xs bg-[#111111] hover:bg-[#333333] text-white rounded-[4px] transition-colors disabled:opacity-40"
+                    className="px-4 py-2 text-xs font-mono uppercase bg-[#111111] hover:bg-[#333333] text-white rounded-[4px] transition-colors disabled:opacity-40 flex items-center gap-1.5"
                   >
-                    {isSubmitting ? "Menyimpan..." : "Lanjut ke Detail"}
+                    {isSubmitting ? (
+                      <>
+                        <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>Menyimpan...</span>
+                      </>
+                    ) : (
+                      "Lanjut ke Detail"
+                    )}
                   </button>
                 </div>
               </form>
             )}
+          </div>
+        </div>
+      )}
+
+     
+      {}
+      {showPremiumModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
+          <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-md max-w-md w-full p-6 space-y-5 shadow-xl">
+            <div className="flex items-start justify-between">
+              <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-900 text-[10px] font-mono font-semibold uppercase tracking-wider">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
+                <span>Paket Premium • Segera Hadir</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowPremiumModal(false)}
+                className="text-xs font-mono text-[#6B7280] hover:text-[#111111]"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-1.5">
+              <h3 className="text-base font-medium tracking-tight text-[#111111]">
+                Batas Kuota 1 Event Tercapai
+              </h3>
+              <p className="text-xs text-[#6B7280] leading-relaxed font-light">
+                Akun Cloud Gratis Anda saat ini mencakup kuota <strong className="text-[#111111] font-medium">1 event aktif tersimpan</strong>. Saat ini Anda sedang mengelola event <strong className="text-[#111111] font-medium">"{events[0]?.namaEvent || 'Acara Aktif'}"</strong>.
+              </p>
+            </div>
+
+            <div className="p-3.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-[4px] space-y-2 text-xs text-[#52525B]">
+              <div className="font-semibold text-[#111111] flex items-center gap-1.5 text-[11px] uppercase tracking-wider">
+                <span>Keunggulan Paket Premium (Roadmap):</span>
+              </div>
+              <ul className="space-y-1.5 text-[11px] font-light">
+                <li className="flex items-start gap-2">
+                  <span className="text-emerald-600 font-bold shrink-0">✓</span>
+                  <span><strong>Multi-Event Simultan:</strong> Kelola puluhan event sekaligus tanpa harus menghapus event sebelumnya.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-emerald-600 font-bold shrink-0">✓</span>
+                  <span><strong>Kustomisasi Branding Penuh:</strong> Hilangkan atribut bawaan pada portal unduhan publik peserta.</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="text-emerald-600 font-bold shrink-0">✓</span>
+                  <span><strong>Kapasitas Ekstra:</strong> Penyimpanan aset template & draf dalam kapasitas tinggi.</span>
+                </li>
+              </ul>
+            </div>
+
+            <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-[4px] text-[11px] text-amber-900 leading-relaxed font-light">
+              <strong>Solusi Saat Ini:</strong> Anda dapat mengekspor seluruh sertifikat event yang ada, lalu menghapusnya untuk mengosongkan slot gratis. Atau gunakan <strong>Studio Instan (Offline)</strong> untuk merender sertifikat massal tanpa database.
+            </div>
+
+            <div className="flex flex-col sm:flex-row justify-end gap-2 pt-2 border-t border-[#E5E7EB]">
+              {events[0] && (
+                <Link
+                  href={`/dashboard/events/${events[0].id}`}
+                  onClick={() => setShowPremiumModal(false)}
+                  className="px-3.5 py-2 text-xs font-mono text-center border border-[#E5E7EB] rounded-[4px] text-[#111111] hover:bg-[#F5F5F5] transition-colors"
+                >
+                  Buka Event Aktif ({events[0].namaEvent?.slice(0, 16)}...)
+                </Link>
+              )}
+              <button
+                type="button"
+                onClick={() => setShowPremiumModal(false)}
+                className="px-4 py-2 text-xs font-mono uppercase bg-[#111111] hover:bg-[#333333] text-white rounded-[4px] transition-colors"
+              >
+                Mengerti
+              </button>
+            </div>
           </div>
         </div>
       )}
