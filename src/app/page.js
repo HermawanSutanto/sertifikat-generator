@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState, useMemo, useEffect } from "react";
+import { Suspense, useState, useMemo, useEffect, useRef } from "react";
 import Link from "next/link";
 import { Plus_Jakarta_Sans, Inter } from "next/font/google";
 import {
@@ -8,15 +8,17 @@ import {
   Check,
   ChevronDown,
   Copy,
-  FileSpreadsheet,
-  FileText,
-  Lock,
-  Menu,
-  Printer,
+  Folder,
   Sliders,
   Type,
+  Bookmark,
+  Menu,
   X,
   Zap,
+  Play,
+  Pause,
+  Printer,
+  RefreshCw,
 } from "lucide-react";
 import AuthNav from "./AuthNav";
 
@@ -119,14 +121,63 @@ const sampleNames = [
   "Dimas Anggara, S.T",
 ];
 
-const canvasInteractiveModes = [
-  { id: "select", label: "01. Pilih Elemen", note: "Klik kotak teks untuk mengaktifkan titik transformasi." },
-  { id: "drag", label: "02. Geser Posisi", note: "Tarik elemen ke posisi yang diinginkan di lembar kerja." },
-  { id: "snap", label: "03. Smart Snap", note: "Garis bantu magnetik mengunci posisi horizontal & vertikal tepat di tengah." },
-  { id: "nudge", label: "04. Geser Mikro (1pt)", note: "Tekan tombol panah keyboard untuk presisi cetak milimeter." },
+const studioSteps = [
+  {
+    id: 0,
+    title: "Pilih Elemen Teks",
+    action: "Klik Kotak Elemen",
+    inspectorVal: "Nama Peserta (Aktif)",
+    align: "left",
+    font: "Sans Netral",
+    coord: "X: 355pt | Y: 245pt",
+    guide: "Kursor mengklik kotak pembatas teks penerima sertifikat untuk mengaktifkan titik kontrol penataan.",
+  },
+  {
+    id: 1,
+    title: "Seret ke Posisi",
+    action: "Menyeret ke Tengah",
+    inspectorVal: "Nama Peserta (Digeser)",
+    align: "left",
+    font: "Sans Netral",
+    coord: "X: 390pt | Y: 278pt",
+    guide: "Kotak teks digeser menuju area tengah lembar kerja dengan kalkulasi koordinat otomatis.",
+  },
+  {
+    id: 2,
+    title: "Smart Snap Magnetik",
+    action: "Terkunci di Sumbu Tengah",
+    inspectorVal: "Nama Peserta (Snap)",
+    align: "center",
+    font: "Sans Netral",
+    coord: "X: 421pt (Center) | Y: 298pt",
+    guide: "Garis bantu magnetik otomatis muncul dan mengunci simetri posisi teks tepat di tengah bidang cetak.",
+  },
+  {
+    id: 3,
+    title: "Nudge Presisi (1pt / 10pt)",
+    action: "Shift + Panah Atas (-10pt)",
+    inspectorVal: "Nama Peserta (Presisi)",
+    align: "center",
+    font: "Sans Netral",
+    coord: "X: 421pt | Y: 288pt (ΔY: -10pt)",
+    guide: "Pintasan keyboard Shift + Panah memindahkan elemen vertikal 10pt dengan akurasi milimeter.",
+  },
+  {
+    id: 4,
+    title: "Ganti Font Instan",
+    action: "Pilih Tipografi Formal",
+    inspectorVal: "Playfair Display (Serif)",
+    align: "center",
+    font: "Serif Formal",
+    coord: "X: 421pt | Y: 288pt (Serif)",
+    guide: "Pilihan jenis huruf Serif langsung diterapkan ke kurva vektor kanvas via Rust WebAssembly.",
+  },
 ];
 
+const STEP_DURATION_MS = 3500;
+
 export default function LandingPage() {
+  // Hero Live Interactive State
   const [activeName, setActiveName] = useState("Alexander Pratama, M.Kom");
   const [fontSize, setFontSize] = useState(24);
   const [fontStyle, setFontStyle] = useState("serif");
@@ -135,13 +186,29 @@ export default function LandingPage() {
   const [copiedNotice, setCopiedNotice] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Studio Interactive Preview State
-  const [studioMode, setStudioMode] = useState("snap");
+  // Simulated printing test sheets
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [currentPrintIndex, setCurrentPrintIndex] = useState(0);
+  const [printedSheets, setPrintedSheets] = useState([]);
 
-  // Dynamic Size Compression Calculator
+  // Studio Step Animation State
+  const [editorStep, setEditorStep] = useState(0);
+  const [isEditorPaused, setIsEditorPaused] = useState(false);
+
+  // Dynamic Size Compression Calculator State
   const [simScale, setSimScale] = useState(1.5);
   const [simQuality, setSimQuality] = useState(0.8);
   const baseSizeMB = 12.5;
+
+  useEffect(() => {
+    if (isEditorPaused) return;
+
+    const timer = setInterval(() => {
+      setEditorStep((prev) => (prev + 1) % studioSteps.length);
+    }, STEP_DURATION_MS);
+
+    return () => clearInterval(timer);
+  }, [isEditorPaused]);
 
   const optimizedSizeMB = useMemo(() => {
     const ratio = (simScale / 2.0) * simQuality;
@@ -155,6 +222,37 @@ export default function LandingPage() {
     setCopiedNotice(true);
     setTimeout(() => setCopiedNotice(false), 2000);
   };
+
+  const triggerSimulatedGeneration = () => {
+    if (isGenerating) return;
+    setIsGenerating(true);
+    setPrintedSheets([]);
+    setCurrentPrintIndex(0);
+
+    sampleNames.forEach((name, index) => {
+      setTimeout(() => {
+        setActiveName(name);
+        setCurrentPrintIndex(index + 1);
+
+        setPrintedSheets((prev) => [
+          ...prev,
+          {
+            id: index,
+            name,
+            offsetY: -((index + 1) * 3),
+          },
+        ]);
+
+        if (index === sampleNames.length - 1) {
+          setTimeout(() => {
+            setIsGenerating(false);
+          }, 450);
+        }
+      }, index * 240);
+    });
+  };
+
+  const currentStepData = studioSteps[editorStep] || studioSteps[0];
 
   const jsonLdData = {
     "@context": "https://schema.org",
@@ -191,24 +289,25 @@ export default function LandingPage() {
 
   return (
     <div
-      className={`${headingFont.variable} ${sansFont.variable} bg-[#FAFAFA] text-[#18181B] min-h-screen selection:bg-[#18181B] selection:text-white antialiased`}
+      className={`${headingFont.variable} ${sansFont.variable} bg-[#FAFAFA] text-[#18181B] min-h-screen selection:bg-[#18181B] selection:text-white antialiased overflow-x-hidden`}
       style={{ fontFamily: "var(--font-sans), sans-serif" }}
     >
       <script
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLdData) }}
       />
+      <style>{`@keyframes stepProgressFill { from { width: 0%; } to { width: 100%; } }`}</style>
 
       {/* Top Banner Notice */}
       <div className="border-b border-[#E4E4E7] bg-[#FFFFFF] text-[#71717A] text-xs py-2 px-4 sm:px-6">
         <div className="max-w-[1240px] mx-auto flex flex-col sm:flex-row justify-between items-center gap-1 sm:gap-4">
           <div className="flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
             <span className="font-medium text-[#27272A]">Mesin Komputasi Lokal Aktif</span>
-            <span className="text-[#D4D4D8]">•</span>
-            <span>Data peserta diproses langsung di memori perangkat</span>
+            <span className="text-[#D4D4D8] hidden sm:inline">•</span>
+            <span className="hidden sm:inline">Data peserta diproses langsung di memori perangkat</span>
           </div>
-          <div className="hidden sm:flex items-center gap-3 text-[#71717A]">
+          <div className="flex items-center gap-3 text-[#71717A]">
             <span>Mendukung CSV & Excel</span>
             <span className="text-[#D4D4D8]">/</span>
             <span>Bebas Biaya Berulang</span>
@@ -221,13 +320,10 @@ export default function LandingPage() {
         <div className="max-w-[1240px] mx-auto px-4 sm:px-6 h-15 flex justify-between items-center">
           <Link
             href="/"
-            className="text-lg font-bold tracking-tight text-[#18181B] flex items-center gap-2"
+            className="text-lg sm:text-xl font-bold tracking-tight text-[#111111]"
             style={{ fontFamily: "var(--font-heading), sans-serif" }}
           >
-            <span className="w-5 h-5 bg-[#18181B] text-white flex items-center justify-center rounded text-xs font-mono font-bold">
-              S
-            </span>
-            <span>SertiGen</span>
+            SertiGen
           </Link>
 
           <nav className="hidden md:flex items-center gap-6 text-[13px] text-[#71717A] font-medium">
@@ -294,7 +390,7 @@ export default function LandingPage() {
 
       {}
       <main id="main-content">
-        <section className="pt-12 sm:pt-16 pb-16 px-4 sm:px-6 md:px-8 border-b border-[#E4E4E7] bg-[#FFFFFF]">
+        <section className="pt-10 sm:pt-16 pb-16 px-4 sm:px-6 md:px-8 border-b border-[#E4E4E7] bg-[#FFFFFF]">
           <div className="max-w-[1240px] mx-auto grid lg:grid-cols-12 gap-10 lg:gap-12 items-start">
             {/* Left Narrative */}
             <div className="lg:col-span-7 flex flex-col justify-center">
@@ -360,7 +456,7 @@ export default function LandingPage() {
               </div>
             </div>
 
-            {/* Right Interactive Simulator */}
+            {}
             <div id="simulator" className="lg:col-span-5 w-full">
               <div className="bg-[#FFFFFF] border border-[#E4E4E7] rounded-lg p-4 sm:p-5 shadow-sm">
                 <div className="flex justify-between items-center border-b border-[#E4E4E7] pb-2.5 mb-3 text-xs">
@@ -368,15 +464,69 @@ export default function LandingPage() {
                     Simulasi Pratinjau Kanvas
                   </span>
                   <span className="text-emerald-700 font-medium text-[11px] bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                    Mode Interaktif
+                    {isGenerating ? `Mencetak 0${currentPrintIndex}/05` : "Mode Interaktif"}
                   </span>
                 </div>
 
-                {/* SVG Native Certificate Mockup */}
+                {/* Certificate Paper Container with Background Image */}
                 <div className="relative aspect-[16/10] overflow-hidden border border-[#E4E4E7] rounded bg-[#FAFAFA] flex flex-col justify-between p-4 sm:p-5 select-none shadow-inner">
-                  {/* Subtle Vector Background Border */}
-                  <div className="absolute inset-2 border border-[#E4E4E7] pointer-events-none rounded-[2px]" />
-                  <div className="absolute inset-3 border border-dashed border-[#E4E4E7]/70 pointer-events-none rounded-[2px]" />
+                  {/* Layer 0: Background Template Asli */}
+                  <img
+                    src="/background.webp"
+                    alt="Background Template Sertifikat"
+                    className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none z-0"
+                    onError={(e) => {
+                      if (!e.currentTarget.src.endsWith(".png")) {
+                        e.currentTarget.src = "/templates/template_01_preview.png";
+                      } else {
+                        e.currentTarget.style.display = "none";
+                      }
+                    }}
+                  />
+
+                  {/* Layer 1: Printed stack animation sheets */}
+                  {printedSheets.map((sheet, idx) => (
+                    <div
+                      key={sheet.id}
+                      style={{
+                        transform: `translateY(${sheet.offsetY}px)`,
+                        zIndex: 10 + idx,
+                      }}
+                      className="absolute inset-0 bg-[#FFFFFF]/95 backdrop-blur-[1px] border border-[#E4E4E7] p-4 rounded flex flex-col justify-between transition-all overflow-hidden"
+                    >
+                      <img
+                        src="/background.webp"
+                        alt=""
+                        className="absolute inset-0 w-full h-full object-cover pointer-events-none opacity-90 select-none z-0"
+                        onError={(e) => {
+                          if (!e.currentTarget.src.endsWith(".png")) {
+                            e.currentTarget.src = "/templates/template_01_preview.png";
+                          } else {
+                            e.currentTarget.style.display = "none";
+                          }
+                        }}
+                      />
+                      <div className="relative z-10 flex justify-between items-center text-[10px] text-[#6B7280] border-b border-[#E4E4E7]/80 pb-1">
+                        <span>Lembar #0{sheet.id + 1}</span>
+                        <span className="text-emerald-700 font-semibold">TERCETAK</span>
+                      </div>
+                      <div className="relative z-10 text-center my-auto px-2">
+                        <div className="text-[10px] uppercase tracking-wider text-[#6B7280] mb-0.5 font-medium">
+                          Sertifikat Kelulusan
+                        </div>
+                        <div className="text-sm sm:text-base font-bold text-[#18181B] truncate">
+                          {sheet.name}
+                        </div>
+                      </div>
+                      <div className="relative z-10 flex justify-between items-center text-[10px] text-[#71717A] pt-1 border-t border-[#E4E4E7]/80">
+                        <span>PDF Siap Cetak</span>
+                        <span>Vektor Lokal</span>
+                      </div>
+                    </div>
+                  ))}
+
+                  {/* Subtle vector guide overlay */}
+                  <div className="absolute inset-2 border border-[#E4E4E7]/50 pointer-events-none rounded-[2px] z-10" />
 
                   {/* Header of Mockup Certificate */}
                   <div className="relative z-10 text-center pt-1">
@@ -411,7 +561,7 @@ export default function LandingPage() {
                   </div>
 
                   {/* Footer of Mockup Certificate */}
-                  <div className="relative z-10 flex justify-between items-end border-t border-[#E4E4E7] pt-2 text-[9px] text-[#71717A]">
+                  <div className="relative z-10 flex justify-between items-end border-t border-[#E4E4E7]/80 pt-2 text-[9px] text-[#71717A]">
                     <div>
                       <span>No: REG-2026-081</span>
                     </div>
@@ -419,6 +569,13 @@ export default function LandingPage() {
                       <span className="font-medium text-[#18181B]">Dokumen Terverifikasi</span>
                     </div>
                   </div>
+
+                  {isGenerating && (
+                    <div className="absolute inset-0 bg-[#FFFFFF]/90 text-[#18181B] flex flex-col items-center justify-center text-xs gap-2 z-40 font-medium">
+                      <RefreshCw className="size-4 animate-spin text-[#18181B]" />
+                      <span>Menyusun sertifikat...</span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Control Panel for Live Simulator */}
@@ -481,22 +638,25 @@ export default function LandingPage() {
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between pt-2 border-t border-[#E4E4E7]">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-2 border-t border-[#E4E4E7]">
                     <button
                       type="button"
                       onClick={copySampleNames}
-                      className="text-xs text-[#71717A] hover:text-[#18181B] inline-flex items-center gap-1 font-medium"
+                      className="text-xs text-[#71717A] hover:text-[#18181B] inline-flex items-center gap-1 font-medium py-1"
                     >
                       <Copy className="size-3" />
                       {copiedNotice ? "5 Nama Tersalin!" : "Salin 5 Nama Sampel"}
                     </button>
 
-                    <Link
-                      href="/trial"
-                      className="text-xs font-semibold text-[#18181B] hover:underline inline-flex items-center gap-1"
+                    <button
+                      type="button"
+                      onClick={triggerSimulatedGeneration}
+                      disabled={isGenerating}
+                      className="bg-[#18181B] text-white text-xs font-semibold uppercase px-3.5 py-1.5 rounded hover:bg-[#27272A] transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40"
                     >
-                      Buka Kanvas Penuh →
-                    </Link>
+                      <Printer className="size-3" />
+                      Uji Cetak 5 Lembar
+                    </button>
                   </div>
                 </div>
               </div>
@@ -505,7 +665,6 @@ export default function LandingPage() {
         </section>
 
         {}
-        {/* Workflow Section */}
         <section id="alur" className="py-16 sm:py-20 px-4 sm:px-6 md:px-8 border-b border-[#E4E4E7] bg-[#FAFAFA]">
           <div className="max-w-[1240px] mx-auto">
             <div className="mb-10 text-center max-w-xl mx-auto">
@@ -567,7 +726,6 @@ export default function LandingPage() {
         </section>
 
         {}
-        {/* Canvas Studio Precision Section */}
         <section id="fitur" className="py-16 sm:py-20 px-4 sm:px-6 md:px-8 border-b border-[#E4E4E7] bg-[#FFFFFF]">
           <div className="max-w-[1240px] mx-auto">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
@@ -583,93 +741,331 @@ export default function LandingPage() {
                 </h2>
               </div>
               <p className="text-[#71717A] text-xs sm:text-sm max-w-md font-normal leading-relaxed">
-                Tidak perlu menebak koordinat. Manfaatkan garis bantu magnetik (*smart snap*) dan tombol panah keyboard (*nudge*) untuk hasil cetak yang simetris sempurna.
+                Tidak perlu menebak koordinat. Manfaatkan garis bantu magnetik (<em>smart snap</em>) dan tombol panah keyboard (<em>nudge</em>) untuk hasil cetak yang simetris sempurna.
               </p>
             </div>
 
-            {/* Interactive Functional Preview */}
+            {/* Interactive Functional Preview Window */}
             <div className="border border-[#E4E4E7] rounded-lg overflow-hidden bg-[#FAFAFA] shadow-xs">
+              {/* Studio Window Header */}
               <div className="border-b border-[#E4E4E7] px-4 py-2.5 bg-[#FFFFFF] flex items-center justify-between text-xs">
-                <div className="flex items-center gap-2">
-                  <Sliders className="size-3.5 text-[#18181B]" />
-                  <span className="font-semibold text-[#18181B]">Kanvas Inspektor SertiGen</span>
+                <div className="flex items-center gap-2 overflow-hidden">
+                  <div className="flex items-center gap-1 sm:gap-1.5 mr-1 shrink-0">
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#E4E4E7]" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#E4E4E7]" />
+                    <span className="w-2.5 h-2.5 rounded-full bg-[#E4E4E7]" />
+                  </div>
+                  <span className="font-semibold text-[#18181B] truncate">Kanvas Inspektor SertiGen</span>
                   <span className="text-[#D4D4D8]">|</span>
-                  <span className="text-[#71717A]">Demonstrasi Fitur Penataan</span>
+                  <span className="text-[#71717A] truncate hidden sm:inline">Demonstrasi Penataan Presisi</span>
                 </div>
-                <div className="hidden sm:flex items-center gap-2 text-[11px] text-[#71717A]">
-                  <span>Skala: 100% (A4)</span>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditorPaused(!isEditorPaused)}
+                    className="text-[11px] text-[#71717A] hover:text-[#18181B] inline-flex items-center gap-1 border border-[#E4E4E7] bg-[#FAFAFA] px-2.5 py-1 rounded font-medium transition-colors"
+                  >
+                    {isEditorPaused ? (
+                      <>
+                        <Play className="size-2.5 fill-current" />
+                        <span>Putar Animasi</span>
+                      </>
+                    ) : (
+                      <>
+                        <Pause className="size-2.5 fill-current" />
+                        <span>Jeda</span>
+                      </>
+                    )}
+                  </button>
+
+                  <Link
+                    href="/trial"
+                    className="text-[11px] text-white bg-[#18181B] hover:bg-[#27272A] px-2.5 py-1 rounded font-semibold transition-colors hidden sm:inline-flex items-center gap-1"
+                  >
+                    <Zap className="size-3 text-amber-400" />
+                    <span>Buka Studio</span>
+                  </Link>
                 </div>
               </div>
 
-              {/* Mode Selector Tabs */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 border-b border-[#E4E4E7] bg-[#FFFFFF] text-xs">
-                {canvasInteractiveModes.map((mode) => (
+              {/* Progress Line */}
+              <div className="w-full bg-[#E4E4E7] h-[2px] overflow-hidden">
+                <div
+                  key={`${editorStep}-${isEditorPaused}`}
+                  style={{
+                    animation: isEditorPaused ? "none" : `stepProgressFill ${STEP_DURATION_MS / 1000}s linear forwards`,
+                    width: isEditorPaused ? "100%" : undefined,
+                  }}
+                  className="h-full bg-[#18181B]"
+                />
+              </div>
+
+              {/* Main Studio Workspace Grid */}
+              <div className="grid grid-cols-12 min-h-[360px] sm:min-h-[420px]">
+                {/* Left Mini Dock Toolbar */}
+                <div className="col-span-1 border-r border-[#E4E4E7] py-3 flex flex-col items-center gap-2 bg-[#FFFFFF]">
+                  {[
+                    { id: "files", label: "Berkas", icon: Folder },
+                    { id: "elements", label: "Elemen", icon: Sliders },
+                    { id: "fonts", label: "Font", icon: Type },
+                    { id: "presets", label: "Preset", icon: Bookmark },
+                  ].map((tab) => {
+                    const isTabActive =
+                      (editorStep === 4 && tab.id === "fonts") ||
+                      (editorStep !== 4 && tab.id === "elements");
+                    return (
+                      <div
+                        key={tab.id}
+                        className={`w-7 h-7 sm:w-8 sm:h-8 rounded flex items-center justify-center transition-colors ${
+                          isTabActive ? "bg-[#18181B] text-white" : "text-[#A1A1AA]"
+                        }`}
+                        title={tab.label}
+                      >
+                        <tab.icon className="size-3.5" />
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Left Inspector Properties (Desktop) */}
+                <div className="hidden md:flex md:col-span-3 border-r border-[#E4E4E7] p-4 flex-col justify-between bg-[#FFFFFF] text-xs">
+                  <div className="space-y-3">
+                    <div className="border-b border-[#E4E4E7] pb-2">
+                      <span className="text-[10px] text-[#71717A] uppercase block font-semibold">Inspektor Properti</span>
+                      <span className="text-xs font-semibold text-[#18181B] mt-0.5 block">{currentStepData.inspectorVal}</span>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] text-[#71717A] uppercase block mb-1 font-medium">Kolom Target</label>
+                      <div className="p-2 bg-[#FAFAFA] border border-[#E4E4E7] rounded text-xs text-[#18181B] font-medium">
+                        [CSV] Nama Peserta
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] text-[#71717A] uppercase block mb-1 font-medium">Koordinat (X & Y)</label>
+                      <div className="grid grid-cols-2 gap-2 text-xs">
+                        <div className="p-1.5 bg-[#FAFAFA] border border-[#E4E4E7] rounded font-medium text-center">
+                          X: {editorStep >= 2 ? "421pt" : "375pt"}
+                        </div>
+                        <div className="p-1.5 bg-[#FAFAFA] border border-[#E4E4E7] rounded font-medium text-center">
+                          Y: {editorStep === 3 || editorStep === 4 ? "288pt" : editorStep === 2 ? "298pt" : "260pt"}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="text-[10px] text-[#71717A] uppercase block mb-1 font-medium">Tipografi</label>
+                      <div className="p-1.5 bg-[#FAFAFA] border border-[#E4E4E7] rounded text-xs text-[#18181B] font-medium truncate">
+                        {currentStepData.font}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="pt-2 border-t border-[#E4E4E7] text-xs text-[#71717A]">
+                    Status: <span className="text-[#18181B] font-semibold">{currentStepData.action}</span>
+                  </div>
+                </div>
+
+                {/* Right Interactive Canvas Sheet */}
+                <div className="col-span-11 md:col-span-8 bg-[#FAFAFA] p-3 sm:p-6 flex flex-col items-center justify-between relative overflow-hidden select-none">
+                  <div className="w-full flex justify-between items-center text-[11px] sm:text-xs text-[#71717A] mb-2 font-medium">
+                    <span className="truncate">Lembar: 842 × 595 pt (A4 Landscape)</span>
+                    <span className="border border-[#E4E4E7] bg-white px-2 py-0.5 rounded text-[10px]">Skala 100%</span>
+                  </div>
+
+                  {/* Visual Canvas Paper with background.webp */}
+                  <div className="relative w-full max-w-[500px] aspect-[16/10] bg-white border border-[#E4E4E7] rounded shadow-sm flex flex-col justify-between p-4 sm:p-5 overflow-hidden">
+                    {/* Background template image */}
+                    <img
+                      src="/background.webp"
+                      alt="Background Template Kanvas"
+                      className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none z-0"
+                      onError={(e) => {
+                        if (!e.currentTarget.src.endsWith(".png")) {
+                          e.currentTarget.src = "/templates/template_01_preview.png";
+                        } else {
+                          e.currentTarget.style.display = "none";
+                        }
+                      }}
+                    />
+
+                    {/* Step 2 Smart Snap Guides */}
+                    {editorStep === 2 && (
+                      <>
+                        <div className="absolute top-0 bottom-0 left-1/2 w-px bg-[#18181B] z-20 opacity-60" />
+                        <div className="absolute left-0 right-0 top-1/2 h-px bg-[#18181B] z-20 opacity-60" />
+                        <div className="absolute top-2 right-2 text-[9px] sm:text-[10px] font-medium bg-[#18181B] text-white px-2 py-0.5 rounded z-30">
+                          Smart Snap: Terkunci di Tengah
+                        </div>
+                      </>
+                    )}
+
+                    {/* Step 3 Nudge Tooltip */}
+                    {editorStep === 3 && (
+                      <div
+                        className="absolute z-30 bg-white border border-[#18181B] text-[#18181B] px-2 py-0.5 rounded font-mono text-[9px] flex items-center gap-1 shadow-sm transition-all duration-300"
+                        style={{ transform: "translate(110px, 30px)" }}
+                      >
+                        <kbd className="px-1 py-0.5 bg-[#F4F4F5] border border-[#E4E4E7] rounded text-[8px] font-medium">Shift</kbd>
+                        <span>+</span>
+                        <kbd className="px-1 py-0.5 bg-[#F4F4F5] border border-[#E4E4E7] rounded text-[8px] font-medium">↑</kbd>
+                        <span className="text-[#71717A] text-[8px] ml-0.5">ΔY: -10pt</span>
+                      </div>
+                    )}
+
+                    {/* Step 4 Font Tooltip */}
+                    {editorStep === 4 && (
+                      <div
+                        className="absolute z-30 bg-[#18181B] text-white px-2.5 py-1 rounded text-[9px] flex items-center gap-2 shadow-sm transition-all duration-300"
+                        style={{ transform: "translate(70px, 28px)" }}
+                      >
+                        <span className="text-[#A1A1AA]">Font:</span>
+                        <span className="font-serif font-medium underline underline-offset-2">Playfair Display</span>
+                        <span className="text-emerald-400">Aktif</span>
+                      </div>
+                    )}
+
+                    {/* Header Text of Certificate */}
+                    <div className="text-center pt-0.5 z-10">
+                      <div className="text-[8px] sm:text-[9px] uppercase tracking-wider text-[#71717A] font-semibold">
+                        Lembaga Pendidikan Nasional
+                      </div>
+                      <div
+                        className="text-[11px] sm:text-xs font-semibold text-[#18181B] uppercase tracking-wider mt-0.5"
+                        style={{ fontFamily: "var(--font-heading), sans-serif" }}
+                      >
+                        Sertifikat Kelulusan
+                      </div>
+                    </div>
+
+                    {/* Animated Bounding Box Element */}
+                    <div
+                      className={`relative mx-auto border transition-all duration-700 ease-out z-20 flex flex-col items-center px-3 sm:px-4 py-1 sm:py-1.5 rounded shadow-xs ${
+                        editorStep === 0
+                          ? "border-[#18181B] bg-white/95 border-dashed"
+                          : editorStep === 1
+                          ? "border-[#18181B] bg-white shadow-md border-solid scale-[1.01]"
+                          : editorStep === 2
+                          ? "border-[#18181B] bg-white/95 ring-1 ring-[#18181B]/20"
+                          : "border-[#18181B] bg-white"
+                      }`}
+                      style={{
+                        transform:
+                          editorStep === 0
+                            ? "translate(-36px, 12px)"
+                            : editorStep === 1
+                            ? "translate(-14px, 5px)"
+                            : editorStep === 2
+                            ? "translate(0px, 0px)"
+                            : "translate(0px, -8px)",
+                      }}
+                    >
+                      <span
+                        className={`block text-[11px] sm:text-sm text-[#18181B] transition-all duration-300 ${
+                          editorStep === 4
+                            ? "font-serif tracking-wider font-bold"
+                            : "font-sans font-medium"
+                        }`}
+                      >
+                        Dr. Rian Hermawan, M.Kom
+                      </span>
+                    </div>
+
+                    {/* Virtual Cursor Animation */}
+                    <div
+                      className="absolute z-40 transition-all duration-700 ease-[cubic-bezier(0.16,1,0.3,1)] pointer-events-none"
+                      style={{
+                        top:
+                          editorStep === 0
+                            ? "60%"
+                            : editorStep === 1
+                            ? "50%"
+                            : editorStep === 2
+                            ? "46%"
+                            : editorStep === 3
+                            ? "40%"
+                            : "36%",
+                        left:
+                          editorStep === 0
+                            ? "40%"
+                            : editorStep === 1
+                            ? "48%"
+                            : editorStep === 2
+                            ? "50%"
+                            : editorStep === 3
+                            ? "50%"
+                            : "56%",
+                      }}
+                    >
+                      {editorStep === 0 && (
+                        <span className="absolute -top-2 -left-2 w-6 h-6 rounded-full border border-[#18181B] animate-ping opacity-60 pointer-events-none" />
+                      )}
+
+                      <div className="flex items-start">
+                        <svg
+                          className="w-5 h-5 text-[#18181B] shrink-0 drop-shadow-xs"
+                          viewBox="0 0 24 24"
+                          fill="currentColor"
+                        >
+                          <path d="M4 2l16 12-7.5 1.5L9 22 4 2z" />
+                        </svg>
+                        <span className="bg-[#18181B] text-white text-[8px] font-mono px-1.5 py-0.5 rounded ml-1 -mt-1 whitespace-nowrap shadow-xs">
+                          {editorStep === 0 && "Klik Elemen"}
+                          {editorStep === 1 && "Menyeret..."}
+                          {editorStep === 2 && "Snap Terkunci"}
+                          {editorStep === 3 && "Nudge 10pt"}
+                          {editorStep === 4 && "Font Terpasang"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Footer of Certificate */}
+                    <div className="flex justify-between items-end pb-0.5 text-[8px] sm:text-[9px] text-[#71717A] border-t border-[#E4E4E7]/80 pt-1 z-10 font-medium">
+                      <span>No: CERT-2026-001</span>
+                      <span>Tanda Tangan Tersemat</span>
+                    </div>
+                  </div>
+
+                  <div className="w-full flex justify-between items-center text-[11px] sm:text-xs text-[#71717A] mt-2 font-medium">
+                    <span className="text-[#18181B] font-semibold">{currentStepData.coord}</span>
+                    <span>{currentStepData.action}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Stepper Navigator Controls */}
+            <div className="mt-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-[#FAFAFA] border border-[#E4E4E7] p-3.5 sm:p-4 rounded-lg">
+              <div className="text-xs text-[#18181B]">
+                <strong className="uppercase text-[10px] text-[#71717A] block mb-0.5 font-semibold">
+                  Langkah {editorStep + 1} dari 5: {currentStepData.title}
+                </strong>
+                {currentStepData.guide}
+              </div>
+
+              <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 self-end sm:self-center">
+                {studioSteps.map((step, idx) => (
                   <button
-                    key={mode.id}
+                    key={idx}
                     type="button"
-                    onClick={() => setStudioMode(mode.id)}
-                    className={`py-2 px-3 text-left border-r border-[#E4E4E7] last:border-r-0 transition-colors ${
-                      studioMode === mode.id
-                        ? "bg-[#F4F4F5] text-[#18181B] font-semibold"
-                        : "text-[#71717A] hover:bg-[#FAFAFA]"
+                    onClick={() => setEditorStep(idx)}
+                    className={`py-1 px-2.5 text-xs font-semibold rounded border transition-colors ${
+                      editorStep === idx
+                        ? "bg-[#18181B] text-white border-[#18181B]"
+                        : "bg-white text-[#71717A] border-[#E4E4E7] hover:text-[#18181B]"
                     }`}
                   >
-                    <div>{mode.label}</div>
+                    0{idx + 1}
                   </button>
                 ))}
-              </div>
-
-              <div className="p-6 sm:p-8 flex flex-col items-center justify-center min-h-[260px] relative overflow-hidden">
-                {/* Visual Canvas Paper */}
-                <div className="relative w-full max-w-[500px] aspect-[16/10] bg-[#FFFFFF] border border-[#E4E4E7] rounded shadow-xs flex flex-col justify-between p-4 overflow-hidden">
-                  {/* Center Line Guides for Snap mode */}
-                  {studioMode === "snap" && (
-                    <>
-                      <div className="absolute top-0 bottom-0 left-1/2 w-px bg-[#18181B] opacity-50 z-20" />
-                      <div className="absolute left-0 right-0 top-1/2 h-px bg-[#18181B] opacity-50 z-20" />
-                      <div className="absolute top-2 right-2 text-[10px] font-medium bg-[#18181B] text-white px-2 py-0.5 rounded z-30">
-                        Smart Snap: Terkunci di Sumbu Tengah
-                      </div>
-                    </>
-                  )}
-
-                  <div className="text-center pt-1 text-[9px] uppercase tracking-wider text-[#A1A1AA] font-semibold">
-                    Lembaga Pendidikan Nasional
-                  </div>
-
-                  {/* Bounding Box that responds to mode */}
-                  <div
-                    className={`relative mx-auto transition-all duration-300 z-10 px-4 py-1.5 rounded ${
-                      studioMode === "select"
-                        ? "border border-dashed border-[#18181B] bg-[#F4F4F5]"
-                        : studioMode === "drag"
-                        ? "border border-solid border-[#18181B] bg-white shadow-md translate-x-3 translate-y-1"
-                        : studioMode === "snap"
-                        ? "border border-solid border-[#18181B] bg-white shadow-xs translate-x-0 translate-y-0"
-                        : "border border-solid border-[#18181B] bg-white -translate-y-2.5"
-                    }`}
-                  >
-                    <span className="font-serif font-bold text-sm text-[#18181B]">
-                      Dr. Rian Hermawan, M.Kom
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between items-end text-[9px] text-[#A1A1AA] border-t border-[#E4E4E7] pt-1">
-                    <span>No: CERT-2026-001</span>
-                    <span>Tanda Tangan Tersemat</span>
-                  </div>
-                </div>
-
-                <div className="mt-4 text-center text-xs text-[#71717A] max-w-md">
-                  {canvasInteractiveModes.find((m) => m.id === studioMode)?.note}
-                </div>
               </div>
             </div>
           </div>
         </section>
 
         {}
-        {/* Target Segments Section */}
         <section className="py-16 sm:py-20 px-4 sm:px-6 md:px-8 border-b border-[#E4E4E7] bg-[#FAFAFA]">
           <div className="max-w-[1240px] mx-auto">
             <div className="mb-10 text-center max-w-xl mx-auto">
@@ -705,7 +1101,6 @@ export default function LandingPage() {
         </section>
 
         {}
-        {/* Pricing & Plan Comparison Section (SEO Optimized) */}
         <section id="perbandingan" className="py-16 sm:py-20 px-4 sm:px-6 md:px-8 border-b border-[#E4E4E7] bg-[#FFFFFF]">
           <div className="max-w-[1240px] mx-auto">
             <div className="mb-10 text-center max-w-xl mx-auto">
@@ -802,13 +1197,13 @@ export default function LandingPage() {
                 <div className="flex items-start gap-2">
                   <Check className="size-4 text-emerald-600 shrink-0 mt-0.5" />
                   <p>
-                    <strong>Kebijakan Pembatalan & Pengembalian Dana:</strong> SertiGen beroperasi tanpa tagihan berulang (*no recurring subscription fees*). Anda dapat berhenti menggunakan layanan dan menghapus data acara sewaktu-waktu dari dashboard tanpa denda maupun penalti finansial.
+                    <strong>Kebijakan Pembatalan & Pengembalian Dana:</strong> SertiGen beroperasi tanpa tagihan berulang (<em>no recurring subscription fees</em>). Anda dapat berhenti menggunakan layanan dan menghapus data acara sewaktu-waktu dari dashboard tanpa denda maupun penalti finansial.
                   </p>
                 </div>
                 <div className="flex items-start gap-2">
                   <Check className="size-4 text-emerald-600 shrink-0 mt-0.5" />
                   <p>
-                    <strong>Roadmap Paket Premium (Segera Hadir):</strong> Dikhususkan bagi institusi atau *event organizer* yang memerlukan pengelolaan banyak acara sekaligus secara simultan tanpa harus menghapus event sebelumnya, serta membutuhkan kustomisasi branding eksklusif pada portal peserta.
+                    <strong>Roadmap Paket Premium (Segera Hadir):</strong> Dikhususkan bagi institusi atau <em>event organizer</em> yang memerlukan pengelolaan banyak acara sekaligus secara simultan tanpa harus menghapus event sebelumnya, serta membutuhkan kustomisasi branding eksklusif pada portal peserta.
                   </p>
                 </div>
               </div>
@@ -820,8 +1215,7 @@ export default function LandingPage() {
         </section>
 
         {}
-        {/* PDF Background Compression Calculator */}
-        <section className="py-16 sm:py-20 px-4 sm:px-6 md:px-8 border-b border-[#E4E4E7] bg-[#FAFAFA]">
+        <section id="optimizer" className="py-16 sm:py-20 px-4 sm:px-6 md:px-8 border-b border-[#E4E4E7] bg-[#FAFAFA]">
           <div className="max-w-[1240px] mx-auto">
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
               <div>
@@ -912,7 +1306,7 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* Technical Specs Section */}
+        {}
         <section id="spesifikasi" className="py-16 sm:py-20 px-4 sm:px-6 md:px-8 border-b border-[#E4E4E7] bg-[#FFFFFF]">
           <div className="max-w-[1240px] mx-auto">
             <div className="mb-8">
@@ -946,7 +1340,6 @@ export default function LandingPage() {
         </section>
 
         {}
-        {/* FAQ Section */}
         <section id="faq" className="py-16 sm:py-20 px-4 sm:px-6 md:px-8 border-b border-[#E4E4E7] bg-[#FAFAFA]">
           <div className="max-w-[1240px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8">
             <div className="lg:col-span-5">
@@ -1000,7 +1393,7 @@ export default function LandingPage() {
         <div className="max-w-[1240px] mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border-b border-[#E4E4E7] pb-8">
           <div>
             <span
-              className="text-base font-bold text-[#18181B] block mb-1"
+              className="text-base font-bold text-[#111111] block mb-1"
               style={{ fontFamily: "var(--font-heading), sans-serif" }}
             >
               SertiGen
