@@ -3032,16 +3032,23 @@ export default function CetakLokal() {
                         </>
                       )}
 
+                      {}
                       {cfg.static_text !== undefined && !cfg.is_custom_var && cfg.type !== "image" && (
                         <div>
-                          <label className="block text-[10px] font-mono uppercase text-[#6B7280] mb-1">
-                            Isi Teks Statis
-                          </label>
-                          <input
-                            type="text"
+                          <div className="flex items-center justify-between mb-1">
+                            <label className="block text-[10px] font-mono uppercase text-[#6B7280]">
+                              Isi Teks Statis
+                            </label>
+                            <span className="text-[9px] font-mono text-[#6B7280]">
+                              (Mendukung Enter / Baris Baru)
+                            </span>
+                          </div>
+                          <textarea
+                            rows={3}
                             value={cfg.static_text}
                             onChange={(e) => updateConfig(cfg.column_name, { static_text: e.target.value })}
-                            className="w-full p-2 text-xs font-mono rounded-[4px] border border-[#E5E7EB] bg-[#FFFFFF] text-[#111111]"
+                            placeholder="Ketik teks... (Tekan Enter untuk membuat baris baru)"
+                            className="w-full p-2 text-xs font-mono rounded-[4px] border border-[#E5E7EB] bg-[#FFFFFF] text-[#111111] leading-relaxed"
                           />
                         </div>
                       )}
@@ -3723,7 +3730,23 @@ export default function CetakLokal() {
 
                   const lineHeightVal = cfg.line_height !== undefined ? cfg.line_height : 1.2;
                   const letterSpacingVal = cfg.letter_spacing !== undefined ? `${cfg.letter_spacing}px` : "0px";
-                  const elementHeight = isImage ? cfg.height : cfg.font_size * lineHeightVal;
+
+                  // Hitung estimasi ketinggian dinamis agar teks yang melipat / enter tidak terpotong
+                  let elementHeight = cfg.font_size * lineHeightVal;
+                  if (isImage) {
+                    elementHeight = cfg.height;
+                  } else {
+                    const rawLines = String(displayText || "").split("\n");
+                    const approxCharWidth = (cfg.font_size || 24) * 0.52;
+                    const maxCharsPerLine = Math.max(1, Math.floor((cfg.max_width || 200) / approxCharWidth));
+                    
+                    let totalVisualLines = 0;
+                    rawLines.forEach((line) => {
+                      totalVisualLines += Math.max(1, Math.ceil((line.length || 1) / maxCharsPerLine));
+                    });
+                    
+                    elementHeight = Math.max(cfg.font_size * lineHeightVal, totalVisualLines * cfg.font_size * lineHeightVal);
+                  }
 
                   return (
                     <Rnd
@@ -3750,12 +3773,13 @@ export default function CetakLokal() {
                         setActiveColumn(cfg.column_name);
                       }}
                       onClick={() => setActiveColumn(cfg.column_name)}
-                      className="absolute cursor-move z-10 flex items-center justify-center overflow-hidden"
+                      className="absolute cursor-move z-10 flex items-start justify-center overflow-visible"
                       style={{
                         outline: outlineStyle,
                         backgroundColor: isSelected ? "rgba(17,17,17,0.03)" : "transparent",
                       }}
                     >
+                      {}
                       {isImage ? (
                         <img
                           src={cfg.data_url}
@@ -3772,7 +3796,8 @@ export default function CetakLokal() {
                             lineHeight: lineHeightVal,
                             letterSpacing: letterSpacingVal,
                             textAlign: cfg.align || "left",
-                            whiteSpace: "normal",
+                            whiteSpace: "pre-wrap",
+                            wordBreak: "break-word",
                             overflowWrap: "anywhere",
                             fontKerning: "none",
                             fontVariantLigatures: "none",
