@@ -1176,6 +1176,51 @@ export default function CetakLokal() {
     return `${value.toFixed(idx === 0 ? 0 : 1)} ${units[idx]}`;
   };
 
+  const extractPdfFromZip = (zipBytes) => {
+    const u8 = zipBytes instanceof Uint8Array ? zipBytes : new Uint8Array(zipBytes);
+    if (u8.length >= 30 && u8[0] === 0x50 && u8[1] === 0x4b && u8[2] === 0x03 && u8[3] === 0x04) {
+      const view = new DataView(u8.buffer, u8.byteOffset, u8.byteLength);
+      const uncompressedSize = view.getUint32(22, true);
+      const fileNameLen = view.getUint16(26, true);
+      const extraFieldLen = view.getUint16(28, true);
+      const dataStart = 30 + fileNameLen + extraFieldLen;
+      if (uncompressedSize > 0 && dataStart + uncompressedSize <= u8.length) {
+        return u8.slice(dataStart, dataStart + uncompressedSize);
+      }
+    }
+
+    for (let i = 0; i < u8.length - 5; i++) {
+      if (u8[i] === 0x25 && u8[i + 1] === 0x50 && u8[i + 2] === 0x44 && u8[i + 3] === 0x46 && u8[i + 4] === 0x2d) {
+        for (let j = u8.length - 5; j >= i; j--) {
+          if (u8[j] === 0x25 && u8[j + 1] === 0x25 && u8[j + 2] === 0x45 && u8[j + 3] === 0x4f && u8[j + 4] === 0x46) {
+            let end = j + 5;
+            while (end < u8.length && (u8[end] === 0x0a || u8[end] === 0x0d || u8[end] === 0x20)) {
+              end++;
+            }
+            return u8.slice(i, end);
+          }
+        }
+        return u8.slice(i);
+      }
+    }
+    return u8;
+  };
+
+  const openPdfInNewTab = (pdfBytes) => {
+    const blob = new Blob([pdfBytes], { type: "application/pdf" });
+    const url = URL.createObjectURL(blob);
+    const win = window.open(url, "_blank");
+    if (!win) {
+      const a = document.createElement("a");
+      a.href = url;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  };
+
   const saveAutosaveMeta = async (patch) => {
     try {
       const prev = (await readAutosaveMeta()) || {};
@@ -2105,7 +2150,7 @@ export default function CetakLokal() {
     }
 
     try {
-      setNotification({ show: true, message: "Menyusun pratinjau...", type: "success" });
+      setNotification({ show: true, message: "Menyusun pratinjau PDF...", type: "success" });
 
       const templateUint8 = await bakeImagesIntoPdfTemplate(templateFile);
       const enrichedSample = enrichRowsWithCustomVariables([longestRowSample]);
@@ -2123,17 +2168,11 @@ export default function CetakLokal() {
         filenamePattern.trim() || undefined
       );
 
-      const blob = new Blob([zipBytes], { type: "application/zip" });
-      const downloadUrl = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.href = downloadUrl;
-      link.download = `preview_sampel_${Date.now()}.zip`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      URL.revokeObjectURL(downloadUrl);
+      // Ekstrak berkas PDF murni tanpa ZIP dan buka langsung di tab baru
+      const pdfBytes = extractPdfFromZip(zipBytes);
+      openPdfInNewTab(pdfBytes);
 
-      setNotification({ show: true, message: "Sampel pratinjau berhasil diunduh.", type: "success" });
+      setNotification({ show: true, message: "Pratinjau PDF berhasil dibuka di tab baru.", type: "success" });
     } catch (err) {
       setNotification({ show: true, message: `Gagal pratinjau: ${err.message || String(err)}`, type: "error" });
     }
@@ -2489,8 +2528,9 @@ export default function CetakLokal() {
             onClick={handleDownloadPreview}
             disabled={isProcessing || !templateFile}
             className="px-3 py-1.5 text-xs font-mono uppercase rounded-[4px] border border-[#E5E7EB] bg-transparent text-[#111111] hover:bg-[#F5F5F5] disabled:opacity-40 transition-colors"
+            title="Buka pratinjau PDF di tab baru"
           >
-            Pratinjau Sampel
+            Pratinjau PDF
           </button>
 
           <div className="relative group inline-block">

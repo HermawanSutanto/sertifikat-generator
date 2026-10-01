@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Inter, JetBrains_Mono } from "next/font/google";
 import {
   createUserWithEmailAndPassword,
   updateProfile,
@@ -19,17 +20,38 @@ import {
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
 
+const sansFont = Inter({
+  subsets: ["latin"],
+  weight: ["300", "400", "500", "600"],
+  variable: "--font-sans",
+});
+
+const monoFont = JetBrains_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500"],
+  variable: "--font-mono",
+});
+
 const EyeIcon = (props) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
-    width="18"
-    height="18"
+    width="16"
+    height="16"
     viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
     {...props}
   >
     <path
-      fill="currentColor"
-      d="M12 4.5C7 4.5 2.73 7.61 1 12c1.73 4.39 6 7.5 11 7.5s9.27-3.11 11-7.5c-1.73-4.39-6-7.5-11-7.5zM12 17c-2.76 0-5-2.24-5-5s2.24-5 5-5s5 2.24 5 5s-2.24 5-5 5zm0-8c-1.66 0-3 1.34-3 3s1.34 3 3 3s3-1.34 3-3s-1.34-3-3-3z"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"
+    />
+    <path
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"
     />
   </svg>
 );
@@ -37,20 +59,24 @@ const EyeIcon = (props) => (
 const EyeSlashIcon = (props) => (
   <svg
     xmlns="http://www.w3.org/2000/svg"
-    width="18"
-    height="18"
+    width="16"
+    height="16"
     viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.5"
     {...props}
   >
     <path
-      fill="currentColor"
-      d="M12 7c2.76 0 5 2.24 5 5c0 .65-.13 1.26-.36 1.83l2.92 2.92c1.51-1.26 2.7-2.89 3.44-4.75c-1.73-4.39-6-7.5-11-7.5c-1.4 0-2.74.25-3.98.7l2.16 2.16C10.74 7.13 11.35 7 12 7zM2 4.27l2.28 2.28l.46.46A11.804 11.804 0 0 0 1 12c1.73 4.39 6 7.5 11 7.5c1.55 0 3.03-.3 4.38-.84l.42.42L19.73 22L21 20.73L3.27 3L2 4.27zM7.53 9.8l1.55 1.55c-.05.21-.08.43-.08.65c0 1.66 1.34 3 3 3c.22 0 .44-.03.65-.08l1.55 1.55c-.67.33-1.41.53-2.2.53c-2.76 0-5-2.24-5-5c0-.79.2-1.53.53-2.2zm4.31-.78l3.15 3.15l.02-.16c0-1.66-1.34-3-3-3l-.17.01z"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88"
     />
   </svg>
 );
 
 const IconGoogle = (props) => (
-  <svg viewBox="0 0 24 24" width="16" height="16" {...props}>
+  <svg viewBox="0 0 24 24" width="15" height="15" {...props}>
     <path
       fill="#4285F4"
       d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z"
@@ -71,7 +97,7 @@ const IconGoogle = (props) => (
 );
 
 export default function RegisterPage() {
-  const [accountType, setAccountType] = useState("personal"); // "personal" | "organization"
+  const [accountType, setAccountType] = useState("personal");
   const [namaLengkap, setNamaLengkap] = useState("");
   const [namaOrganisasi, setNamaOrganisasi] = useState("");
   const [email, setEmail] = useState("");
@@ -98,7 +124,6 @@ export default function RegisterPage() {
         ? (customOrgName?.trim() || `Lembaga ${resolvedFullName}`)
         : (customOrgName?.trim() || `Ruang Kerja ${resolvedFullName}`);
 
-    // 1. Inisialisasi dokumen organisasi / ruang kerja
     const orgPayload = {
       namaOrganisasi: resolvedOrgName,
       tipeOrganisasi: type,
@@ -119,7 +144,6 @@ export default function RegisterPage() {
     const newOrgRef = await addDoc(collection(db, "organizations"), orgPayload);
     const generatedOrgId = newOrgRef.id;
 
-    // 2. Inisialisasi dokumen users/{uid}
     const userPayload = {
       uid: firebaseUser.uid,
       email: firebaseUser.email,
@@ -209,153 +233,118 @@ export default function RegisterPage() {
   };
 
   return (
-    <main className="relative flex items-center justify-center min-h-screen bg-[#EBE9E4] px-4 py-12">
-      <div
-        className="hidden md:block absolute right-16 top-16 w-24 h-24 rounded-full border-2 border-[#111111]/10 pointer-events-none"
-        aria-hidden="true"
-      />
-      <div
-        className="hidden md:block absolute left-16 bottom-16 w-32 h-32 rounded-full border border-dashed border-[#111111]/10 pointer-events-none"
-        aria-hidden="true"
-      />
-
-      <Link
-        href="/"
-        title="Kembali ke Beranda"
-        className="absolute top-6 left-6 flex items-center justify-center w-10 h-10 rounded-[4px] text-[#111111] hover:bg-[#111111]/[0.06] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0000EE]"
-      >
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <path d="M19 12H5" />
-          <path d="m12 19-7-7 7-7" />
-        </svg>
-      </Link>
-
-      <div className="relative w-full max-w-md p-8 sm:p-10 space-y-6 bg-[#FFFFFF] rounded-[4px] shadow-2xl border border-[#111111]">
-        <div className="flex flex-col items-center gap-2">
+    <main
+      className={`${sansFont.variable} ${monoFont.variable} min-h-screen bg-[#FFFFFF] text-[#111111] flex flex-col justify-center items-center px-6 py-16 selection:bg-[#111111] selection:text-white font-sans antialiased`}
+      style={{ fontFamily: "var(--font-sans), sans-serif" }}
+    >
+      <div className="w-full max-w-[380px] space-y-8">
+        <div className="space-y-2 text-left">
           <Link
             href="/"
-            className="text-lg font-bold uppercase tracking-tight text-[#111111] hover:text-[#0000EE] transition-colors"
-            style={{ fontFamily: "var(--font-display, inherit)" }}
+            className="text-xs font-mono tracking-tight uppercase text-[#6B7280] hover:text-[#111111] transition-colors"
           >
-            SERTIGEN.
+            SertiGen
           </Link>
-          <h1
-            className="text-2xl sm:text-3xl font-bold text-center text-[#111111] uppercase tracking-tight"
-            style={{ fontFamily: "var(--font-display, inherit)" }}
-          >
-            Buat Akun Baru
+          <h1 className="text-3xl font-light tracking-[-1px] text-[#111111]">
+            Buat akun baru
           </h1>
-          <p className="text-xs text-[#555555] text-center font-mono">
-            Generator sertifikat on-demand & ramah multi-tenancy.
+          <p className="text-xs text-[#6B7280]">
+            Pilih jenis akun untuk mulai mengelola dokumen sertifikat.
           </p>
         </div>
 
-        {}
-        <div>
-          <label className="block text-[11px] font-mono font-semibold uppercase tracking-wide text-[#111111] mb-1.5">
+        {/* Tipe Penyelenggara */}
+        <div className="space-y-2">
+          <label className="block text-[11px] font-mono uppercase text-[#6B7280]">
             Tipe Penyelenggara
           </label>
-          <div className="grid grid-cols-2 gap-1 p-1 bg-[#F5F4F0] border border-[#111111]/20 rounded-[4px]">
+          <div className="grid grid-cols-2 gap-1 p-1 bg-[#F5F5F5] rounded-[4px] border border-[#E5E7EB]">
             <button
               type="button"
               onClick={() => setAccountType("personal")}
-              className={`py-2 text-xs font-mono font-bold uppercase rounded-[2px] transition-all flex items-center justify-center gap-1.5 ${
+              className={`py-1.5 text-xs font-mono uppercase rounded-[2px] transition-colors ${
                 accountType === "personal"
-                  ? "bg-[#111111] text-white shadow-xs"
-                  : "text-[#555555] hover:text-[#111111]"
+                  ? "bg-[#111111] text-white"
+                  : "text-[#6B7280] hover:text-[#111111]"
               }`}
             >
-              <span>👤</span>
-              <span>Perorangan</span>
+              Perorangan
             </button>
             <button
               type="button"
               onClick={() => setAccountType("organization")}
-              className={`py-2 text-xs font-mono font-bold uppercase rounded-[2px] transition-all flex items-center justify-center gap-1.5 ${
+              className={`py-1.5 text-xs font-mono uppercase rounded-[2px] transition-colors ${
                 accountType === "organization"
-                  ? "bg-[#111111] text-white shadow-xs"
-                  : "text-[#555555] hover:text-[#111111]"
+                  ? "bg-[#111111] text-white"
+                  : "text-[#6B7280] hover:text-[#111111]"
               }`}
             >
-              <span>🏢</span>
-              <span>Instansi / PT</span>
+              Instansi
             </button>
           </div>
-          <p className="text-[10px] font-mono text-[#777777] mt-1">
+          <p className="text-[11px] text-[#6B7280]">
             {accountType === "personal"
-              ? "Untuk mentor, tutor les, kreator kursus, atau panitia mandiri."
-              : "Untuk PT, CV, universitas, dinas lembaga, atau organisasi formal."}
+              ? "Untuk instruktur, pelatih les, atau panitia mandiri."
+              : "Untuk PT, CV, universitas, yayasan, atau organisasi formal."}
           </p>
         </div>
 
-        {}
         <button
           type="button"
           onClick={handleGoogleSignIn}
           disabled={isLoading}
-          className="w-full py-2.5 px-4 font-mono text-xs uppercase font-semibold text-[#111111] bg-white border border-[#111111]/30 hover:border-[#111111] rounded-[4px] hover:bg-[#F5F4F0] transition-colors flex items-center justify-center gap-2.5 shadow-xs disabled:opacity-50"
+          className="w-full py-2.5 px-4 text-xs font-mono uppercase rounded-[4px] border border-[#E5E7EB] bg-[#FFFFFF] text-[#111111] hover:bg-[#F5F5F5] transition-colors flex items-center justify-center gap-2.5 disabled:opacity-50"
         >
           <IconGoogle />
           <span>Daftar dengan Google</span>
         </button>
 
-        <div className="relative flex items-center py-0.5">
-          <div className="flex-grow border-t border-[#111111]/15" />
-          <span className="shrink mx-3 text-[#777777] text-[10px] font-mono uppercase tracking-wider">
-            atau lengkapi formulir
+        <div className="relative flex items-center">
+          <div className="flex-grow border-t border-[#E5E7EB]" />
+          <span className="shrink mx-3 text-[#6B7280] text-[10px] font-mono uppercase tracking-wider">
+            atau gunakan email
           </span>
-          <div className="flex-grow border-t border-[#111111]/15" />
+          <div className="flex-grow border-t border-[#E5E7EB]" />
         </div>
 
-        {}
         <form onSubmit={handleRegister} className="space-y-4">
           <div>
-            <label className="block text-[11px] font-mono font-semibold uppercase tracking-wide text-[#111111] mb-1">
-              Nama Lengkap Anda *
+            <label className="block text-[11px] font-mono uppercase text-[#6B7280] mb-1.5">
+              Nama Lengkap
             </label>
             <input
               type="text"
               required
-              placeholder="Contoh: Budi Santoso, S.Kom."
+              placeholder="Contoh: Budi Santoso"
               value={namaLengkap}
               onChange={(e) => setNamaLengkap(e.target.value)}
-              className="w-full px-3.5 py-2.5 text-xs text-[#111111] border border-[#111111]/25 bg-white rounded-[4px] focus:outline-none focus:ring-2 focus:ring-[#0000EE]/50 focus:border-[#0000EE] transition"
+              className="w-full px-3 py-2 text-xs text-[#111111] border border-[#E5E7EB] rounded-[4px] bg-[#FFFFFF] focus:outline-none focus:border-[#111111] transition-colors"
             />
           </div>
 
           <div>
-            <label className="block text-[11px] font-mono font-semibold uppercase tracking-wide text-[#111111] mb-1">
+            <label className="block text-[11px] font-mono uppercase text-[#6B7280] mb-1.5">
               {accountType === "organization"
-                ? "Nama Instansi / Perusahaan / PT *"
-                : "Nama Jenama / Komunitas / Studio (Opsional)"}
+                ? "Nama Lembaga / PT"
+                : "Nama Ruang Kerja (Opsional)"}
             </label>
             <input
               type="text"
               required={accountType === "organization"}
               placeholder={
                 accountType === "organization"
-                  ? "Contoh: PT Teknologi Bangsa Indonesia"
-                  : "Contoh: Budi Studio / Kursus Mandiri"
+                  ? "Contoh: PT Teknologi Bangsa"
+                  : "Contoh: Budi Studio"
               }
               value={namaOrganisasi}
               onChange={(e) => setNamaOrganisasi(e.target.value)}
-              className="w-full px-3.5 py-2.5 text-xs text-[#111111] border border-[#111111]/25 bg-white rounded-[4px] focus:outline-none focus:ring-2 focus:ring-[#0000EE]/50 focus:border-[#0000EE] transition"
+              className="w-full px-3 py-2 text-xs text-[#111111] border border-[#E5E7EB] rounded-[4px] bg-[#FFFFFF] focus:outline-none focus:border-[#111111] transition-colors"
             />
           </div>
 
           <div>
-            <label className="block text-[11px] font-mono font-semibold uppercase tracking-wide text-[#111111] mb-1">
-              Email *
+            <label className="block text-[11px] font-mono uppercase text-[#6B7280] mb-1.5">
+              Email
             </label>
             <input
               type="email"
@@ -363,13 +352,13 @@ export default function RegisterPage() {
               placeholder="nama@email.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="w-full px-3.5 py-2.5 text-xs font-mono text-[#111111] border border-[#111111]/25 bg-white rounded-[4px] focus:outline-none focus:ring-2 focus:ring-[#0000EE]/50 focus:border-[#0000EE] transition"
+              className="w-full px-3 py-2 text-xs font-mono text-[#111111] border border-[#E5E7EB] rounded-[4px] bg-[#FFFFFF] focus:outline-none focus:border-[#111111] transition-colors"
             />
           </div>
 
           <div>
-            <label className="block text-[11px] font-mono font-semibold uppercase tracking-wide text-[#111111] mb-1">
-              Password (Min. 6 Karakter) *
+            <label className="block text-[11px] font-mono uppercase text-[#6B7280] mb-1.5">
+              Password (Min. 6 Karakter)
             </label>
             <div className="relative">
               <input
@@ -378,12 +367,12 @@ export default function RegisterPage() {
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-3.5 py-2.5 text-xs text-[#111111] border border-[#111111]/25 bg-white rounded-[4px] focus:outline-none focus:ring-2 focus:ring-[#0000EE]/50 focus:border-[#0000EE] transition pr-10"
+                className="w-full px-3 py-2 text-xs text-[#111111] border border-[#E5E7EB] rounded-[4px] bg-[#FFFFFF] focus:outline-none focus:border-[#111111] transition-colors pr-9"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute inset-y-0 right-0 flex items-center px-3 text-[#111111]/50 hover:text-[#111111]"
+                className="absolute inset-y-0 right-0 flex items-center px-2.5 text-[#6B7280] hover:text-[#111111]"
               >
                 {showPassword ? <EyeSlashIcon /> : <EyeIcon />}
               </button>
@@ -391,31 +380,30 @@ export default function RegisterPage() {
           </div>
 
           {error && (
-            <p className="text-[#B3261E] text-xs font-semibold text-center font-mono bg-[#B3261E]/10 p-2.5 rounded border border-[#B3261E]/30">
+            <p className="text-[#D92D20] text-xs font-mono bg-[#F5F5F5] p-2.5 rounded-[4px] border border-[#E5E7EB]">
               [!] {error}
             </p>
           )}
 
-          {}
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-3 font-mono text-xs font-semibold uppercase tracking-wide text-white bg-[#111111] rounded-[4px] hover:bg-[#0000EE] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#0000EE] disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full py-2.5 text-xs font-mono uppercase text-white bg-[#111111] rounded-[4px] hover:bg-[#333333] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {isLoading ? (
               <>
-                <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                <span>Mempersiapkan Ruang Kerja...</span>
+                <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                <span>Mempersiapkan...</span>
               </>
             ) : (
-              <span>Daftar Sekarang →</span>
+              <span>Daftar Akun</span>
             )}
           </button>
         </form>
 
-        <p className="text-center text-xs text-[#555555] font-mono pt-2 border-t border-[#111111]/10">
+        <p className="text-center text-xs text-[#6B7280] font-mono pt-4 border-t border-[#E5E7EB]">
           Sudah punya akun?{" "}
-          <Link href="/login" className="font-semibold text-[#0000EE] hover:underline">
+          <Link href="/login" className="text-[#111111] hover:underline">
             Login di sini
           </Link>
         </p>

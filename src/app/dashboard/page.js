@@ -14,12 +14,20 @@ import {
   addDoc,
   deleteDoc,
   doc,
+  writeBatch,
   serverTimestamp,
 } from "firebase/firestore";
+import { createClient } from "@supabase/supabase-js";
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
+);
+const ASSET_BUCKET = "project-assets";
 
 const IconSparkles = (props) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456zM16.894 20.567L16.5 21.75l-.394-1.183a2.25 2.25 0 00-1.423-1.423L13.5 18.75l1.183-.394a2.25 2.25 0 001.423-1.423l.394-1.183.394 1.183a2.25 2.25 0 001.423 1.423l1.183.394-1.183.394a2.25 2.25 0 00-1.423 1.423z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.456 2.456L21.75 6l-1.035.259a3.375 3.375 0 00-2.456 2.456z" />
   </svg>
 );
 
@@ -60,6 +68,7 @@ export default function DashboardPage() {
     eventId: null,
     eventName: "",
     isDeleting: false,
+    deleteStatus: "",
   });
 
   const [statusMessage, setStatusMessage] = useState({ text: "", type: "" });
@@ -141,18 +150,118 @@ export default function DashboardPage() {
 
   const confirmDeleteEvent = async () => {
     const { eventId } = deleteDialog;
-    if (!eventId) return;
+    if (!eventId || !user) return;
 
-    setDeleteDialog((prev) => ({ ...prev, isDeleting: true }));
+    setDeleteDialog((prev) => ({
+      ...prev,
+      isDeleting: true,
+      deleteStatus: "Memeriksa aset acara...",
+    }));
+
     try {
+      const targetEvent = events.find((item) => item.id === eventId);
+
+      // 1. Bersihkan berkas aset di Supabase Storage
+      setDeleteDialog((prev) => ({
+        ...prev,
+        deleteStatus: "Membersihkan berkas di penyimpanan awan...",
+      }));
+
+      const filesToDelete = [];
+
+      // Catat path dari storageRefs jika terdata
+      if (targetEvent?.storageRefs?.templatePdf?.path) {
+        filesToDelete.push(targetEvent.storageRefs.templatePdf.path);
+      }
+      if (targetEvent?.storageRefs?.customFont?.path) {
+        filesToDelete.push(targetEvent.storageRefs.customFont.path);
+      }
+      if (Array.isArray(targetEvent?.storageRefs?.images)) {
+        targetEvent.storageRefs.images.forEach((img) => {
+          if (img?.path) filesToDelete.push(img.path);
+        });
+      }
+
+      // Pindai langsung direktori folder acara di bucket Supabase
+      try {
+        const folderPath = `${user.uid}/${eventId}`;
+        const { data: rootFolderFiles } = await supabase.storage
+          .from(ASSET_BUCKET)
+          .list(folderPath);
+
+        if (rootFolderFiles && rootFolderFiles.length > 0) {
+          rootFolderFiles.forEach((fileItem) => {
+            if (fileItem.name) {
+              filesToDelete.push(`${folderPath}/${fileItem.name}`);
+            }
+          });
+        }
+
+        const { data: imageFolderFiles } = await supabase.storage
+          .from(ASSET_BUCKET)
+          .list(`${folderPath}/images`);
+
+        if (imageFolderFiles && imageFolderFiles.length > 0) {
+          imageFolderFiles.forEach((fileItem) => {
+            if (fileItem.name) {
+              filesToDelete.push(`${folderPath}/images/${fileItem.name}`);
+            }
+          });
+        }
+      } catch (storageScanErr) {
+        console.warn("Pemeriksaan folder storage dilewati:", storageScanErr);
+      }
+
+      const uniqueFiles = Array.from(new Set(filesToDelete.filter(Boolean)));
+      if (uniqueFiles.length > 0) {
+        const { error: removeErr } = await supabase.storage
+          .from(ASSET_BUCKET)
+          .remove(uniqueFiles);
+        if (removeErr) {
+          console.warn("Peringatan penghapusan berkas Supabase:", removeErr.message);
+        }
+      }
+
+      // 2. Bersihkan seluruh subkoleksi peserta di Firestore dalam chunk batch
+      setDeleteDialog((prev) => ({
+        ...prev,
+        deleteStatus: "Menghapus seluruh data peserta...",
+      }));
+
+      const pesertaColRef = collection(db, `events/${eventId}/peserta`);
+      const pesertaSnap = await getDocs(pesertaColRef);
+
+      if (!pesertaSnap.empty) {
+        const participantDocs = pesertaSnap.docs;
+        for (let i = 0; i < participantDocs.length; i += 400) {
+          const batch = writeBatch(db);
+          const chunk = participantDocs.slice(i, i + 400);
+          chunk.forEach((docItem) => batch.delete(docItem.ref));
+          await batch.commit();
+        }
+      }
+
+      // 3. Hapus dokumen event utama
+      setDeleteDialog((prev) => ({
+        ...prev,
+        deleteStatus: "Menghapus dokumen acara...",
+      }));
+
       await deleteDoc(doc(db, "events", eventId));
+
       setEvents((prev) => prev.filter((item) => item.id !== eventId));
-      notify("Event berhasil dihapus dari sistem.", "success");
-      setDeleteDialog({ isOpen: false, eventId: null, eventName: "", isDeleting: false });
+      notify("Acara, seluruh data peserta, dan berkas aset berhasil dibersihkan.", "success");
+      setDeleteDialog({
+        isOpen: false,
+        eventId: null,
+        eventName: "",
+        isDeleting: false,
+        deleteStatus: "",
+      });
     } catch (err) {
-      console.error("Gagal menghapus event:", err);
+      console.error("Gagal menghapus event secara menyeluruh:", err);
       notify("Gagal menghapus event: " + err.message, "error");
-      setDeleteDialog((prev) => ({ ...prev, isDeleting: false }));
+      setDeleteDialog((prev) => ({ ...prev, isDeleting: false, deleteStatus: "" }));
     }
   };
 
@@ -223,7 +332,7 @@ export default function DashboardPage() {
         </div>
       </header>
 
-      {/* Konten Utama */}
+      {}
       <main className="max-w-[1200px] mx-auto px-6 pt-10 space-y-12">
         {/* Banner Selamat Datang & Quick Actions */}
         <div className="border border-[#E5E7EB] rounded-md p-8 bg-[#FFFFFF] flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -267,7 +376,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Seksi Daftar Event */}
+        {}
         <div className="space-y-6">
           <div className="flex items-center justify-between border-b border-[#E5E7EB] pb-4">
             <div className="flex items-center gap-3">
@@ -328,6 +437,7 @@ export default function DashboardPage() {
                             eventId: evt.id,
                             eventName: evt.namaEvent,
                             isDeleting: false,
+                            deleteStatus: "",
                           })
                         }
                         className="text-[#B0B6C3] hover:text-[#D92D20] transition-colors p-1"
@@ -382,7 +492,7 @@ export default function DashboardPage() {
         </div>
       </main>
 
-      {/* Modal Buat Event Baru */}
+      {}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
           <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-md max-w-sm w-full p-6 space-y-5">
@@ -441,20 +551,37 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* Modal Dialog Konfirmasi Hapus Event */}
+      {}
       {deleteDialog.isOpen && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
           <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-md max-w-sm w-full p-6 space-y-4">
-            <h3 className="text-sm font-normal text-[#D92D20]">Hapus Acara</h3>
+            <h3 className="text-sm font-normal text-[#D92D20]">Hapus Acara Secara Permanen</h3>
             <p className="text-xs text-[#6B7280] leading-relaxed font-light">
-              Apakah Anda yakin ingin menghapus event <strong className="text-[#111111]">"{deleteDialog.eventName}"</strong>? Seluruh data konfigurasi yang tersimpan akan dihapus secara permanen.
+              Apakah Anda yakin ingin menghapus event <strong className="text-[#111111]">"{deleteDialog.eventName}"</strong>?
+              Tindakan ini akan menghapus dokumen acara, seluruh data peserta, dan seluruh berkas template/aset di penyimpanan awan secara permanen.
             </p>
+
+            {deleteDialog.isDeleting && deleteDialog.deleteStatus && (
+              <div className="p-2.5 bg-[#F5F5F5] border border-[#E5E7EB] rounded-[4px] text-xs font-mono text-[#111111] flex items-center gap-2">
+                <div className="w-3.5 h-3.5 border-2 border-[#111111] border-t-transparent rounded-full animate-spin shrink-0" />
+                <span>{deleteDialog.deleteStatus}</span>
+              </div>
+            )}
+
             <div className="flex justify-end gap-2 pt-4 border-t border-[#E5E7EB]">
               <button
                 type="button"
-                onClick={() => setDeleteDialog({ isOpen: false, eventId: null, eventName: "", isDeleting: false })}
+                onClick={() =>
+                  setDeleteDialog({
+                    isOpen: false,
+                    eventId: null,
+                    eventName: "",
+                    isDeleting: false,
+                    deleteStatus: "",
+                  })
+                }
                 disabled={deleteDialog.isDeleting}
-                className="px-3.5 py-2 text-xs text-[#6B7280] hover:text-[#111111] hover:bg-[#F5F5F5] rounded-[4px] transition-colors"
+                className="px-3.5 py-2 text-xs text-[#6B7280] hover:text-[#111111] hover:bg-[#F5F5F5] rounded-[4px] transition-colors disabled:opacity-40"
               >
                 Batal
               </button>
@@ -462,9 +589,16 @@ export default function DashboardPage() {
                 type="button"
                 onClick={confirmDeleteEvent}
                 disabled={deleteDialog.isDeleting}
-                className="px-4 py-2 text-xs bg-[#D92D20] hover:bg-[#D92D20]/90 text-white rounded-[4px] transition-colors disabled:opacity-40"
+                className="px-4 py-2 text-xs bg-[#D92D20] hover:bg-[#D92D20]/90 text-white rounded-[4px] transition-colors disabled:opacity-40 flex items-center gap-1.5"
               >
-                {deleteDialog.isDeleting ? "Menghapus..." : "Hapus Event"}
+                {deleteDialog.isDeleting ? (
+                  <>
+                    <div className="w-3 h-3 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>Menghapus...</span>
+                  </>
+                ) : (
+                  "Hapus Event"
+                )}
               </button>
             </div>
           </div>

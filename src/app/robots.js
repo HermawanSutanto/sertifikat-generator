@@ -3,12 +3,16 @@
 import { MetadataRoute } from "next";
 
 export default function robots() {
+  const baseUrl = "https://cert.krovida.my.id";
+
   return {
-    rules: {
-      userAgent: "*", // Berlaku untuk semua robot
-      allow: "/", // Izinkan semua halaman di-crawl
-      disallow: "/dashboard/", // JANGAN izinkan halaman dashboard di-crawl
-    },
-    sitemap: "https://cert.krovida.my.id/sitemap.xml", // Ganti dengan URL domain Anda
+    rules: [
+      {
+        userAgent: "*",
+        allow: "/",
+        disallow: ["/dashboard/", "/api/"],
+      },
+    ],
+    sitemap: `${baseUrl}/sitemap.xml`,
   };
 }

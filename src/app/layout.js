@@ -1,62 +1,83 @@
 import { Archivo_Black, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
-import { AuthContextProvider } from "../context/AuthContext"; // <-- IMPORT
+import { AuthContextProvider } from "../context/AuthContext";
 
-// Font tema SertiGen: Archivo Black untuk judul/display, Inter untuk body,
-// JetBrains Mono untuk label/UI teknis. Disamakan dengan yang dipakai di
-// landing page (page.js) dan dashboard (dashboard/page.js) agar konsisten
-// di seluruh aplikasi (login, register, blog, dsb).
 const displayFont = Archivo_Black({
   subsets: ["latin"],
   weight: ["400"],
-  variable: "--font-display"
+  variable: "--font-display",
 });
 
 const bodyFont = Inter({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
-  variable: "--font-body"
+  variable: "--font-body",
 });
 
 const monoFont = JetBrains_Mono({
   subsets: ["latin"],
   weight: ["400", "500"],
-  variable: "--font-mono"
+  variable: "--font-mono",
 });
 
 export const metadata = {
-  title: "SertiGen: Generator Sertifikat Online Cepat & Mudah",
+  metadataBase: new URL("https://cert.krovida.my.id"),
+  title: "SertiGen — Generator Sertifikat Massal Otomatis dari Excel & CSV",
   description:
-    "Buat ribuan sertifikat personal secara otomatis. Cukup unggah template, masukkan daftar nama, dan unduh sertifikat berkualitas tinggi dalam hitungan menit.",
-  keywords:
-    "generator sertifikat, buat sertifikat online, aplikasi sertifikat, sertifikat massal, otomatisasi sertifikat, SertiGen",
+    "Cetak ratusan hingga ribuan sertifikat PDF berkualitas tinggi dalam hitungan detik. Cukup unggah template PDF dan daftar nama peserta dari CSV/Excel. Cepat, presisi, dan diproses langsung di browser.",
+  keywords: [
+    "generator sertifikat massal",
+    "aplikasi pembuat sertifikat otomatis",
+    "cetak sertifikat dari excel",
+    "mail merge sertifikat pdf",
+    "buat sertifikat online gratis",
+    "sertifikat webinar otomatis",
+    "SertiGen",
+  ],
+  authors: [{ name: "SertiGen Team" }],
+  creator: "SertiGen",
+  publisher: "SertiGen",
+  alternates: {
+    canonical: "/",
+  },
+  icons: {
+    icon: "/favicon.png",
+    shortcut: "/favicon.png",
+    apple: "/favicon.png",
+  },
   openGraph: {
-    title: "SertiGen: Generator Sertifikat Online Cepat & Mudah",
-    description: "Buat ribuan sertifikat personal secara otomatis dan cepat.",
-    url: "https://cert.krovida.my.id//", // Ganti dengan URL domain Anda
+    title: "SertiGen — Generator Sertifikat Massal Otomatis dari Excel & CSV",
+    description:
+      "Tinggalkan edit sertifikat manual satu per satu. Pasang template PDF, masukkan CSV peserta, dan unduh berkas PDF siap cetak beresolusi tinggi langsung dari browser.",
+    url: "https://cert.krovida.my.id",
     siteName: "SertiGen",
+    locale: "id_ID",
+    type: "website",
     images: [
       {
-        url: "/og-image.png", // Pastikan gambar ini ada di folder /public
+        url: "/og-image.png",
         width: 1200,
-        height: 630
-      }
+        height: 630,
+        alt: "Pratinjau Antarmuka SertiGen Studio",
+      },
     ],
-    icons: {
-    icon: '/favicon.png', // Mengarah ke public/favicon.png
-    },
-    locale: "id_ID",
-    type: "website"
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "SertiGen — Generator Sertifikat Massal Otomatis",
+    description:
+      "Otomatisasi pembuatan sertifikat massal bertenaga Rust WebAssembly. Cepat, aman, dan tanpa instalasi aplikasi berat.",
+    images: ["/og-image.png"],
   },
   robots: {
     index: true,
-    follow: true
-  }
+    follow: true,
+  },
 };
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en">
+    <html lang="id">
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link
@@ -65,11 +86,13 @@ export default function RootLayout({ children }) {
           crossOrigin="true"
         />
         <link
-          href="https://fonts.googleapis.com/css2?family=Roboto&family=Montserrat&family=Playfair+Display&family=Poppins&family=Lora&family=Pacifico&family=Caveat&display=swap"
-          rel="stylesheet"
+          href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;700&family=Montserrat:wght@400;600;700&family=Playfair+Display:ital,wght@0,600;0,700;1,400&family=Poppins:wght@400;600;700&family=Lora:ital,wght@0,600;1,400&family=Pacifico&family=Caveat:wght@600;700&display=swap"
+      rel="stylesheet"
         />
       </head>
-      <body className={`${displayFont.variable} ${bodyFont.variable} ${monoFont.variable} bg-[#EBE9E4] text-[#111111]`}>
+      <body
+        className={`${displayFont.variable} ${bodyFont.variable} ${monoFont.variable} bg-[#FFFFFF] text-[#111111] antialiased`}
+      >
         <AuthContextProvider>{children}</AuthContextProvider>
       </body>
     </html>
