@@ -985,7 +985,7 @@ export default function EventDetailPage() {
       <div className="min-h-screen bg-[#FFFFFF] flex flex-col items-center justify-center font-mono text-xs text-[#6B7280] space-y-3">
         <div className="w-5 h-5 border-2 border-[#111111] border-t-transparent rounded-full animate-spin" />
         <p>Memuat data acara dan daftar peserta...</p>
-        <span className="text-[11px] text-[#B0B6C3]">ID: {eventId || "..."}</span>
+        {/* <span className="text-[11px] text-[#B0B6C3]">ID: {eventId || "..."}</span> */}
       </div>
     );
   }
@@ -1023,6 +1023,19 @@ export default function EventDetailPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              const shareUrl = `${window.location.origin}/sertifikat/${eventId}`;
+              navigator.clipboard.writeText(shareUrl);
+              notify("Tautan pratinjau peserta berhasil disalin ke clipboard.", "success");
+            }}
+            className="px-3 py-1.5 border border-[#E5E7EB] hover:bg-[#F5F5F5] text-[#111111] text-xs font-mono uppercase rounded-[4px] transition-colors flex items-center gap-1.5"
+            title="Salin tautan publik agar peserta bisa melihat dan mengunduh sertifikatnya sendiri"
+          >
+            <span>Salin Link Peserta ↗</span>
+          </button>
+
           <Link
             href={`/dashboard/cetak-lokal?eventId=${eventId}`}
             className="px-3.5 py-1.5 bg-[#111111] hover:bg-[#333333] text-white text-xs font-mono uppercase rounded-[4px] transition-colors flex items-center gap-1.5"
@@ -1042,7 +1055,7 @@ export default function EventDetailPage() {
                 <span className="text-[10px] font-mono uppercase bg-[#F5F5F5] text-[#111111] px-2 py-0.5 rounded-[2px] border border-[#E5E7EB]">
                   {eventData?.tanggalEvent || "Tanpa Tanggal"}
                 </span>
-                <span className="text-[11px] font-mono text-[#6B7280]">ID: {eventId}</span>
+                {/* <span className="text-[11px] font-mono text-[#6B7280]">ID: {eventId}</span> */}
               </div>
 
               <h1 className="text-2xl sm:text-3xl font-light tracking-[-0.5px] text-[#111111] mt-3">
