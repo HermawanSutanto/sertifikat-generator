@@ -3539,7 +3539,7 @@ export default function CetakLokal() {
                       </>
                     ) : (
                       <>
-                        <IconType className="w-3.5 h-3.5" />
+                        {/* <IconType className="w-3.5 h-3.5" /> */}
                         <span>Pilih Berkas Font (.ttf / .otf)</span>
                       </>
                     )}
