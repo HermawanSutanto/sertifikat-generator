@@ -21,36 +21,13 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 
-const withTimeout = (promise, ms = 6000, errorMsg = "Koneksi ke Firestore mengalami kendala jaringan.") => {
+// Helper batas waktu agar permintaan ke Firestore tidak macet saat jaringan bermasalah
+const withTimeout = (promise, ms = 6000, errorMsg = "Koneksi ke Firestore timeout (jaringan terhambat).") => {
   return Promise.race([
     promise,
     new Promise((_, reject) => setTimeout(() => reject(new Error(errorMsg)), ms)),
   ]);
 };
-
-const IconArrowLeft = (props) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
-  </svg>
-);
-
-const IconEdit = (props) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125" />
-  </svg>
-);
-
-const IconPlus = (props) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4.5v15m7.5-7.5h-15" />
-  </svg>
-);
-
-const IconDownload = (props) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
-  </svg>
-);
 
 export default function EventDetailPage() {
   const { user, loading } = useAuth();
@@ -58,10 +35,12 @@ export default function EventDetailPage() {
   const params = useParams();
   const searchParams = useSearchParams();
 
+  // Deteksi fleksibel ID event dari parameter path atau URL query string
   const rawParamValue = params?.id || params?.eventId || (params ? Object.values(params)[0] : null);
   const queryParamValue = searchParams?.get("id") || searchParams?.get("eventId");
   const eventId = rawParamValue || queryParamValue;
 
+  // State Data Event & Peserta
   const [eventData, setEventData] = useState(null);
   const [participants, setParticipants] = useState([]);
   const [pageSizes, setPageSizes] = useState({ 1: { width: 842, height: 595 } });
@@ -69,22 +48,29 @@ export default function EventDetailPage() {
   const [loadError, setLoadError] = useState("");
   const [statusMessage, setStatusMessage] = useState({ text: "", type: "" });
 
+  // State Pilihan Checkbox Peserta
   const [selectedIds, setSelectedIds] = useState(new Set());
 
+  // State Modal Tambah Peserta Manual
   const [showAddModal, setShowAddModal] = useState(false);
   const [manualName, setManualName] = useState("");
   const [manualEmail, setManualEmail] = useState("");
   const [isAddingParticipant, setIsAddingParticipant] = useState(false);
 
+  // State Dialog Konfirmasi Hapus Dinamis (Mendukung mode satuan, batch terpilih, dan kosongkan semua)
   const [deleteDialog, setDeleteDialog] = useState({
     isOpen: false,
+    mode: "single", // "single" | "selected" | "all"
     participantId: null,
     participantName: "",
+    isDeleting: false,
   });
 
+  // State Pemrosesan Render Wasm Sisi Klien
   const [isRendering, setIsRendering] = useState(false);
   const [renderProgress, setRenderProgress] = useState(null);
 
+  // Referensi DOM Elemen
   const csvInputRef = useRef(null);
   const previewCanvasRef = useRef(null);
 
@@ -105,7 +91,7 @@ export default function EventDetailPage() {
     if (!user || !eventId) {
       if (!loading && (!user || !eventId)) {
         setIsLoading(false);
-        setLoadError("ID Event tidak terdeteksi pada URL.");
+        setLoadError("ID Event tidak terdeteksi di URL.");
       }
       return;
     }
@@ -114,12 +100,13 @@ export default function EventDetailPage() {
     setLoadError("");
 
     try {
+      // 1. Ambil data dokumen event utama
       const eventDocRef = doc(db, "events", eventId);
       let eventSnap;
       try {
         eventSnap = await withTimeout(getDoc(eventDocRef), 6000);
       } catch (timeoutErr) {
-        console.warn("Firestore fetch timeout, mencoba cache lokal...", timeoutErr.message);
+        console.warn("Fetch Firestore timeout, beralih ke cache lokal...", timeoutErr.message);
         try {
           eventSnap = await getDocFromCache(eventDocRef);
         } catch {
@@ -129,7 +116,7 @@ export default function EventDetailPage() {
 
       if (!eventSnap || !eventSnap.exists()) {
         notify("Event tidak ditemukan atau telah dihapus.", "error");
-        setLoadError("Dokumen event tidak ditemukan dalam database.");
+        setLoadError("Dokumen event tidak ditemukan di database.");
         setIsLoading(false);
         return;
       }
@@ -145,6 +132,7 @@ export default function EventDetailPage() {
 
       setEventData(eventPayload);
 
+      // 2. Ambil ukuran dimensi halaman template PDF jika tersedia
       if (eventPayload.storageRefs?.templatePdf?.url) {
         try {
           const res = await fetch(eventPayload.storageRefs.templatePdf.url);
@@ -163,6 +151,7 @@ export default function EventDetailPage() {
         }
       }
 
+      // 3. Ambil data peserta dari subkoleksi event
       try {
         const pesertaColRef = collection(db, `events/${eventId}/peserta`);
         const pesertaSnap = await withTimeout(getDocs(pesertaColRef), 5000);
@@ -176,7 +165,7 @@ export default function EventDetailPage() {
         setParticipants(list);
         setSelectedIds(new Set());
       } catch (subErr) {
-        console.warn("Subkoleksi peserta kosong:", subErr.message);
+        console.warn("Subkoleksi peserta kosong atau gagal dibaca:", subErr.message);
         setParticipants([]);
       }
     } catch (err) {
@@ -312,6 +301,11 @@ export default function EventDetailPage() {
           const colRef = collection(db, `events/${eventId}/peserta`);
           const currentCount = participants.length;
 
+          // Deteksi dinamis nama kolom pertama dan kolom email
+          const fields = results.meta?.fields || (rows[0] ? Object.keys(rows[0]) : []);
+          const firstCol = fields[0] || "Nama";
+          const emailCol = fields.find((f) => /email|e-mail|surel|mail/i.test(f)) || "Email";
+
           for (let i = 0; i < rows.length; i += 400) {
             const batch = writeBatch(db);
             const chunk = rows.slice(i, i + 400);
@@ -319,13 +313,15 @@ export default function EventDetailPage() {
             chunk.forEach((row, chunkIdx) => {
               const globalIdx = currentCount + i + chunkIdx + 1;
               const newDocRef = doc(colRef);
-              const nama = row.Nama || row.nama || row.NAME || `Peserta ${globalIdx}`;
-              const email = row.Email || row.email || "";
+
+              // Ambil kolom pertama secara langsung sebagai identitas nama
+              const rawName = row[firstCol] || row.Nama || row.nama || row.NAME || `Peserta ${globalIdx}`;
+              const rawEmail = row[emailCol] || row.Email || row.email || "";
 
               batch.set(newDocRef, {
                 nomorUrut: globalIdx,
-                nama: String(nama).trim(),
-                email: String(email).trim(),
+                nama: String(rawName).trim(),
+                email: String(rawEmail).trim(),
                 attributes: row,
                 diunduh: false,
                 dibuatPada: serverTimestamp(),
@@ -335,12 +331,13 @@ export default function EventDetailPage() {
             await batch.commit();
           }
 
+          // Sinkronisasi totalPeserta ke dokumen induk
           await updateDoc(doc(db, "events", eventId), {
             totalPeserta: currentCount + rows.length,
             diperbaruiPada: serverTimestamp(),
           });
 
-          notify(`Berhasil mengimpor ${rows.length} data peserta.`, "success");
+          notify(`Berhasil mengimpor ${rows.length} peserta.`, "success");
           await fetchEventAndParticipants();
         } catch (err) {
           console.error("Gagal impor CSV:", err);
@@ -384,7 +381,7 @@ export default function EventDetailPage() {
       setManualName("");
       setManualEmail("");
       setShowAddModal(false);
-      notify("Peserta baru berhasil ditambahkan.", "success");
+      notify("Peserta berhasil ditambahkan.", "success");
       await fetchEventAndParticipants();
     } catch (err) {
       console.error("Gagal menambah peserta:", err);
@@ -394,10 +391,11 @@ export default function EventDetailPage() {
     }
   };
 
-  const confirmDeleteParticipant = async () => {
+  const confirmDeleteSingleParticipant = async () => {
     const { participantId } = deleteDialog;
     if (!participantId) return;
 
+    setDeleteDialog((prev) => ({ ...prev, isDeleting: true }));
     try {
       await deleteDoc(doc(db, `events/${eventId}/peserta`, participantId));
       await updateDoc(doc(db, "events", eventId), {
@@ -412,10 +410,86 @@ export default function EventDetailPage() {
         return next;
       });
       notify("Peserta berhasil dihapus.", "success");
+      setDeleteDialog({ isOpen: false, mode: "single", participantId: null, participantName: "", isDeleting: false });
     } catch (err) {
-      notify("Gagal menghapus data peserta: " + err.message, "error");
-    } finally {
-      setDeleteDialog({ isOpen: false, participantId: null, participantName: "" });
+      notify("Gagal menghapus peserta: " + err.message, "error");
+      setDeleteDialog((prev) => ({ ...prev, isDeleting: false }));
+    }
+  };
+
+  const confirmDeleteSelectedParticipants = async () => {
+    if (!eventId || selectedIds.size === 0) return;
+
+    setDeleteDialog((prev) => ({ ...prev, isDeleting: true }));
+    try {
+      notify(`Menghapus ${selectedIds.size} peserta terpilih...`, "info");
+      const idsToDelete = Array.from(selectedIds);
+
+      for (let i = 0; i < idsToDelete.length; i += 400) {
+        const batch = writeBatch(db);
+        const chunk = idsToDelete.slice(i, i + 400);
+        chunk.forEach((id) => {
+          batch.delete(doc(db, `events/${eventId}/peserta`, id));
+        });
+        await batch.commit();
+      }
+
+      const count = idsToDelete.length;
+      await updateDoc(doc(db, "events", eventId), {
+        totalPeserta: increment(-count),
+        diperbaruiPada: serverTimestamp(),
+      });
+
+      setParticipants((prev) => prev.filter((p) => !selectedIds.has(p.id)));
+      setSelectedIds(new Set());
+      notify(`Berhasil menghapus ${count} peserta.`, "success");
+      setDeleteDialog({ isOpen: false, mode: "single", participantId: null, participantName: "", isDeleting: false });
+    } catch (err) {
+      console.error("Gagal menghapus peserta terpilih:", err);
+      notify("Gagal menghapus data: " + err.message, "error");
+      setDeleteDialog((prev) => ({ ...prev, isDeleting: false }));
+    }
+  };
+
+  const confirmDeleteAllParticipants = async () => {
+    if (!eventId) return;
+
+    setDeleteDialog((prev) => ({ ...prev, isDeleting: true }));
+    try {
+      notify("Mengosongkan seluruh data peserta event...", "info");
+      const colRef = collection(db, `events/${eventId}/peserta`);
+      const snap = await getDocs(colRef);
+      const docs = snap.docs;
+
+      for (let i = 0; i < docs.length; i += 400) {
+        const batch = writeBatch(db);
+        docs.slice(i, i + 400).forEach((d) => batch.delete(d.ref));
+        await batch.commit();
+      }
+
+      await updateDoc(doc(db, "events", eventId), {
+        totalPeserta: 0,
+        diperbaruiPada: serverTimestamp(),
+      });
+
+      setParticipants([]);
+      setSelectedIds(new Set());
+      notify("Seluruh data peserta berhasil dibersihkan. Siap mengunggah CSV baru.", "success");
+      setDeleteDialog({ isOpen: false, mode: "single", participantId: null, participantName: "", isDeleting: false });
+    } catch (err) {
+      console.error("Gagal mengosongkan peserta:", err);
+      notify("Gagal mengosongkan data: " + err.message, "error");
+      setDeleteDialog((prev) => ({ ...prev, isDeleting: false }));
+    }
+  };
+
+  const handleConfirmDelete = () => {
+    if (deleteDialog.mode === "all") {
+      confirmDeleteAllParticipants();
+    } else if (deleteDialog.mode === "selected") {
+      confirmDeleteSelectedParticipants();
+    } else {
+      confirmDeleteSingleParticipant();
     }
   };
 
@@ -500,7 +574,7 @@ export default function EventDetailPage() {
 
   const handleDownloadSingle = async (peserta) => {
     if (!eventData?.storageRefs?.templatePdf?.url) {
-      notify("Template PDF belum diunggah. Klik 'Edit Desain' untuk mengatur template.", "error");
+      notify("Template PDF belum diunggah. Silakan klik 'Edit Desain' untuk mengatur template.", "error");
       return;
     }
 
@@ -508,7 +582,7 @@ export default function EventDetailPage() {
       notify(`Merender sertifikat ${peserta.nama}...`, "info");
 
       const templateRes = await fetch(eventData.storageRefs.templatePdf.url);
-      if (!templateRes.ok) throw new Error("Gagal mengambil file template PDF.");
+      if (!templateRes.ok) throw new Error("Gagal mengambil file template PDF dari storage.");
       const templateRawBuffer = await templateRes.arrayBuffer();
       const templateUint8 = await bakeImagesIntoPdf(templateRawBuffer, eventData.configs);
 
@@ -549,7 +623,7 @@ export default function EventDetailPage() {
       document.body.removeChild(anchor);
       URL.revokeObjectURL(downloadUrl);
 
-      notify(`Sertifikat ${peserta.nama} siap diunduh.`, "success");
+      notify(`Sertifikat ${peserta.nama} siap diunduh!`, "success");
     } catch (err) {
       console.error("Gagal render sertifikat satuan:", err);
       notify("Gagal merender sertifikat: " + err.message, "error");
@@ -569,7 +643,7 @@ export default function EventDetailPage() {
     setRenderProgress({ current: 0, total: selectedList.length });
 
     try {
-      notify(`Menyiapkan pemrosesan batch ${selectedList.length} peserta...`, "info");
+      notify(`Mempersiapkan batch untuk ${selectedList.length} peserta...`, "info");
 
       const templateRes = await fetch(eventData.storageRefs.templatePdf.url);
       const templateRawBuffer = await templateRes.arrayBuffer();
@@ -583,7 +657,7 @@ export default function EventDetailPage() {
             fontBytes = new Uint8Array(await fontRes.arrayBuffer());
           }
         } catch (fontErr) {
-          console.warn("Gagal memuat font kustom:", fontErr);
+          console.warn("Gagal memuat custom font:", fontErr);
         }
       }
 
@@ -646,27 +720,27 @@ export default function EventDetailPage() {
 
   if (loadError) {
     return (
-      <div className="min-h-screen bg-[#FFFFFF] flex items-center justify-center p-6">
-        <div className="max-w-md w-full border border-[#D92D20] rounded-md p-6 text-center space-y-4">
-          <span className="text-xs font-mono uppercase text-[#D92D20]">
-            Peringatan Akses
-          </span>
-          <h2 className="text-lg font-light text-[#111111]">Kendala Memuat Data Event</h2>
-          <p className="text-xs font-mono text-[#6B7280] bg-[#F5F5F5] p-3 rounded-[4px] text-left break-words">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-white border border-red-300 rounded p-6 shadow-sm text-center space-y-4">
+          <div className="w-12 h-12 mx-auto bg-red-50 text-red-600 rounded-full flex items-center justify-center font-bold text-xl">
+            !
+          </div>
+          <h2 className="text-base font-bold text-gray-900">Kendala Memuat Event</h2>
+          <p className="text-xs font-mono text-gray-600 bg-gray-100 p-3 rounded text-left break-words">
             {loadError}
           </p>
           <div className="flex gap-2 justify-center pt-2">
             <button
               onClick={() => fetchEventAndParticipants()}
-              className="bg-[#111111] hover:bg-[#333333] text-white text-xs px-4 py-2 rounded-[4px] transition-colors"
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2 rounded transition"
             >
-              Coba Muat Ulang
+              🔄 Coba Muat Ulang
             </button>
             <Link
-              href="/dashboard"
-              className="border border-[#E5E7EB] hover:bg-[#F5F5F5] text-[#111111] text-xs px-4 py-2 rounded-[4px] transition-colors"
+              href="/dashboard/events"
+              className="border border-gray-300 hover:bg-gray-50 text-gray-700 text-xs font-semibold px-4 py-2 rounded transition"
             >
-              Kembali ke Dashboard
+              Kembali ke Daftar Event
             </Link>
           </div>
         </div>
@@ -676,92 +750,87 @@ export default function EventDetailPage() {
 
   if (loading || isLoading || !user) {
     return (
-      <div className="min-h-screen bg-[#FFFFFF] flex flex-col items-center justify-center font-mono text-xs text-[#6B7280] space-y-3">
-        <div className="w-5 h-5 border-2 border-[#111111] border-t-transparent rounded-full animate-spin" />
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center font-mono text-xs text-gray-600 space-y-3">
+        <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
         <p>Menghubungkan ke database event dan peserta...</p>
-        <span className="text-[11px] text-[#B0B6C3]">ID: {eventId || "..."}</span>
+        <span className="text-[11px] text-gray-400">ID: {eventId || "..."}</span>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[#FFFFFF] text-[#111111] font-sans antialiased pb-20">
+    <div className="min-h-screen bg-gray-50 text-gray-900 font-sans pb-12">
       {statusMessage.text && (
         <div
-          className={`fixed top-4 right-4 z-50 px-4 py-2.5 rounded-[4px] border text-xs font-mono transition-all ${
+          className={`fixed top-4 right-4 z-50 px-4 py-2.5 rounded shadow-lg text-xs font-mono border ${
             statusMessage.type === "error"
-              ? "bg-[#FFFFFF] text-[#D92D20] border-[#D92D20]"
+              ? "bg-red-500 text-white border-red-600"
               : statusMessage.type === "success"
-              ? "bg-[#111111] text-[#FFFFFF] border-[#111111]"
-              : "bg-[#FFFFFF] text-[#111111] border-[#E5E7EB]"
+              ? "bg-emerald-600 text-white border-emerald-700"
+              : "bg-gray-800 text-white border-gray-900"
           }`}
         >
           {statusMessage.text}
         </div>
       )}
 
-      {/* Header Navigasi Minimalis */}
-      <header className="sticky top-0 z-30 bg-[#FFFFFF]/90 border-b border-[#E5E7EB] backdrop-blur-md px-6 h-16 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link
-            href="/dashboard"
-            className="text-base font-medium tracking-tight text-[#111111] hover:text-[#6B7280] transition-colors"
-          >
-            SertiGen
+      {/* Header Navigasi */}
+      <header className="border-b bg-white px-6 py-4 flex items-center justify-between sticky top-0 z-30">
+        <div className="flex items-center gap-2 text-sm">
+          <Link href="/dashboard" className="text-gray-500 hover:text-black">
+            Dashboard
           </Link>
-          <span className="text-[#B0B6C3]">/</span>
-          <span className="text-xs font-mono text-[#6B7280] uppercase tracking-wider truncate max-w-xs">
-            {eventData?.namaEvent || "Detail Acara"}
+          <span className="text-gray-300">/</span>
+          <span className="font-bold text-gray-900 truncate max-w-xs">
+            {eventData?.namaEvent || "Detail"}
           </span>
         </div>
 
         <Link
           href={`/dashboard/cetak-lokal?eventId=${eventId}`}
-          className="bg-[#111111] hover:bg-[#333333] text-white text-xs px-3.5 py-2 rounded-[4px] flex items-center gap-2 transition-colors"
+          className="bg-gray-900 hover:bg-black text-white text-xs font-semibold px-4 py-2 rounded flex items-center gap-1.5 transition"
         >
-          <IconEdit className="w-3.5 h-3.5" />
-          <span>Buka Studio Desain</span>
+          <span>✏️ Edit Desain di Studio</span>
         </Link>
       </header>
 
-      {/* Konten Utama Detail Acara */}
-      <main className="max-w-[1200px] mx-auto px-6 pt-10 space-y-8">
-        {/* Ringkasan Acara & Pratinjau Kanvas */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-8 border border-[#E5E7EB] rounded-md p-6 bg-[#FFFFFF] flex flex-col justify-between space-y-6">
+      {/* Konten Utama */}
+      <main className="max-w-6xl mx-auto p-6 space-y-6">
+        {/* Ringkasan Acara & Pratinjau */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="md:col-span-2 bg-white border rounded p-6 flex flex-col justify-between space-y-4">
             <div>
               <div className="flex items-center justify-between">
-                <span className="text-[10px] font-mono uppercase bg-[#F5F5F5] text-[#6B7280] px-2 py-0.5 rounded-[2px]">
-                  Event Terdaftar
+                <span className="text-[11px] font-mono uppercase bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded">
+                  Event Aktif
                 </span>
-                <span className="text-xs font-mono text-[#B0B6C3]">ID: {eventId}</span>
+                <span className="text-xs font-mono text-gray-400">ID: {eventId}</span>
               </div>
 
-              <h1 className="text-3xl font-light tracking-[-1px] text-[#111111] mt-3">
-                {eventData?.namaEvent}
-              </h1>
-              <p className="text-xs font-mono text-[#6B7280] mt-1.5 font-light">
-                Tanggal Pelaksanaan: {eventData?.tanggalEvent || "Tanpa tanggal"} | Format Penamaan:{" "}
-                <code className="bg-[#F5F5F5] px-1.5 py-0.5 rounded text-[#111111]">
+              <h1 className="text-2xl font-bold mt-2">{eventData?.namaEvent}</h1>
+              <p className="text-xs font-mono text-gray-500 mt-1">
+                Tanggal: <strong>{eventData?.tanggalEvent || "Belum ditentukan"}</strong> | Pola berkas:{" "}
+                <code className="bg-gray-100 px-1.5 py-0.5 rounded text-gray-800">
                   {eventData?.filenamePattern || "sertifikat_{Nama}_{index}"}
                 </code>
               </p>
 
-              <div className="mt-6 pt-4 border-t border-[#E5E7EB] text-xs font-mono text-[#6B7280] space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <span>Elemen Dikonfigurasi:</span>
-                  <span className="text-[#111111] font-medium">{eventData?.configs?.length || 0} elemen</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Template PDF:</span>
-                  <span className={eventData?.storageRefs?.templatePdf?.url ? "text-[#111111] font-medium" : "text-[#6B7280]"}>
-                    {eventData?.storageRefs?.templatePdf?.url ? "Tersimpan di Cloud" : "Belum diatur"}
-                  </span>
-                </div>
+              <div className="mt-4 text-xs text-gray-600 space-y-1">
+                <p>
+                  • Tata Letak:{" "}
+                  <strong>{eventData?.configs?.length || 0} elemen teks/gambar dikonfigurasi</strong>
+                </p>
+                <p>
+                  • Template PDF:{" "}
+                  <strong>
+                    {eventData?.storageRefs?.templatePdf?.url ? "Tersimpan di Cloud" : "Belum diunggah"}
+                  </strong>
+                </p>
               </div>
             </div>
 
-            <div className="pt-4 border-t border-[#E5E7EB] flex flex-wrap items-center gap-2">
+            {/* Tombol Aksi Impor, Tambah, Kosongkan, dan Studio */}
+            <div className="pt-4 border-t flex flex-wrap items-center gap-2">
               <input
                 type="file"
                 ref={csvInputRef}
@@ -771,107 +840,139 @@ export default function EventDetailPage() {
               />
               <button
                 onClick={() => csvInputRef.current?.click()}
-                className="bg-[#111111] hover:bg-[#333333] text-white text-xs px-4 py-2 rounded-[4px] transition-colors flex items-center gap-1.5"
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2 rounded transition"
               >
-                <IconDownload className="w-3.5 h-3.5" />
-                <span>Impor CSV Peserta</span>
+                📥 Impor Peserta (.csv)
               </button>
 
               <button
                 onClick={() => setShowAddModal(true)}
-                className="border border-[#E5E7EB] hover:bg-[#F5F5F5] text-[#111111] text-xs px-3.5 py-2 rounded-[4px] transition-colors flex items-center gap-1.5"
+                className="border border-gray-300 hover:bg-gray-50 text-gray-700 text-xs font-semibold px-3 py-2 rounded transition"
               >
-                <IconPlus className="w-3.5 h-3.5" />
-                <span>Tambah Manual</span>
+                + Tambah Manual
               </button>
+
+              {participants.length > 0 && (
+                <button
+                  onClick={() =>
+                    setDeleteDialog({
+                      isOpen: true,
+                      mode: "all",
+                      participantId: null,
+                      participantName: "",
+                      isDeleting: false,
+                    })
+                  }
+                  className="border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold px-3 py-2 rounded transition"
+                  title="Hapus semua peserta agar bisa impor CSV baru dari awal"
+                >
+                  🗑️ Kosongkan Data
+                </button>
+              )}
 
               <Link
                 href={`/dashboard/cetak-lokal?eventId=${eventId}`}
-                className="border border-[#E5E7EB] hover:bg-[#F5F5F5] text-[#111111] text-xs px-3.5 py-2 rounded-[4px] transition-colors ml-auto"
+                className="border border-gray-300 hover:bg-gray-50 text-gray-700 text-xs font-semibold px-3 py-2 rounded transition ml-auto"
               >
-                Ubah Tata Letak
+                Buka Canvas Studio →
               </Link>
             </div>
           </div>
 
-          <div className="lg:col-span-4 border border-[#E5E7EB] rounded-md p-5 bg-[#FFFFFF] flex flex-col items-center justify-center text-center">
-            <span className="text-xs font-mono uppercase text-[#6B7280] mb-3">
+          {/* Kotak Pratinjau Template */}
+          <div className="bg-white border rounded p-4 flex flex-col items-center justify-center text-center">
+            <span className="text-xs font-mono text-gray-500 mb-2 font-bold uppercase">
               Pratinjau Desain
             </span>
 
             {eventData?.storageRefs?.templatePdf?.url ? (
-              <div className="border border-[#E5E7EB] rounded-[4px] overflow-hidden max-h-52 flex items-center justify-center bg-[#F5F5F5]">
+              <div className="border border-gray-200 shadow-sm rounded overflow-hidden max-h-48 flex items-center justify-center bg-gray-50">
                 <canvas ref={previewCanvasRef} className="max-w-full h-auto" />
               </div>
             ) : (
-              <div className="border border-dashed border-[#E5E7EB] rounded-[4px] p-8 w-full text-center space-y-2">
-                <p className="text-xs text-[#6B7280] font-light">Template belum diatur ke cloud.</p>
+              <div className="border border-dashed border-gray-300 rounded p-6 w-full text-center space-y-2">
+                <p className="text-xs text-gray-500">Template belum dimuat ke cloud.</p>
                 <Link
                   href={`/dashboard/cetak-lokal?eventId=${eventId}`}
-                  className="text-xs text-[#111111] underline underline-offset-2 block"
+                  className="text-xs font-bold text-blue-600 hover:underline block"
                 >
-                  Buka Studio Desain
+                  Unggah & Desain di Studio →
                 </Link>
               </div>
             )}
           </div>
         </div>
 
-        {/* Tabel Data Peserta */}
-        <div className="border border-[#E5E7EB] rounded-md overflow-hidden bg-[#FFFFFF]">
-          <div className="p-4 border-b border-[#E5E7EB] flex flex-wrap items-center justify-between gap-3 bg-[#FFFFFF]">
+        {}
+        <div className="bg-white border rounded overflow-hidden shadow-sm">
+          <div className="p-4 border-b flex flex-wrap items-center justify-between gap-3 bg-gray-50">
             <div className="flex items-center gap-3">
-              <h2 className="text-sm font-normal text-[#111111]">
-                Daftar Peserta
-              </h2>
-              <span className="text-[11px] font-mono bg-[#F5F5F5] text-[#6B7280] px-2 py-0.5 rounded-[2px]">
-                {participants.length}
-              </span>
+              <h2 className="font-bold text-sm">Daftar Peserta ({participants.length})</h2>
               {selectedIds.size > 0 && (
-                <span className="text-xs font-mono text-[#111111] font-medium">
-                  ({selectedIds.size} dipilih)
+                <span className="text-xs font-mono bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded">
+                  {selectedIds.size} dipilih
                 </span>
               )}
             </div>
 
-            {selectedIds.size > 0 && (
-              <button
-                onClick={handleDownloadSelectedBatch}
-                disabled={isRendering}
-                className="bg-[#111111] hover:bg-[#333333] text-white text-xs px-3.5 py-1.5 rounded-[4px] flex items-center gap-2 transition-colors disabled:opacity-50"
-              >
-                {isRendering ? (
-                  <span>
-                    Merender ({renderProgress?.current || 0}/{renderProgress?.total || 0})...
-                  </span>
-                ) : (
-                  <span>Unduh Terpilih ({selectedIds.size}) ke ZIP</span>
-                )}
-              </button>
-            )}
+            <div className="flex items-center gap-2">
+              {selectedIds.size > 0 && (
+                <>
+                  <button
+                    onClick={() =>
+                      setDeleteDialog({
+                        isOpen: true,
+                        mode: "selected",
+                        participantId: null,
+                        participantName: "",
+                        isDeleting: false,
+                      })
+                    }
+                    className="border border-red-300 hover:bg-red-50 text-red-600 text-xs font-semibold px-3 py-2 rounded transition"
+                  >
+                    Hapus Terpilih ({selectedIds.size})
+                  </button>
+
+                  <button
+                    onClick={handleDownloadSelectedBatch}
+                    disabled={isRendering}
+                    className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2 rounded flex items-center gap-2 transition disabled:opacity-50"
+                  >
+                    {isRendering ? (
+                      <span>
+                        Merender ({renderProgress?.current || 0}/{renderProgress?.total || 0})...
+                      </span>
+                    ) : (
+                      <span>📦 Unduh Terpilih ({selectedIds.size}) ke ZIP</span>
+                    )}
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
+          {}
           {participants.length === 0 ? (
-            <div className="p-16 text-center text-xs font-mono text-[#6B7280] space-y-2">
-              <p>Belum ada data peserta yang terdaftar untuk acara ini.</p>
+            <div className="p-12 text-center text-sm text-gray-500 space-y-2">
+              <p>Belum ada data peserta untuk event ini.</p>
               <button
                 onClick={() => csvInputRef.current?.click()}
-                className="text-[#111111] underline underline-offset-2"
+                className="text-xs font-bold text-blue-600 hover:underline"
               >
-                Unggah berkas CSV sekarang
+                Klik di sini untuk mengimpor berkas CSV
               </button>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead>
-                  <tr className="border-b border-[#E5E7EB] bg-[#F5F5F5] text-[#6B7280] font-mono text-[11px]">
+                  <tr className="border-b bg-gray-100 text-gray-600 font-mono">
                     <th className="p-3 w-10 text-center">
                       <input
                         type="checkbox"
                         checked={selectedIds.size === participants.length && participants.length > 0}
                         onChange={toggleSelectAll}
-                        className="cursor-pointer accent-[#111111]"
+                        className="cursor-pointer"
                       />
                     </th>
                     <th className="p-3 w-12 text-center">No</th>
@@ -880,38 +981,40 @@ export default function EventDetailPage() {
                     <th className="p-3 text-right">Aksi</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#E5E7EB]">
+                <tbody className="divide-y">
                   {participants.map((p, idx) => (
-                    <tr key={p.id} className="hover:bg-[#F5F5F5]/60 transition-colors">
+                    <tr key={p.id} className="hover:bg-gray-50 transition">
                       <td className="p-3 text-center">
                         <input
                           type="checkbox"
                           checked={selectedIds.has(p.id)}
                           onChange={() => toggleSelectOne(p.id)}
-                          className="cursor-pointer accent-[#111111]"
+                          className="cursor-pointer"
                         />
                       </td>
-                      <td className="p-3 text-center font-mono text-[#B0B6C3]">
+                      <td className="p-3 text-center font-mono text-gray-400">
                         {p.nomorUrut || idx + 1}
                       </td>
-                      <td className="p-3 font-normal text-[#111111]">{p.nama}</td>
-                      <td className="p-3 text-[#6B7280] font-mono">{p.email || "-"}</td>
+                      <td className="p-3 font-semibold text-gray-900">{p.nama}</td>
+                      <td className="p-3 text-gray-500 font-mono">{p.email || "-"}</td>
                       <td className="p-3 text-right space-x-2">
                         <button
                           onClick={() => handleDownloadSingle(p)}
-                          className="px-2.5 py-1 bg-white border border-[#E5E7EB] hover:bg-[#F5F5F5] text-[#111111] rounded-[2px] transition-colors text-[11px]"
+                          className="px-2.5 py-1 bg-white border border-gray-300 hover:bg-gray-100 text-gray-800 rounded font-semibold transition"
                         >
-                          Unduh
+                          Unduh ZIP
                         </button>
                         <button
                           onClick={() =>
                             setDeleteDialog({
                               isOpen: true,
+                              mode: "single",
                               participantId: p.id,
                               participantName: p.nama,
+                              isDeleting: false,
                             })
                           }
-                          className="px-2.5 py-1 text-[#D92D20] hover:bg-red-50 rounded-[2px] transition-colors text-[11px]"
+                          className="px-2 py-1 text-red-600 hover:bg-red-50 rounded transition"
                         >
                           Hapus
                         </button>
@@ -925,20 +1028,14 @@ export default function EventDetailPage() {
         </div>
       </main>
 
-      {/* Modal Tambah Peserta Manual */}
+      {}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
-          <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-md max-w-sm w-full p-6 space-y-4">
-            <div className="border-b border-[#E5E7EB] pb-2">
-              <h3 className="text-sm font-normal text-[#111111]">Tambah Peserta Manual</h3>
-              <p className="text-xs text-[#6B7280] font-mono mt-0.5">
-                Masukkan detail nama dan email penerima sertifikat.
-              </p>
-            </div>
-
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded max-w-sm w-full p-5 space-y-4 shadow-xl">
+            <h3 className="font-bold text-sm">Tambah Peserta Manual</h3>
             <form onSubmit={handleAddManualParticipant} className="space-y-3">
               <div>
-                <label className="block text-xs font-mono uppercase text-[#6B7280] mb-1">
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
                   Nama Lengkap
                 </label>
                 <input
@@ -947,35 +1044,35 @@ export default function EventDetailPage() {
                   placeholder="Contoh: Budi Santoso"
                   value={manualName}
                   onChange={(e) => setManualName(e.target.value)}
-                  className="w-full text-xs border border-[#E5E7EB] rounded-[4px] p-2.5 outline-none focus:border-[#111111] transition-colors"
+                  className="w-full text-xs border rounded p-2 outline-none focus:border-blue-500"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-mono uppercase text-[#6B7280] mb-1">
-                  Alamat Email (Opsional)
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Email (Opsional)
                 </label>
                 <input
                   type="email"
                   placeholder="budi@example.com"
                   value={manualEmail}
                   onChange={(e) => setManualEmail(e.target.value)}
-                  className="w-full text-xs font-mono border border-[#E5E7EB] rounded-[4px] p-2.5 outline-none focus:border-[#111111] transition-colors"
+                  className="w-full text-xs border rounded p-2 outline-none focus:border-blue-500"
                 />
               </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-[#E5E7EB]">
+              <div className="flex justify-end gap-2 pt-3 border-t">
                 <button
                   type="button"
                   onClick={() => setShowAddModal(false)}
-                  className="px-3.5 py-1.5 text-xs text-[#6B7280] hover:text-[#111111] hover:bg-[#F5F5F5] rounded-[4px] transition-colors"
+                  className="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 rounded"
                 >
                   Batal
                 </button>
                 <button
                   type="submit"
                   disabled={isAddingParticipant}
-                  className="px-4 py-1.5 text-xs bg-[#111111] hover:bg-[#333333] text-white rounded-[4px] transition-colors disabled:opacity-40"
+                  className="px-4 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded disabled:opacity-50"
                 >
                   {isAddingParticipant ? "Menyimpan..." : "Simpan Peserta"}
                 </button>
@@ -985,28 +1082,67 @@ export default function EventDetailPage() {
         </div>
       )}
 
-      {/* Modal Dialog Konfirmasi Hapus Peserta */}
+      {}
       {deleteDialog.isOpen && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
-          <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-md max-w-sm w-full p-6 space-y-3">
-            <h3 className="text-sm font-normal text-[#D92D20]">Hapus Peserta</h3>
-            <p className="text-xs text-[#6B7280] leading-relaxed font-light">
-              Apakah Anda yakin ingin menghapus peserta <strong className="text-[#111111]">"{deleteDialog.participantName}"</strong>? Data yang dihapus tidak dapat dipulihkan kembali.
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded max-w-sm w-full p-5 space-y-3 shadow-xl">
+            <h3 className="font-bold text-sm text-red-600">
+              {deleteDialog.mode === "all"
+                ? "Kosongkan Seluruh Peserta?"
+                : deleteDialog.mode === "selected"
+                ? `Hapus ${selectedIds.size} Peserta Terpilih?`
+                : "Hapus Peserta?"}
+            </h3>
+
+            <p className="text-xs text-gray-600 leading-relaxed">
+              {deleteDialog.mode === "all" ? (
+                <>
+                  Apakah Anda yakin ingin menghapus seluruh{" "}
+                  <strong>{participants.length} data peserta</strong> dari event ini? Seluruh data
+                  pada database akan dibersihkan agar Anda dapat mengimpor kembali berkas CSV baru.
+                </>
+              ) : deleteDialog.mode === "selected" ? (
+                <>
+                  Apakah Anda yakin ingin menghapus <strong>{selectedIds.size} peserta</strong> yang
+                  dipilih? Data yang dihapus tidak dapat dipulihkan.
+                </>
+              ) : (
+                <>
+                  Apakah Anda yakin ingin menghapus peserta{" "}
+                  <strong>{deleteDialog.participantName}</strong>? Data yang dihapus tidak dapat
+                  dikembalikan.
+                </>
+              )}
             </p>
-            <div className="flex justify-end gap-2 pt-3 border-t border-[#E5E7EB]">
+
+            <div className="flex justify-end gap-2 pt-3 border-t">
               <button
                 type="button"
-                onClick={() => setDeleteDialog({ isOpen: false, participantId: null, participantName: "" })}
-                className="px-3.5 py-1.5 text-xs text-[#6B7280] hover:text-[#111111] hover:bg-[#F5F5F5] rounded-[4px] transition-colors"
+                disabled={deleteDialog.isDeleting}
+                onClick={() =>
+                  setDeleteDialog({
+                    isOpen: false,
+                    mode: "single",
+                    participantId: null,
+                    participantName: "",
+                    isDeleting: false,
+                  })
+                }
+                className="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 rounded disabled:opacity-50"
               >
                 Batal
               </button>
               <button
                 type="button"
-                onClick={confirmDeleteParticipant}
-                className="px-4 py-1.5 text-xs bg-[#D92D20] hover:bg-[#D92D20]/90 text-white rounded-[4px] transition-colors"
+                disabled={deleteDialog.isDeleting}
+                onClick={handleConfirmDelete}
+                className="px-4 py-1.5 text-xs bg-red-600 hover:bg-red-700 text-white font-semibold rounded disabled:opacity-50"
               >
-                Hapus
+                {deleteDialog.isDeleting
+                  ? "Menghapus..."
+                  : deleteDialog.mode === "all"
+                  ? "Ya, Kosongkan Data"
+                  : "Hapus"}
               </button>
             </div>
           </div>
