@@ -1,10 +1,12 @@
-import { Archivo_Black, Inter, JetBrains_Mono } from "next/font/google";
+import { Plus_Jakarta_Sans, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthContextProvider } from "../context/AuthContext";
 
-const displayFont = Archivo_Black({
+// Menggantikan Archivo_Black dengan Plus_Jakarta_Sans agar tampilan judul
+// modern, berlekuk luwes, proporsional, dan tidak kaku/kotak-kotak.
+const displayFont = Plus_Jakarta_Sans({
   subsets: ["latin"],
-  weight: ["400"],
+  weight: ["500", "600", "700", "800"],
   variable: "--font-display",
 });
 
@@ -53,14 +55,14 @@ export const metadata = {
     siteName: "SertiGen",
     locale: "id_ID",
     type: "website",
-    // Propery 'images' dihapus, Next.js otomatis menyisipkan opengraph-image.png
+    // Property 'images' otomatis disisipkan Next.js lewat opengraph-image.png
   },
   twitter: {
     card: "summary_large_image",
     title: "SertiGen — Generator Sertifikat Massal Otomatis",
     description:
       "Otomatisasi pembuatan sertifikat massal bertenaga Rust WebAssembly. Cepat, aman, dan tanpa instalasi aplikasi berat.",
-    // Property 'images' dihapus
+    // Property 'images' otomatis disisipkan Next.js lewat twitter-image.png
   },
   robots: {
     index: true,
