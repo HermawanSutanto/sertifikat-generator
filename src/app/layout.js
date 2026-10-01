@@ -16,9 +16,9 @@ const bodyFont = Inter({
   variable: "--font-body",
 });
 
-const monoFont = JetBrains_Mono({
+const monoFont =  Inter({
   subsets: ["latin"],
-  weight: ["400", "500"],
+  weight: ["400", "500", "600", "700"],
   variable: "--font-mono",
 });
 
