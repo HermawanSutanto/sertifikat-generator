@@ -1023,6 +1023,19 @@ export default function EventDetailPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              const shareUrl = `${window.location.origin}/sertifikat/${eventId}`;
+              navigator.clipboard.writeText(shareUrl);
+              notify("Tautan pratinjau peserta berhasil disalin ke clipboard.", "success");
+            }}
+            className="px-3 py-1.5 border border-[#E5E7EB] hover:bg-[#F5F5F5] text-[#111111] text-xs font-mono uppercase rounded-[4px] transition-colors flex items-center gap-1.5"
+            title="Salin tautan publik agar peserta bisa melihat dan mengunduh sertifikatnya sendiri"
+          >
+            <span>Salin Link Peserta ↗</span>
+          </button>
+
           <Link
             href={`/dashboard/cetak-lokal?eventId=${eventId}`}
             className="px-3.5 py-1.5 bg-[#111111] hover:bg-[#333333] text-white text-xs font-mono uppercase rounded-[4px] transition-colors flex items-center gap-1.5"
