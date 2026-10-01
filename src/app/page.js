@@ -391,7 +391,7 @@ export default function LandingPage() {
               </h1>
 
               <p className="mt-6 text-base sm:text-lg text-[#6B7280] font-light max-w-xl leading-relaxed">
-                Capek salin nama satu demi satu di Canva atau pusing karena tata letak Mail Merge Word sering bergeser? Cukup upload template PDF, masukkan file CSV dari Excel, dan biarkan browser kamu merender ratusan sertifikat siap cetak seketika.
+                Capek salin nama satu demi satu di Canva atau pusing karena tata letak Mail Merge Word sering bergeser? Cukup upload template PDF, masukkan file CSV dari Excel, dan biarkan browser kamu merender ratusan sertifikat siap cetak dalam waktu yang singkat.
               </p>
 
               {/* Primary Trial CTA button (Eksklusif hanya di Hero) */}
