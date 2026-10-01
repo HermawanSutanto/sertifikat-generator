@@ -12,6 +12,7 @@ import {
   Download,
   FileSpreadsheet,
   Folder,
+  HelpCircle,
   Menu,
   MousePointer,
   Pause,
@@ -40,24 +41,36 @@ const sansFont = Inter({
 
 const faqs = [
   {
-    q: "Apakah SertiGen benar-benar bisa dicoba gratis?",
-    a: "Ya! Anda bisa langsung mencoba membuat sertifikat secara massal tanpa perlu mendaftar akun terlebih dahulu pada mode uji coba (Trial). Mode uji coba ini bebas watermark hingga 50 lembar pertama.",
+    q: "Berapa biaya langganan SertiGen dan apa saja paket yang tersedia?",
+    a: "SertiGen saat ini 100% GRATIS (Rp 0). Tersedia Mode Trial (tanpa login, bebas watermark hingga 50 lembar pertama per sesi) dan Akun Cloud Gratis (diberikan 1 akses penyimpanan event aktif di cloud, bebas watermark tanpa batas kuota peserta per acara, penyimpanan template permanen, serta portal unduh mandiri untuk peserta). Anda dapat menghapus atau mengganti event tersebut kapan saja untuk mengadakan acara baru. Selain itu, Paket Premium (Coming Soon / Segera Hadir) sedang dipersiapkan untuk pengguna yang membutuhkan pengelolaan multi-event aktif simultan tanpa batas, custom branding, dan integrasi webhook otomatis.",
+  },
+  {
+    q: "Bagaimana kebijakan pembatalan akun dan pengembalian dana (Refund Policy)?",
+    a: "Karena SertiGen beroperasi dengan model akses gratis (Rp 0) tanpa biaya langganan berulang otomatis (no recurring fees), pengguna dapat berhenti menggunakan layanan atau menghapus akun beserta data acaranya sewaktu-waktu dari dashboard tanpa penalti, denda, atau potongan finansial apa pun. Saat acara dihapus, seluruh database peserta dan aset berkas di penyimpanan awan akan dibersihkan secara permanen. Jika di masa depan tersedia add-on berbayar prioritas, garansi pengembalian dana 7 hari kerja berlaku apabila terjadi kendala teknis sistem.",
+  },
+  {
+    q: "Apakah SertiGen menyediakan API publik atau integrasi pihak ketiga?",
+    a: "Saat ini SertiGen beroperasi secara mandiri di sisi peramban klien (client-side) dan belum membuka Public REST API terbuka. Untuk integrasi data, SertiGen mendukung penuh seluruh berkas CSV hasil ekspor dari Microsoft Excel, Google Sheets, LibreOffice Calc, dan Notion Database. Integrasi otomatis via webhook formulir (Google Forms, Typeform, Zapier) dan plugin LMS sedang dalam peta jalan (roadmap) pembaruan berikutnya.",
+  },
+  {
+    q: "Apakah SertiGen benar-benar bisa dicoba gratis tanpa daftar?",
+    a: "Ya! Anda bisa langsung mencoba membuat sertifikat secara massal tanpa perlu mendaftar akun terlebih dahulu pada mode uji coba (Trial). Mode uji coba ini bebas watermark hingga 50 lembar pertama dan diproses murni di memori browser lokal Anda.",
   },
   {
     q: "Format file apa saja yang didukung untuk template dan data?",
-    a: "Template utama menggunakan format dokumen PDF, sementara daftar nama peserta diimpor menggunakan file CSV (yang bisa Anda simpan langsung dari Microsoft Excel atau Google Sheets).",
+    a: "Template utama menggunakan format dokumen PDF (A4 Landscape atau Portrait), sementara daftar nama peserta diimpor menggunakan file CSV (tabel berpemisah koma atau titik koma yang bisa diekspor dari Microsoft Excel, Google Sheets, atau aplikasi spreadsheet lainnya).",
   },
   {
     q: "Bagaimana cara memasukkan ratusan nama peserta sekaligus?",
-    a: "Cukup simpan tabel daftar nama dari Excel ke format CSV, lalu unggah ke SertiGen. Sistem akan otomatis mencocokkan kolom nama baris demi baris tanpa perlu copy-paste manual satu per satu.",
+    a: "Cukup simpan tabel daftar nama dari Excel ke format CSV, lalu unggah ke SertiGen. Sistem akan otomatis mendeteksi kolom nama baris demi baris tanpa perlu copy-paste manual satu per satu ke lembar desain.",
   },
   {
-    q: "Apakah data nama dan file saya aman di server?",
-    a: "Sangat aman. Pada mode Trial dan Studio Mandiri, seluruh proses penyusunan dokumen berjalan murni di dalam memori komputer Anda sendiri dan tidak dikirim ke server luar.",
+    q: "Apakah data nama dan file saya aman dari pihak ketiga?",
+    a: "Sangat aman. Pada mode Trial dan Studio Mandiri, seluruh proses penggabungan dokumen berjalan murni di dalam memori komputer Anda (WebAssembly) dan tidak ada transmisi data nama atau email peserta ke server pihak ketiga.",
   },
   {
     q: "Bisakah saya mengatur posisi, jenis huruf, dan warna teks?",
-    a: "Tentu. Anda memiliki kendali penuh untuk menggeser letak teks langsung di kanvas, mengatur ukuran font, perataan, warna tinta, hingga menggunakan font kustom sendiri.",
+    a: "Tentu. Anda memiliki kendali penuh untuk menggeser letak teks langsung di kanvas, mengatur garis bantu magnetik (smart snap), pergeseran mikro per 1 titik (keyboard nudge), ukuran font, perataan, warna tinta, hingga menggunakan koleksi font bawaan atau mengunggah font kustom sendiri (.ttf/.otf).",
   },
 ];
 
@@ -78,9 +91,9 @@ const technicalSpecs = [
     desc: "Dibutuhkan untuk merender arsip ZIP massal 1.000+ lembar dokumen",
   },
   {
-    label: "Dukungan Perangkat",
-    value: "Laptop / Komputer (Windows, macOS, Linux)",
-    desc: "Paling nyaman menggunakan mouse & keyboard untuk atur posisi kanvas",
+    label: "Dukungan Integrasi Data",
+    value: "CSV dari Excel, Google Sheets, Notion",
+    desc: "Kompatibel dengan seluruh aplikasi spreadsheet standar",
   },
   {
     label: "Format Input & Output",
@@ -88,9 +101,9 @@ const technicalSpecs = [
     desc: "Menghasilkan file PDF terpisah per peserta dalam satu folder ZIP",
   },
   {
-    label: "Penyimpanan Sesi",
-    value: "IndexedDB Auto-Recovery",
-    desc: "Sesi kerja otomatis tersimpan aman di browser jika tak sengaja tertutup",
+    label: "Biaya Layanan & Pembatalan",
+    value: "Rp 0 (Bebas Batalkan Kapan Saja)",
+    desc: "Tanpa langganan berulang, penghapusan akun instan tanpa penalti",
   },
 ];
 
@@ -261,13 +274,16 @@ export default function LandingPage() {
         name: "SertiGen",
         applicationCategory: "BusinessApplication",
         operatingSystem: "Web Browser",
+        url: "https://cert.krovida.my.id",
         offers: {
           "@type": "Offer",
           price: "0",
           priceCurrency: "IDR",
+          availability: "https://schema.org/InStock",
+          description: "Akses gratis selamanya untuk Mode Trial dan Akun Cloud (1 event aktif tersimpan di cloud) tanpa biaya langganan berulang.",
         },
         description:
-          "Cara gampang cetak ratusan sertifikat otomatis dari file CSV dan template PDF langsung di browser.",
+          "Platform pembuat sertifikat massal otomatis dari file CSV/Excel dan template PDF bertenaga Rust WebAssembly. Cepat, aman, dan tanpa biaya langganan.",
       },
       {
         "@type": "FAQPage",
@@ -294,18 +310,17 @@ export default function LandingPage() {
       />
       <style>{`@keyframes stepProgressFill { from { width: 0%; } to { width: 100%; } }`}</style>
 
-      {}
       {/* Top Utility Bar */}
       <div className="border-b border-[#E5E7EB] bg-[#F9FAFB] text-[#6B7280] text-[11px] sm:text-xs py-2 px-4 sm:px-6">
         <div className="max-w-[1320px] mx-auto flex flex-col sm:flex-row justify-between items-center gap-1 sm:gap-4 font-normal">
           <div className="flex items-center gap-2">
             <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-            <span className="truncate">Pemrosesan lokal aktif di komputer/HP Anda</span>
+            <span className="truncate">Pemrosesan lokal aktif di browser • Tanpa biaya langganan</span>
           </div>
           <div className="hidden sm:flex items-center gap-3 text-[#6B7280]">
-            <span>Hasil PDF Tajam</span>
+            <span>Mendukung Excel / CSV</span>
             <span className="text-[#D1D5DB]">/</span>
-            <span>Tanpa Antrean Server</span>
+            <span>Bebas Batal Kapan Saja</span>
           </div>
         </div>
       </div>
@@ -333,13 +348,13 @@ export default function LandingPage() {
               Fitur Kanvas
             </a>
             <a href="#perbandingan" className="hover:text-[#111111] transition-colors">
-              Paket & Batasan
+              Paket & Harga
             </a>
             <a href="#optimizer" className="hover:text-[#111111] transition-colors">
               Kompresi
             </a>
             <a href="#faq" className="hover:text-[#111111] transition-colors">
-              FAQ
+              FAQ & Kebijakan
             </a>
           </nav>
 
@@ -391,7 +406,7 @@ export default function LandingPage() {
                 onClick={() => setMobileMenuOpen(false)}
                 className="p-2.5 rounded-md hover:bg-[#F3F4F6] transition-colors"
               >
-                Paket
+                Paket & Harga
               </a>
               <a
                 href="#optimizer"
@@ -416,7 +431,7 @@ export default function LandingPage() {
                 className="w-full text-center bg-[#111111] text-white py-2.5 px-4 rounded-md text-xs font-semibold uppercase tracking-wider flex items-center justify-center gap-2"
               >
                 <Zap className="size-3.5 text-amber-400" />
-                <span>Coba Trial Langsung</span>
+                <span>Coba Trial Langsung (Gratis)</span>
               </Link>
             </div>
           </div>
@@ -424,12 +439,16 @@ export default function LandingPage() {
       </header>
 
       <main id="main-content">
-        {}
         {/* HERO SECTION */}
         <section className="pt-10 sm:pt-16 pb-16 sm:pb-20 px-4 sm:px-6 md:px-12 border-b border-[#E5E7EB]">
           <div className="max-w-[1320px] mx-auto grid lg:grid-cols-12 gap-10 lg:gap-12 items-start">
             <div className="lg:col-span-7 flex flex-col pt-1">
-              
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#F3F4F6] border border-[#E5E7EB] w-fit mb-4 sm:mb-5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                <span className="text-[11px] sm:text-xs font-medium text-[#4B5563]">
+                  100% Gratis • Bebas Watermark • Tanpa Langganan
+                </span>
+              </div>
 
               <h1
                 className="text-3xl sm:text-4xl md:text-5xl lg:text-[52px] font-bold leading-[1.14] tracking-[-0.8px] sm:tracking-[-1.2px] text-[#111111]"
@@ -439,7 +458,7 @@ export default function LandingPage() {
               </h1>
 
               <p className="mt-4 sm:mt-6 text-sm sm:text-base md:text-lg text-[#6B7280] font-normal max-w-xl leading-relaxed">
-                Capek salin nama satu demi satu di Canva atau pusing karena tata letak Mail Merge Word sering bergeser? Cukup upload template PDF, masukkan file CSV dari Excel, dan biarkan browser Anda merender ratusan sertifikat siap cetak seketika.
+                Capek salin nama satu demi satu di Canva atau pusing karena tata letak Mail Merge Word sering bergeser? Cukup upload template PDF, masukkan file CSV dari Excel atau Google Sheets, dan biarkan browser Anda merender ratusan sertifikat siap cetak seketika.
               </p>
 
               {/* Action Buttons */}
@@ -449,7 +468,7 @@ export default function LandingPage() {
                   className="inline-flex items-center justify-center gap-2 bg-[#111111] text-white px-5 py-3 rounded-md text-xs font-semibold uppercase tracking-wider hover:bg-[#333333] transition-colors"
                 >
                   <Zap className="size-3.5 text-amber-400" />
-                  Coba Trial Tanpa Login
+                  Coba Trial Tanpa Login (Rp 0)
                   <ArrowRight className="size-3.5" />
                 </Link>
 
@@ -457,14 +476,16 @@ export default function LandingPage() {
                   href="/register"
                   className="inline-flex items-center justify-center px-4 py-3 rounded-md border border-[#E5E7EB] bg-transparent text-[#111111] text-xs font-semibold uppercase tracking-wider hover:bg-[#F9FAFB] transition-colors"
                 >
-                  Daftar Akun Cloud
+                  Daftar Akun Cloud Gratis
                 </Link>
               </div>
 
               <div className="mt-4 flex flex-wrap items-center gap-2 text-[11px] sm:text-xs text-[#6B7280] font-normal">
                 <span>✓ Bebas watermark hingga 50 lembar pada mode trial</span>
                 <span className="text-[#D1D5DB] hidden sm:inline">•</span>
-                <span>✓ Diproses langsung di komputer Anda</span>
+                <span>✓ Tanpa kartu kredit / biaya tersembunyi</span>
+                <span className="text-[#D1D5DB] hidden sm:inline">•</span>
+                <span>✓ Diproses lokal di memori perangkat</span>
               </div>
 
               {/* Value Metrics Grid */}
@@ -474,12 +495,12 @@ export default function LandingPage() {
                   <div className="text-[11px] sm:text-xs text-[#6B7280] mt-0.5">Teks nama jernih dicetak</div>
                 </div>
                 <div>
-                  <div className="text-sm sm:text-base font-semibold text-[#111111]" style={{ fontFamily: "var(--font-heading), sans-serif" }}>Latar Belakang</div>
-                  <div className="text-[11px] sm:text-xs text-[#6B7280] mt-0.5">Kompresi kualitas pas</div>
+                  <div className="text-sm sm:text-base font-semibold text-[#111111]" style={{ fontFamily: "var(--font-heading), sans-serif" }}>Biaya Layanan</div>
+                  <div className="text-[11px] sm:text-xs text-emerald-700 font-semibold mt-0.5">Rp 0 (Selamanya)</div>
                 </div>
                 <div>
-                  <div className="text-sm sm:text-base font-semibold text-[#111111]" style={{ fontFamily: "var(--font-heading), sans-serif" }}>Data Aman</div>
-                  <div className="text-[11px] sm:text-xs text-[#6B7280] mt-0.5">File aman di perangkat</div>
+                  <div className="text-sm sm:text-base font-semibold text-[#111111]" style={{ fontFamily: "var(--font-heading), sans-serif" }}>Privasi Aman</div>
+                  <div className="text-[11px] sm:text-xs text-[#6B7280] mt-0.5">Data aman di browser</div>
                 </div>
               </div>
             </div>
@@ -495,13 +516,12 @@ export default function LandingPage() {
                 </div>
 
                 <div className="relative aspect-[16/10] overflow-hidden border border-[#E5E7EB] rounded-md bg-[#F9FAFB]">
-                  {/* Background Template Asli (Image Asset) */}
+                  {/* Background Template Asli */}
                   <img
                     src="/background.webp"
                     alt="Background Template Sertifikat"
                     className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none z-0"
                     onError={(e) => {
-                      // Fallback jika belum diconvert ke webp, coba .png atau sembunyikan jika file belum ada
                       if (!e.currentTarget.src.endsWith(".png")) {
                         e.currentTarget.src = "/templates/template_01_preview.png";
                       } else {
@@ -658,7 +678,6 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {}
         {/* HOW IT WORKS SECTION */}
         <section id="cara-kerja" className="py-16 sm:py-20 px-4 sm:px-6 md:px-12 border-b border-[#E5E7EB] bg-[#FAFAFA]">
           <div className="max-w-[1320px] mx-auto">
@@ -673,15 +692,15 @@ export default function LandingPage() {
                 Cara buat ratusan sertifikat dalam 3 langkah.
               </h2>
               <p className="mt-2 text-xs sm:text-sm text-[#6B7280] font-normal">
-                Tidak perlu pusing ngoding atau edit satu-satu. Sistem langsung menyusun semuanya.
+                Tidak perlu pusing ngoding atau edit satu-satu. Sistem langsung menyusun semuanya dari data tabel Anda.
               </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
               {[
-                { step: "01", title: "Upload Template PDF", desc: "Masukkan file desain sertifikat Anda dalam format PDF." },
-                { step: "02", title: "Masukkan Daftar CSV", desc: "Upload file CSV berisi nama-nama peserta dari Excel atau Google Sheets." },
-                { step: "03", title: "Download ZIP", desc: "Browser otomatis menyusun ratusan file PDF siap cetak dalam satu folder ZIP." },
+                { step: "01", title: "Upload Template PDF", desc: "Masukkan file desain sertifikat Anda dalam format PDF standar." },
+                { step: "02", title: "Masukkan Daftar CSV", desc: "Upload file CSV berisi nama-nama peserta dari Excel, Google Sheets, atau Notion." },
+                { step: "03", title: "Download ZIP", desc: "Browser otomatis menyusun ratusan file PDF siap cetak dalam satu folder arsip ZIP." },
               ].map((step) => (
                 <div
                   key={step.step}
@@ -711,7 +730,6 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {}
         {/* STUDIO CANVAS SECTION */}
         <section id="studio" className="py-16 sm:py-20 px-4 sm:px-6 md:px-12 border-b border-[#E5E7EB]">
           <div className="max-w-[1320px] mx-auto">
@@ -957,7 +975,6 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {}
         {/* TARGET AUDIENCES SECTION */}
         <section className="py-16 sm:py-20 px-4 sm:px-6 md:px-12 border-b border-[#E5E7EB] bg-[#FAFAFA]">
           <div className="max-w-[1320px] mx-auto">
@@ -996,49 +1013,121 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {/* PLAN COMPARISON SECTION */}
+        {/* PLAN COMPARISON & PRICING SECTION (AI-SEO OPTIMIZED) */}
         <section id="perbandingan" className="py-16 sm:py-20 px-4 sm:px-6 md:px-12 border-b border-[#E5E7EB] bg-[#FFFFFF]">
           <div className="max-w-[1320px] mx-auto">
             <div className="mb-8 sm:mb-10 text-center max-w-xl mx-auto">
               <span className="text-xs font-semibold uppercase tracking-wider text-[#6B7280] block mb-1.5 sm:mb-2">
-                Pilihan Penggunaan
+                Struktur Harga & Paket
               </span>
               <h2
                 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#111111]"
                 style={{ fontFamily: "var(--font-heading), sans-serif" }}
               >
-                Pilih cara yang paling pas buat Anda.
+                Transparan tanpa biaya tersembunyi.
               </h2>
               <p className="mt-2 text-xs sm:text-sm text-[#6B7280] font-normal">
-                Coba langsung tanpa daftar untuk kebutuhan kilat, atau buat akun gratis untuk menyimpan template dan data acara secara permanen.
+                SertiGen beroperasi dengan model akses gratis (Rp 0). Pilih mode instan tanpa daftar atau akun cloud gratis untuk pengelolaan jangka panjang.
               </p>
             </div>
 
-            <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-lg overflow-hidden max-w-3xl mx-auto shadow-xs">
+            {}
+            <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-lg overflow-hidden max-w-4xl mx-auto shadow-xs">
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs min-w-[520px]">
+                <table className="w-full text-left border-collapse text-xs min-w-[720px]">
                   <thead>
                     <tr className="border-b border-[#E5E7EB] bg-[#FAFAFA] text-xs font-semibold uppercase text-[#6B7280]">
-                      <th className="p-3 sm:p-3.5 font-semibold">Fitur & Kapasitas</th>
-                      <th className="p-3 sm:p-3.5 font-semibold w-44 sm:w-48">Mode Trial (Tanpa Daftar)</th>
+                      <th className="p-3 sm:p-3.5 font-semibold">Fitur & Spesifikasi</th>
+                      <th className="p-3 sm:p-3.5 font-semibold w-36 sm:w-40">Mode Trial (Tamu)</th>
                       <th className="p-3 sm:p-3.5 font-semibold w-44 sm:w-48 text-[#111111] bg-black/5">Akun Cloud Gratis</th>
+                      <th className="p-3 sm:p-3.5 font-semibold w-44 sm:w-48 text-[#111111] bg-amber-500/10">
+                        <div className="flex items-center gap-1.5">
+                          <span>Premium</span>
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-500 text-white font-bold tracking-wider">
+                            COMING SOON
+                          </span>
+                        </div>
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#E5E7EB]">
                     {[
-                      { feature: "Cara Akses", trial: "Tanpa Daftar (Instan)", cloud: "Akun Cloud Gratis" },
-                      { feature: "Batas Bebas Watermark", trial: "Hingga 50 Sertifikat / Sesi", cloud: "Tanpa Batas" },
-                      { feature: "Penyimpanan Draf", trial: "Lokal di Komputer", cloud: "Disimpan di Cloud" },
-                      { feature: "Pengelolaan Data", trial: "Sekali Pakai", cloud: "Database & Riwayat Acara" },
+                      {
+                        feature: "Biaya Layanan (Harga)",
+                        trial: "Rp 0 (Gratis)",
+                        cloud: "Rp 0 (Gratis Selamanya)",
+                        premium: "Segera Diumumkan",
+                      },
+                      {
+                        feature: "Kapasitas Event Tersimpan",
+                        trial: "1 Sesi Sementara di Browser",
+                        cloud: "1 Event Aktif di Cloud (Bebas Ganti/Hapus)",
+                        premium: "Multi-Event Tanpa Batas (Unlimited)",
+                      },
+                      {
+                        feature: "Kewajiban Login",
+                        trial: "Tanpa Daftar (Instan)",
+                        cloud: "Daftar Akun / Google",
+                        premium: "Akun Terverifikasi",
+                      },
+                      {
+                        feature: "Batas Bebas Watermark",
+                        trial: "Hingga 50 Sertifikat / Sesi",
+                        cloud: "Tanpa Batas (Unlimited per Event)",
+                        premium: "Tanpa Batas (Unlimited)",
+                      },
+                      {
+                        feature: "Penyimpanan Template & Draf",
+                        trial: "Sementara di Browser (IndexedDB)",
+                        cloud: "Penyimpanan Cloud Permanen (1 Event)",
+                        premium: "Cloud Multi-Event & Arsip Permanen",
+                      },
+                      {
+                        feature: "Manajemen Database Peserta",
+                        trial: "Satu Kali Cetak",
+                        cloud: "Tersimpan di Cloud, Cari & Filter",
+                        premium: "Multi-Acara, Filter Lanjutan & Ekspor",
+                      },
+                      {
+                        feature: "Portal Unduh Mandiri Peserta",
+                        trial: "Tidak Termasuk",
+                        cloud: "Tautan Publik per Acara",
+                        premium: "Tautan Publik + Kustom Branding",
+                      },
+                      {
+                        feature: "Dukungan API & Integrasi",
+                        trial: "Belum Tersedia (CSV Saja)",
+                        cloud: "Belum Tersedia (Roadmap)",
+                        premium: "Webhook Otomatis (Forms/Zapier) & LMS",
+                      },
                     ].map((row, idx) => (
                       <tr key={idx} className="hover:bg-[#F9FAFB] transition-colors">
                         <td className="p-3 sm:p-3.5 text-[#111111] font-medium">{row.feature}</td>
                         <td className="p-3 sm:p-3.5 text-[#6B7280] font-normal">{row.trial}</td>
                         <td className="p-3 sm:p-3.5 text-[#111111] font-semibold bg-black/5">{row.cloud}</td>
+                        <td className="p-3 sm:p-3.5 text-amber-900 font-semibold bg-amber-500/5">
+                          {row.premium}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+              </div>
+
+              {/* Callout Info Tambahan Paket & Pembatalan */}
+              <div className="bg-[#F9FAFB] border-t border-[#E5E7EB] p-4 text-xs space-y-2 text-[#4B5563]">
+                <div className="flex items-start gap-2">
+                  <Check className="size-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <p>
+                    <strong>Kebijakan Pembatalan & Refund:</strong> Tidak ada biaya langganan berulang bulanan (*no recurring subscription fees*). Anda bebas berhenti menggunakan layanan atau menghapus data acara sewaktu-waktu tanpa konsekuensi finansial atau denda pemotongan.
+                  </p>
+                </div>
+                <div className="flex items-start gap-2">
+                  <Check className="size-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <p>
+                    <strong>Paket Premium (Coming Soon):</strong> Ditujukan untuk organisasi, event organizer, atau institusi yang mengelola lebih dari 1 acara secara bersamaan, membutuhkan integrasi webhook formulir otomatis (Google Forms/Typeform), serta kustomisasi branding mandiri.
+                  </p>
+                </div>
               </div>
             </div>
             <p className="text-center text-[11px] text-[#9CA3AF] mt-2 sm:hidden">
@@ -1047,7 +1136,6 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {}
         {/* OPTIMIZER SECTION */}
         <section id="optimizer" className="py-16 sm:py-20 px-4 sm:px-6 md:px-12 border-b border-[#E5E7EB] bg-[#FAFAFA]">
           <div className="max-w-[1320px] mx-auto">
@@ -1200,23 +1288,18 @@ export default function LandingPage() {
           <div className="max-w-[1320px] mx-auto">
             <div className="mb-8 sm:mb-10">
               <span className="text-xs font-semibold uppercase tracking-wider text-[#6B7280] block mb-1.5 sm:mb-2">
-                Spesifikasi
+                Spesifikasi & Kompatibilitas
               </span>
               <h2
                 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-[#111111]"
                 style={{ fontFamily: "var(--font-heading), sans-serif" }}
               >
-                Rekomendasi perangkat.
+                Rekomendasi perangkat & format berkas.
               </h2>
             </div>
 
             <div className="border-t border-[#E5E7EB] divide-y divide-[#E5E7EB]">
-              {[
-                { label: "Mesin Komputasi", value: "Rust WebAssembly", desc: "Berjalan cepat di dalam memori komputer" },
-                { label: "Browser Rekomendasi", value: "Google Chrome, Edge, Brave", desc: "Mendukung fitur font lokal dan worker" },
-                { label: "Memori RAM", value: "Minimal 4 GB (Disarankan 8 GB)", desc: "Aman untuk menyusun ribuan lembar PDF" },
-                { label: "Perangkat", value: "Laptop atau Komputer", desc: "Paling nyaman pakai keyboard dan mouse" },
-              ].map((spec, idx) => (
+              {technicalSpecs.map((spec, idx) => (
                 <div
                   key={spec.label}
                   className="py-3.5 sm:py-4.5 grid grid-cols-1 md:grid-cols-12 gap-1.5 sm:gap-3 items-baseline"
@@ -1239,20 +1322,22 @@ export default function LandingPage() {
           </div>
         </section>
 
-        {}
-        {/* FAQ SECTION */}
+        {/* FAQ SECTION (AI-SEO & AUDIT DIRECT ANSWERS) */}
         <section id="faq" className="py-16 sm:py-20 px-4 sm:px-6 md:px-12 border-b border-[#E5E7EB] bg-[#FFFFFF]">
           <div className="max-w-[1320px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10">
             <div className="lg:col-span-5">
               <span className="text-xs font-semibold uppercase tracking-wider text-[#6B7280] block mb-1.5 sm:mb-2">
-                Tanya Jawab
+                Pusat Bantuan & FAQ
               </span>
               <h2
                 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-[#111111]"
                 style={{ fontFamily: "var(--font-heading), sans-serif" }}
               >
-                Pertanyaan yang sering ditanyakan.
+                Pertanyaan umum, harga, & kebijakan.
               </h2>
+              <p className="mt-3 text-xs sm:text-sm text-[#6B7280] font-normal leading-relaxed">
+                Jawaban langsung mengenai biaya pemakaian, kebijakan pembatalan, keamanan data, ketersediaan API, dan fitur sertifikat massal.
+              </p>
             </div>
 
             <div className="lg:col-span-7 divide-y divide-[#E5E7EB] border-y border-[#E5E7EB] bg-[#FFFFFF] px-3 sm:px-6 rounded-lg">
@@ -1297,7 +1382,7 @@ export default function LandingPage() {
               SertiGen
             </span>
             <p className="text-xs text-[#6B7280] font-normal">
-              Generator Sertifikat Massal Otomatis dari Excel & CSV.
+              Generator Sertifikat Massal Otomatis dari Excel & CSV • Bebas Biaya Langganan.
             </p>
           </div>
 
@@ -1305,8 +1390,9 @@ export default function LandingPage() {
             <a href="#cara-kerja" className="hover:text-[#111111]">Cara Kerja</a>
             <a href="#simulator" className="hover:text-[#111111]">Simulator</a>
             <a href="#studio" className="hover:text-[#111111]">Fitur Kanvas</a>
-            <a href="#perbandingan" className="hover:text-[#111111]">Paket</a>
-            <a href="#faq" className="hover:text-[#111111]">FAQ</a>
+            <a href="#perbandingan" className="hover:text-[#111111]">Paket & Harga</a>
+            <a href="#faq" className="hover:text-[#111111]">FAQ & Refund</a>
+            <a href="/llms.txt" target="_blank" className="hover:text-[#111111]">llms.txt</a>
           </div>
         </div>
 
@@ -1314,6 +1400,8 @@ export default function LandingPage() {
           <span>© {new Date().getFullYear()} SertiGen. Hak cipta dilindungi.</span>
           <div className="flex items-center gap-3 sm:gap-4 text-[#6B7280]">
             <span>Pemrosesan PDF Lokal</span>
+            <span className="text-[#D1D5DB]">•</span>
+            <span>Rp 0 Bebas Batal</span>
             <span className="text-[#D1D5DB]">•</span>
             <span>Kebijakan Privasi</span>
           </div>

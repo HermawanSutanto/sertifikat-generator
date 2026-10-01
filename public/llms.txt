@@ -1,0 +1,85 @@
+# SertiGen
+
+> SertiGen adalah platform web generator sertifikat massal otomatis bertenaga Rust WebAssembly yang memproses ratusan hingga ribuan sertifikat PDF secara lokal di peramban pengguna dari berkas template PDF dan data tabular Excel/CSV.
+
+## Ringkasan Produk
+
+SertiGen (tersedia di https://cert.krovida.my.id) memecahkan masalah umum penyelenggara acara yang lelah menyalin nama peserta satu per satu di alat desain grafis (seperti Canva) atau mengalami pergeseran tata letak format pada Mail Merge Microsoft Word. Pengguna cukup mengunggah satu template PDF dan satu berkas CSV berisi daftar penerima untuk menghasilkan arsip ZIP berisi sertifikat PDF individual siap cetak beresolusi tajam dalam hitungan detik.
+
+## Target Pengguna
+
+1. **Penyelenggara Webinar & Event Digital:** Membagikan sertifikat kehadiran kepada ratusan hingga ribuan peserta dengan cepat tanpa proses edit manual.
+2. **Lembaga Kursus & Pelatihan:** Menerbitkan sertifikat kelulusan terstruktur dengan nomor urut, predikat, dan nilai kompetensi.
+3. **Institusi Pendidikan (Sekolah & Kampus):** Mengelola piagam kegiatan ekstrakurikuler, kepanitiaan, lomba antarkelas, dan lokakarya akademik.
+4. **Komunitas & Organisasi Relawan:** Memberikan apresiasi resmi kepada relawan dan anggota tanpa memerlukan software desain berat.
+
+## Masalah yang Dipecahkan
+
+- **Eliminasi Kerja Manual:** Menghilangkan keharusan salin-tempel (copy-paste) nama dan gelar satu per satu ke lembar desain.
+- **Pencegahan Format Berantakan:** Menghindari teks bergeser atau format rusak yang sering terjadi pada fitur Mail Merge pengolah kata konvensional.
+- **Privasi Data Penuh:** Tidak ada transmisi data nama atau email peserta ke server pihak ketiga pada mode pemrosesan lokal.
+- **Beban Kerja Komputer Ringan:** Menggunakan Web Worker di latar belakang peramban untuk mencegah browser macet (*UI freezing*) saat merender ribuan lembar dokumen.
+
+## Fitur & Kemampuan Utama
+
+- **Mesin Render Rust WebAssembly:** Pemrosesan berkecepatan tinggi langsung di dalam memori komputer pengguna.
+- **Kanvas Interaktif Presisi:** Penataan letak elemen teks dengan bantuan garis bantu otomatis (*Smart Snap*) dan pergeseran mikro per 1 titik (*keyboard nudge*).
+- **Tipografi Fleksibel:** Koleksi font bawaan (Roboto, Poppins, Montserrat, Playfair Display, Lora, Caveat, Pacifico), dukungan unggah font kustom (.ttf dan .otf hingga 15 MB), serta pemindaian font sistem operasi komputer lokal.
+- **Dukungan Aset Resmi:** Penempatan gambar transparan untuk logo institusi, cap stempel, dan tanda tangan digital.
+- **Pengoptimal Kompresi:** Fitur resample kanvas dan pengaturan kualitas gambar latar untuk menghemat ukuran arsip ZIP hingga lebih dari 70%.
+- **Pemulihan Sesi Otomatis (IndexedDB):** Koordinat tata letak dan draf data tetap tersimpan aman di browser jika halaman tidak sengaja tertutup.
+- **Portal Pratinjau Publik:** Peserta dapat mencari namanya sendiri dan mengunduh sertifikatnya secara langsung lewat tautan publik acara.
+
+## Struktur Harga & Paket (Pricing)
+
+SertiGen saat ini beroperasi dengan model akses gratis (Freemium):
+
+1. **Mode Trial (Tanpa Login / Tamu):**
+   - **Harga:** Rp 0 (Gratis)
+   - **Kapasitas Bebas Watermark:** Hingga 50 sertifikat per sesi cetak
+   - **Fitur:** Pemrosesan lokal di browser, pengaturan kanvas lengkap, impor CSV, pratinjau instan PDF tunggal, dan unduhan ZIP massal.
+   - **Penyimpanan:** Lokal sementara di browser (IndexedDB).
+   - **Akses:** Langsung di https://cert.krovida.my.id/trial tanpa perlu mendaftar akun.
+
+2. **Akun Cloud Gratis (Personal / Organisasi):**
+   - **Harga:** Rp 0 (Gratis Selamanya)
+   - **Kapasitas Bebas Watermark:** Tanpa batas (Unlimited)
+   - **Fitur:** Seluruh fitur Trial ditambah penyimpanan permanen template di cloud, manajemen database peserta per acara, pencarian & filter peserta, portal publik untuk unduhan mandiri peserta, dan sinkronisasi profil/organisasi.
+   - **Akses:** Daftar akun di https://cert.krovida.my.id/register.
+
+3. **Kebutuhan Khusus / Enterprise:**
+   - Untuk institusi pendidikan atau korporasi dengan kebutuhan khusus (seperti volume di atas puluhan ribu sertifikat per acara atau integrasi server privat), hubungi tim pengembang melalui portal resmi.
+
+## Kebijakan Pembatalan & Pengembalian Dana (Cancellation & Refund Policy)
+
+- **Biaya Layanan Saat Ini:** SertiGen tidak memungut biaya langganan berulang bulanan (*no recurring subscription fees*). Seluruh fitur dasar dan akun cloud disediakan secara gratis (Rp 0).
+- **Pembatalan Akun:** Pengguna dapat berhenti menggunakan layanan atau menghapus akun dan data acaranya sewaktu-waktu melalui dashboard tanpa konsekuensi finansial, denda, atau penalti pemotongan dana.
+- **Penghapusan Data:** Saat sebuah acara dihapus oleh pengguna dari dashboard, seluruh dokumen database peserta serta berkas aset (PDF dan gambar) di penyimpanan awan akan dibersihkan secara permanen.
+- **Transaksi Berbayar di Masa Mendatang:** Jika di masa mendatang SertiGen meluncurkan paket add-on berbayar atau kuota prioritas via payment gateway resmi, kebijakan garansi pengembalian dana 7 hari kerja akan berlaku untuk transaksi yang mengalami kendala teknis sistem.
+
+## Dukungan API & Integrasi (Integrations & API)
+
+- **Status API Publik Saat Ini:** SertiGen saat ini beroperasi secara mandiri di sisi klien (*client-side*) menggunakan berkas input CSV dan PDF, serta **belum menyediakan Public REST API atau GraphQL publik terbuka**.
+- **Integrasi Input Data:** Mendukung seluruh berkas CSV yang diekspor dari spreadsheet populer termasuk Microsoft Excel, Google Sheets, LibreOffice Calc, dan Notion Database.
+- **Peta Jalan (Roadmap Integrasi):** Integrasi otomatis dengan webhook formulir pihak ketiga (seperti Google Forms, Typeform, dan Zapier) serta plugin Learning Management System (Moodle/Canvas) saat ini sedang dalam tahap perencanaan pembaruan.
+
+## Spesifikasi Teknis & Persyaratan Sistem
+
+- **Mesin Komputasi:** Rust WebAssembly (wasm-bindgen) & Web Worker
+- **Peramban yang Didukung:** Google Chrome, Microsoft Edge, Brave, Mozilla Firefox, Apple Safari (Disarankan berbasis Chromium desktop versi 103+)
+- **Kapasitas Memori Minimum:** RAM 4 GB (Disarankan 8 GB atau lebih untuk ekspor massal di atas 1.000 dokumen)
+- **Format Berkas:**
+  - Input Template: Dokumen PDF (A4 Landscape atau Portrait)
+  - Input Data Peserta: File CSV (tabel berpemisah koma/titik koma dengan baris pertama sebagai nama kolom)
+  - Output: File PDF terpisah per peserta dalam arsip ZIP
+
+## Tautan Resmi (Canonical URLs)
+
+- Halaman Utama: https://cert.krovida.my.id/
+- Coba Trial Tanpa Login: https://cert.krovida.my.id/trial
+- Pendaftaran Akun Cloud: https://cert.krovida.my.id/register
+- Masuk Akun: https://cert.krovida.my.id/login
+- Lupa Kata Sandi: https://cert.krovida.my.id/forgot-password
+- Dashboard Pengguna: https://cert.krovida.my.id/dashboard
+- Peta Situs (Sitemap): https://cert.krovida.my.id/sitemap.xml
+- Aturan Robot (Robots.txt): https://cert.krovida.my.id/robots.txt
