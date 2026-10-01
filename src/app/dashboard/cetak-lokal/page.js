@@ -72,6 +72,17 @@ const BUILT_IN_TEMPLATES = [
   },
 ];
 
+// Koleksi font bawaan yang tersedia di folder public/fonts
+const BUILT_IN_FONTS = [
+  { id: "roboto", name: "Roboto (Bold)", file: "/fonts/Roboto-Bold.ttf", family: "Roboto-Bold" },
+  { id: "poppins", name: "Poppins (Bold)", file: "/fonts/Poppins-Bold.ttf", family: "Poppins-Bold" },
+  { id: "montserrat", name: "Montserrat (Bold)", file: "/fonts/Montserrat-Bold.ttf", family: "Montserrat-Bold" },
+  { id: "playfair", name: "Playfair (Bold)", file: "/fonts/Playfair-Bold.ttf", family: "Playfair-Bold" },
+  { id: "lora", name: "Lora (Bold)", file: "/fonts/Lora-Bold.ttf", family: "Lora-Bold" },
+  { id: "caveat", name: "Caveat (Bold)", file: "/fonts/Caveat-Bold.ttf", family: "Caveat-Bold" },
+  { id: "pacifico", name: "Pacifico (Regular)", file: "/fonts/Pacifico-Regular.ttf", family: "Pacifico-Regular" },
+];
+
 const Spinner = ({ className = "w-3.5 h-3.5 text-current", ...props }) => (
   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className={className} {...props}>
     <path fill="currentColor" d="M12,23a9.63,9.63,0,0,1-8-9.5,9.51,9.51,0,0,1,6.79-9.1A1,1,0,0,1,12,5.19a8.4,8.4,0,0,0-6.1,8.31,8.44,8.44,0,0,0,8.38,8.38A1,1,0,0,1,12,23Z">
@@ -363,6 +374,7 @@ export default function CetakLokal() {
   const [zipGroupingMode, setZipGroupingMode] = useState("chunk");
   const [selectedZipGroupColumn, setSelectedZipGroupColumn] = useState("");
 
+  // State Font Management (3 Opsi: Bawaan, Kustom Upload, Sistem OS)
   const [localFontApiSupported, setLocalFontApiSupported] = useState(false);
   const [isDetectingFonts, setIsDetectingFonts] = useState(false);
   const [localFontsRaw, setLocalFontsRaw] = useState([]);
@@ -371,9 +383,11 @@ export default function CetakLokal() {
   const [selectedFontBytes, setSelectedFontBytes] = useState(null);
   const [selectedFontStyle, setSelectedFontStyle] = useState("");
   const [isLoadingFontBytes, setIsLoadingFontBytes] = useState(false);
+  const [isUploadingFontCloud, setIsUploadingFontCloud] = useState(false);
   const [fontDetectionError, setFontDetectionError] = useState("");
 
   const imageUploadInputRef = useRef(null);
+  const fontUploadInputRef = useRef(null);
 
   useEffect(() => {
     if (typeof window === "undefined" || typeof navigator === "undefined") return;
@@ -401,6 +415,163 @@ export default function CetakLokal() {
     }
   }, []);
 
+  // 1. OPSI: MEMUAT FONT BAWAAN DARI PUBLIC/FONTS
+  const handleSelectBuiltInFont = async (fontId) => {
+    if (!fontId) {
+      handleResetFont();
+      return;
+    }
+
+    const chosen = BUILT_IN_FONTS.find((f) => f.id === fontId);
+    if (!chosen) return;
+
+    setIsLoadingFontBytes(true);
+    setFontDetectionError("");
+
+    try {
+      const res = await fetch(chosen.file);
+      if (!res.ok) throw new Error(`Berkas font tidak ditemukan (${res.status})`);
+      const arrayBuffer = await res.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+
+      // Muat ke DOM peramban agar langsung terlihat pada kanvas
+      const fontFace = new FontFace(chosen.family, arrayBuffer);
+      await fontFace.load();
+      document.fonts.add(fontFace);
+
+      setSelectedFontBytes(bytes);
+      setSelectedLocalFontFamily(chosen.family);
+      setSelectedFontStyle("Regular");
+
+      // Simpan ke Supabase jika sedang berada dalam mode Cloud Event
+      if (eventId && user) {
+        setIsUploadingFontCloud(true);
+        const fontPath = `${user.uid}/${eventId}/font_${chosen.family}.ttf`;
+        const fontBlob = new Blob([bytes], { type: "font/ttf" });
+
+        const { error: uploadErr } = await supabase.storage
+          .from(ASSET_BUCKET)
+          .upload(fontPath, fontBlob, { contentType: "font/ttf", upsert: true });
+
+        if (!uploadErr) {
+          const { data: urlData } = supabase.storage.from(ASSET_BUCKET).getPublicUrl(fontPath);
+          const meta = { path: fontPath, url: urlData.publicUrl, familyName: chosen.family };
+
+          await updateDoc(doc(db, "events", eventId), {
+            "storageRefs.customFont": meta,
+            diperbaruiPada: serverTimestamp(),
+          });
+
+          setEventData((prev) => ({
+            ...prev,
+            storageRefs: { ...(prev?.storageRefs || {}), customFont: meta },
+          }));
+        }
+        setIsUploadingFontCloud(false);
+      }
+
+      setNotification({
+        show: true,
+        message: `Font bawaan "${chosen.name}" berhasil diterapkan.`,
+        type: "success",
+      });
+    } catch (err) {
+      console.error("Gagal memuat font bawaan:", err);
+      setFontDetectionError(`Gagal memuat font: ${err.message}`);
+      setNotification({ show: true, message: `Gagal memuat font: ${err.message}`, type: "error" });
+    } finally {
+      setIsLoadingFontBytes(false);
+    }
+  };
+
+  // 2. OPSI: UNGGAH FONT MANDIRI (.TTF / .OTF) DARI KOMPUTER PENGGUNA
+  const handleUploadCustomFont = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const ext = file.name.split(".").pop().toLowerCase();
+    if (!["ttf", "otf"].includes(ext)) {
+      setNotification({
+        show: true,
+        message: "Format tidak didukung. Harap pilih berkas .ttf atau .otf.",
+        type: "error",
+      });
+      return;
+    }
+
+    if (file.size > 15 * 1024 * 1024) {
+      setNotification({ show: true, message: "Ukuran berkas font maksimal 15 MB.", type: "error" });
+      return;
+    }
+
+    setIsLoadingFontBytes(true);
+    setFontDetectionError("");
+
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const bytes = new Uint8Array(arrayBuffer);
+      const rawName = file.name.substring(0, file.name.lastIndexOf(".")) || "CustomFont";
+      const cleanFamilyName = rawName.replace(/[^a-zA-Z0-9_\-\s]/g, "").trim() || "UploadedFont";
+
+      const fontFace = new FontFace(cleanFamilyName, arrayBuffer);
+      await fontFace.load();
+      document.fonts.add(fontFace);
+
+      setSelectedFontBytes(bytes);
+      setSelectedLocalFontFamily(cleanFamilyName);
+      setSelectedFontStyle("Regular");
+
+      // Simpan langsung ke Supabase Storage jika dalam mode Cloud Event
+      if (eventId && user) {
+        setIsUploadingFontCloud(true);
+        const fontPath = `${user.uid}/${eventId}/font_${cleanFamilyName.replace(/\s+/g, "_")}.${ext}`;
+
+        const { error: fontUploadErr } = await supabase.storage
+          .from(ASSET_BUCKET)
+          .upload(fontPath, file, {
+            contentType: ext === "otf" ? "font/otf" : "font/ttf",
+            upsert: true,
+          });
+
+        if (fontUploadErr) throw new Error(fontUploadErr.message);
+
+        const { data: fontUrlData } = supabase.storage.from(ASSET_BUCKET).getPublicUrl(fontPath);
+        const meta = { path: fontPath, url: fontUrlData.publicUrl, familyName: cleanFamilyName };
+
+        await updateDoc(doc(db, "events", eventId), {
+          "storageRefs.customFont": meta,
+          diperbaruiPada: serverTimestamp(),
+        });
+
+        setEventData((prev) => ({
+          ...prev,
+          storageRefs: { ...(prev?.storageRefs || {}), customFont: meta },
+        }));
+
+        setNotification({
+          show: true,
+          message: `Font "${cleanFamilyName}" berhasil diunggah & disimpan di Cloud.`,
+          type: "success",
+        });
+      } else {
+        setNotification({
+          show: true,
+          message: `Font "${cleanFamilyName}" siap digunakan di kanvas.`,
+          type: "success",
+        });
+      }
+    } catch (err) {
+      console.error("Gagal memproses font kustom:", err);
+      setFontDetectionError(err.message);
+      setNotification({ show: true, message: `Gagal memuat font: ${err.message}`, type: "error" });
+    } finally {
+      setIsLoadingFontBytes(false);
+      setIsUploadingFontCloud(false);
+      if (e.target) e.target.value = "";
+    }
+  };
+
+  // 3. OPSI: PINDAI FONT DARI SISTEM OPERASI (CHROMIUM LOCAL FONT API)
   const handleDetectLocalFonts = async () => {
     setFontDetectionError("");
     setIsDetectingFonts(true);
@@ -416,13 +587,13 @@ export default function CetakLokal() {
       } else {
         setNotification({
           show: true,
-          message: `Terdeteksi ${uniqueFamilies.length} font lokal.`,
+          message: `Terdeteksi ${uniqueFamilies.length} font lokal dari sistem operasi.`,
           type: "success",
         });
       }
     } catch (err) {
       if (err.name === "NotAllowedError" || err.name === "SecurityError") {
-        setFontDetectionError("Akses font lokal ditolak oleh browser.");
+        setFontDetectionError("Akses font lokal ditolak oleh izin peramban.");
       } else {
         setFontDetectionError(`Gagal mendeteksi font: ${err.message}`);
       }
@@ -460,6 +631,34 @@ export default function CetakLokal() {
     } finally {
       setIsLoadingFontBytes(false);
     }
+  };
+
+  // Reset Font ke Standar (Helvetica-Bold)
+  const handleResetFont = async () => {
+    setSelectedLocalFontFamily("");
+    setSelectedFontBytes(null);
+    setSelectedFontStyle("");
+
+    if (eventId && user) {
+      try {
+        await updateDoc(doc(db, "events", eventId), {
+          "storageRefs.customFont": null,
+          diperbaruiPada: serverTimestamp(),
+        });
+        setEventData((prev) => ({
+          ...prev,
+          storageRefs: { ...(prev?.storageRefs || {}), customFont: null },
+        }));
+      } catch (err) {
+        console.warn("Gagal mereset font event:", err);
+      }
+    }
+
+    setNotification({
+      show: true,
+      message: "Font dikembalikan ke standar (Helvetica-Bold).",
+      type: "success",
+    });
   };
 
   const [pdfDoc, setPdfDoc] = useState(null);
@@ -637,6 +836,7 @@ export default function CetakLokal() {
           }
         }
 
+        // Muat font tersimpan di Cloud
         if (data.storageRefs?.customFont?.url) {
           try {
             const fontRes = await fetch(data.storageRefs.customFont.url);
@@ -652,6 +852,7 @@ export default function CetakLokal() {
 
               setSelectedFontBytes(bytes);
               setSelectedLocalFontFamily(familyName);
+              setSelectedFontStyle("Regular");
             }
           } catch (fontErr) {
             console.warn("Gagal memuat font cloud:", fontErr);
@@ -2142,9 +2343,11 @@ export default function CetakLokal() {
 
   const isGenerateDisabled = disabledReasons.length > 0;
   const previewFontWeight = selectedLocalFontFamily
-    ? (/bold|black|heavy|semibold/i.test(selectedFontStyle) ? 700 : 400)
+    ? /bold|black|heavy|semibold/i.test(`${selectedFontStyle} ${selectedLocalFontFamily}`)
+      ? 700
+      : 400
     : 700;
-  const previewFontStyle = /italic|oblique/i.test(selectedFontStyle) ? "italic" : "normal";
+  const previewFontStyle = /italic|oblique/i.test(`${selectedFontStyle} ${selectedLocalFontFamily}`) ? "italic" : "normal";
 
   return (
     <div
@@ -2164,11 +2367,21 @@ export default function CetakLokal() {
         onClose={() => setIsTutorialOpen(false)}
       />
 
+      {/* Input Berkas Gambar Tersembunyi */}
       <input
         type="file"
         ref={imageUploadInputRef}
         accept="image/png, image/jpeg, image/jpg"
         onChange={handleAddImageElement}
+        className="hidden"
+      />
+
+      {/* Input Berkas Font Kustom Tersembunyi */}
+      <input
+        type="file"
+        ref={fontUploadInputRef}
+        accept=".ttf,.otf,font/ttf,font/otf"
+        onChange={handleUploadCustomFont}
         className="hidden"
       />
 
@@ -2986,82 +3199,172 @@ export default function CetakLokal() {
               </div>
             )}
 
-            {/* PANEL: FONTS */}
+            {/* PANEL: FONTS (3 OPSI) */}
             {activeTab === "fonts" && (
-              <div className="space-y-5">
+              <div className="space-y-6">
                 <div className="border-b border-[#E5E7EB] pb-3">
                   <h2 className="text-xs font-mono uppercase tracking-wider text-[#111111]">
-                    Font Sistem
+                    Tipografi & Font
                   </h2>
                   <p className="text-[11px] text-[#6B7280] mt-0.5">
-                    Gunakan font lokal perangkat Anda
+                    Gunakan koleksi bawaan, unggah berkas font, atau pindai dari sistem.
                   </p>
                 </div>
 
-                <div className="border border-[#E5E7EB] rounded-md p-3 flex items-center justify-between gap-2 bg-[#F5F5F5]">
-                  <span className="text-xs font-mono text-[#111111]">
-                    Local Font API
-                  </span>
-                  <span className={`text-[10px] font-mono uppercase px-2 py-0.5 rounded-[2px] border ${
-                    localFontApiSupported
-                      ? "bg-[#FFFFFF] text-[#111111] border-[#111111]"
-                      : "bg-[#FFFFFF] text-[#6B7280] border-[#E5E7EB]"
-                  }`}>
-                    {localFontApiSupported ? "Didukung" : "Tidak Didukung"}
-                  </span>
+                {/* INDIKATOR STATUS FONT AKTIF */}
+                <div className="border border-[#E5E7EB] rounded-md p-3.5 space-y-2 bg-[#F5F5F5]">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-mono uppercase text-[#6B7280]">
+                      Font Kanvas Aktif
+                    </span>
+                    <span className="text-[9px] font-mono px-1.5 py-0.5 rounded-[2px] bg-[#FFFFFF] border border-[#E5E7EB] text-[#111111]">
+                      {selectedLocalFontFamily ? "Kustom" : "Default"}
+                    </span>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1">
+                    <div className="truncate pr-2">
+                      <p className="text-xs font-mono font-medium text-[#111111] truncate">
+                        {selectedLocalFontFamily || "Standar (Helvetica-Bold)"}
+                      </p>
+                      {selectedLocalFontFamily && (
+                        <p className="text-[10px] font-mono text-[#6B7280] mt-0.5">
+                          {eventId ? "Tersimpan di Cloud Event" : "Aktif pada sesi lokal"}
+                        </p>
+                      )}
+                    </div>
+
+                    {selectedLocalFontFamily && (
+                      <button
+                        type="button"
+                        onClick={handleResetFont}
+                        className="px-2 py-1 text-[10px] font-mono uppercase rounded-[2px] border border-[#E5E7EB] bg-[#FFFFFF] text-[#6B7280] hover:text-[#D92D20] transition-colors shrink-0"
+                        title="Kembalikan ke font bawaan"
+                      >
+                        Reset
+                      </button>
+                    )}
+                  </div>
                 </div>
 
-                {!localFontApiSupported ? (
-                  <p className="text-xs text-[#6B7280] leading-relaxed">
-                    Fitur pemindaian font lokal membutuhkan peramban desktop berbasis Chromium seperti Chrome atau Edge.
+                {/* OPSI 1: FONT KOLEKSI BAWAAN (/public/fonts) */}
+                <div className="border border-[#E5E7EB] rounded-md p-3.5 space-y-2.5 bg-[#FFFFFF]">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[11px] font-mono uppercase text-[#111111] font-medium">
+                      1. Font Bawaan SertiGen
+                    </label>
+                    <span className="text-[9px] font-mono text-[#6B7280] bg-[#F5F5F5] px-1.5 py-0.5 rounded-[2px]">
+                      {BUILT_IN_FONTS.length} Pilihan
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-[#6B7280]">
+                    Pilihan font siap pakai dari server tanpa perlu mengunggah berkas.
                   </p>
-                ) : (
-                  <>
-                    <button
-                      type="button"
-                      onClick={handleDetectLocalFonts}
-                      disabled={isDetectingFonts}
-                      className="w-full py-2 text-xs font-mono uppercase rounded-[4px] border border-[#111111] bg-[#111111] text-white hover:bg-[#333333] transition-colors flex items-center justify-center gap-2"
+                  <select
+                    value={
+                      BUILT_IN_FONTS.some((f) => f.family === selectedLocalFontFamily)
+                        ? BUILT_IN_FONTS.find((f) => f.family === selectedLocalFontFamily)?.id
+                        : ""
+                    }
+                    onChange={(e) => handleSelectBuiltInFont(e.target.value)}
+                    disabled={isLoadingFontBytes}
+                    className="w-full p-2 text-xs font-mono rounded-[4px] border border-[#E5E7EB] bg-[#FFFFFF] text-[#111111] focus:outline-none focus:border-[#111111]"
+                  >
+                    <option value="">Pilih Font Bawaan</option>
+                    {BUILT_IN_FONTS.map((f) => (
+                      <option key={f.id} value={f.id}>
+                        {f.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* OPSI 2: UNGGAH FONT MANDIRI (.TTF / .OTF) */}
+                <div className="border border-[#E5E7EB] rounded-md p-3.5 space-y-2.5 bg-[#FFFFFF]">
+                  <label className="block text-[11px] font-mono uppercase text-[#111111] font-medium">
+                    2. Unggah Font Kustom
+                  </label>
+                  <p className="text-[11px] text-[#6B7280] leading-relaxed">
+                    Gunakan font jenama sendiri. Mendukung format TrueType (.ttf) dan OpenType (.otf) hingga 15 MB.
+                  </p>
+
+                  <button
+                    type="button"
+                    onClick={() => fontUploadInputRef.current?.click()}
+                    disabled={isLoadingFontBytes || isUploadingFontCloud}
+                    className="w-full py-2 text-xs font-mono uppercase rounded-[4px] border border-[#111111] bg-[#111111] text-white hover:bg-[#333333] transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    {isLoadingFontBytes || isUploadingFontCloud ? (
+                      <>
+                        <Spinner />
+                        <span>{isUploadingFontCloud ? "Menyimpan ke Cloud..." : "Membaca Berkas..."}</span>
+                      </>
+                    ) : (
+                      <>
+                        <IconType className="w-3.5 h-3.5" />
+                        <span>Pilih Berkas Font (.ttf / .otf)</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {/* OPSI 3: DETEKSI FONT LOKAL SISTEM OPERASI */}
+                <div className="border border-[#E5E7EB] rounded-md p-3.5 space-y-2.5 bg-[#FFFFFF]">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-[11px] font-mono uppercase text-[#111111] font-medium">
+                      3. Pindai Font Sistem Operasi
+                    </label>
+                    <span
+                      className={`text-[9px] font-mono uppercase px-1.5 py-0.5 rounded-[2px] border ${
+                        localFontApiSupported
+                          ? "bg-[#FFFFFF] text-[#111111] border-[#111111]"
+                          : "bg-[#FFFFFF] text-[#6B7280] border-[#E5E7EB]"
+                      }`}
                     >
-                      {isDetectingFonts ? <Spinner /> : "Pindai Font Lokal"}
-                    </button>
+                      {localFontApiSupported ? "Didukung" : "Tidak Didukung"}
+                    </span>
+                  </div>
 
-                    {fontDetectionError && (
-                      <p className="text-xs font-mono text-[#D92D20]">{fontDetectionError}</p>
-                    )}
+                  {!localFontApiSupported ? (
+                    <p className="text-[11px] text-[#6B7280] leading-relaxed">
+                      Fitur pemindaian font OS hanya tersedia pada Chrome / Edge desktop. Gunakan Opsi 1 atau Opsi 2 untuk browser lainnya.
+                    </p>
+                  ) : (
+                    <>
+                      <button
+                        type="button"
+                        onClick={handleDetectLocalFonts}
+                        disabled={isDetectingFonts}
+                        className="w-full py-1.5 text-xs font-mono uppercase rounded-[4px] border border-[#E5E7EB] bg-transparent text-[#111111] hover:bg-[#F5F5F5] transition-colors flex items-center justify-center gap-2 disabled:opacity-40"
+                      >
+                        {isDetectingFonts ? <Spinner /> : "Pindai Font dari Komputer"}
+                      </button>
 
-                    {localFontFamilies.length > 0 && (
-                      <div>
-                        <label className="block text-[11px] font-mono uppercase text-[#111111] mb-1.5">
-                          Pilih Font ({localFontFamilies.length})
-                        </label>
-                        <select
-                          value={selectedLocalFontFamily}
-                          onChange={(e) => handleSelectLocalFont(e.target.value)}
-                          disabled={isLoadingFontBytes}
-                          className="w-full p-2 text-xs font-mono rounded-[4px] border border-[#E5E7EB] bg-[#FFFFFF] text-[#111111] focus:outline-none focus:border-[#111111]"
-                        >
-                          <option value="">Standar (Helvetica-Bold)</option>
-                          {localFontFamilies.map((family) => (
-                            <option key={family} value={family}>{family}</option>
-                          ))}
-                        </select>
+                      {localFontFamilies.length > 0 && (
+                        <div className="pt-1">
+                          <select
+                            value={selectedLocalFontFamily}
+                            onChange={(e) => handleSelectLocalFont(e.target.value)}
+                            disabled={isLoadingFontBytes}
+                            className="w-full p-2 text-xs font-mono rounded-[4px] border border-[#E5E7EB] bg-[#FFFFFF] text-[#111111] focus:outline-none focus:border-[#111111]"
+                          >
+                            <option value="">Pilih Font dari Hasil Pindai ({localFontFamilies.length})</option>
+                            {localFontFamilies.map((family) => (
+                              <option key={family} value={family}>
+                                {family}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
 
-                        {isLoadingFontBytes && (
-                          <p className="text-xs font-mono text-[#6B7280] mt-2 flex items-center gap-2">
-                            <Spinner /> Memuat berkas font...
-                          </p>
-                        )}
-
-                        {selectedFontBytes && !isLoadingFontBytes && (
-                          <p className="text-xs font-mono text-[#111111] mt-2 flex items-center gap-1.5">
-                            <IconCheck className="w-3.5 h-3.5 shrink-0" />
-                            "{selectedLocalFontFamily}" siap diterapkan
-                          </p>
-                        )}
-                      </div>
-                    )}
-                  </>
+                {fontDetectionError && (
+                  <p className="text-xs font-mono text-[#D92D20] p-2.5 rounded-[4px] bg-red-50 border border-red-200 leading-snug">
+                    [!] {fontDetectionError}
+                  </p>
                 )}
               </div>
             )}
