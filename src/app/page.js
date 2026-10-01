@@ -12,6 +12,7 @@ import {
   Download,
   FileSpreadsheet,
   Folder,
+  Menu,
   MousePointer,
   Pause,
   Play,
@@ -20,6 +21,7 @@ import {
   Sliders,
   Sparkles,
   Type,
+  X,
   Zap,
 } from "lucide-react";
 import AuthNav from "./AuthNav";
@@ -179,6 +181,7 @@ export default function LandingPage() {
   const [isGenerating, setIsGenerating] = useState(false);
   const [openFaq, setOpenFaq] = useState(null);
   const [copiedNotification, setCopiedNotification] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const [printedSheets, setPrintedSheets] = useState([]);
   const [currentPrintIndex, setCurrentPrintIndex] = useState(0);
@@ -189,10 +192,6 @@ export default function LandingPage() {
   const [simScale, setSimScale] = useState(1.5);
   const [simQuality, setSimQuality] = useState(0.8);
   const baseOriginalSizeMB = 12.5;
-
-  const [dragOver, setDragOver] = useState(false);
-  const [droppedFileName, setDroppedFileName] = useState("");
-  const [workflowStatus, setWorkflowStatus] = useState("Tarik file ke sini");
 
   const calculateOptimizedSize = () => {
     const ratio = (simScale / 2.0) * simQuality;
@@ -211,14 +210,6 @@ export default function LandingPage() {
 
     return () => clearInterval(timer);
   }, [isEditorPaused, editorStep]);
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setDragOver(false);
-    setDroppedFileName("peserta_webinar_nasional.csv");
-    setWorkflowStatus("File CSV Berhasil Diterapkan!");
-    setSampleName("Dr. Rian Hermawan, S.Kom");
-  };
 
   const toggleFaq = (index) => {
     setOpenFaq(openFaq === index ? null : index);
@@ -294,7 +285,7 @@ export default function LandingPage() {
 
   return (
     <div
-      className={`${headingFont.variable} ${sansFont.variable} bg-[#FFFFFF] text-[#111111] min-h-screen selection:bg-[#111111] selection:text-white antialiased`}
+      className={`${headingFont.variable} ${sansFont.variable} bg-[#FFFFFF] text-[#111111] min-h-screen selection:bg-[#111111] selection:text-white antialiased overflow-x-hidden`}
       style={{ fontFamily: "var(--font-sans), sans-serif" }}
     >
       <script
@@ -303,34 +294,34 @@ export default function LandingPage() {
       />
       <style>{`@keyframes stepProgressFill { from { width: 0%; } to { width: 100%; } }`}</style>
 
-      {/* Utility Bar */}
-      <div className="border-b border-[#E5E7EB] bg-[#F9FAFB] text-[#6B7280] text-xs py-2 px-6">
-        <div className="max-w-[1320px] mx-auto flex justify-between items-center text-xs font-normal">
-          <div className="flex items-center gap-3">
-            <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
-            <span>Pemrosesan lokal aktif</span>
-            <span className="text-[#D1D5DB]">/</span>
-            <span>Berjalan langsung di komputer Anda</span>
+      {}
+      {/* Top Utility Bar */}
+      <div className="border-b border-[#E5E7EB] bg-[#F9FAFB] text-[#6B7280] text-[11px] sm:text-xs py-2 px-4 sm:px-6">
+        <div className="max-w-[1320px] mx-auto flex flex-col sm:flex-row justify-between items-center gap-1 sm:gap-4 font-normal">
+          <div className="flex items-center gap-2">
+            <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+            <span className="truncate">Pemrosesan lokal aktif di komputer/HP Anda</span>
           </div>
-          <div className="flex items-center gap-4 text-[#6B7280]">
+          <div className="hidden sm:flex items-center gap-3 text-[#6B7280]">
             <span>Hasil PDF Tajam</span>
-            <span className="text-[#D1D5DB] hidden sm:inline">/</span>
-            <span className="hidden sm:inline">Tanpa Antrean Server</span>
+            <span className="text-[#D1D5DB]">/</span>
+            <span>Tanpa Antrean Server</span>
           </div>
         </div>
       </div>
 
-      {/* Main Sticky Header */}
+      {/* Main Sticky Header with Mobile Navigation Drawer */}
       <header className="sticky top-0 z-40 bg-[#FFFFFF]/95 border-b border-[#E5E7EB] backdrop-blur-md">
-        <div className="max-w-[1320px] mx-auto px-6 h-16 flex justify-between items-center">
+        <div className="max-w-[1320px] mx-auto px-4 sm:px-6 h-16 flex justify-between items-center">
           <Link
             href="/"
-            className="text-lg font-bold tracking-tight text-[#111111]"
+            className="text-lg sm:text-xl font-bold tracking-tight text-[#111111]"
             style={{ fontFamily: "var(--font-heading), sans-serif" }}
           >
             SertiGen
           </Link>
 
+          {/* Desktop Nav */}
           <nav className="hidden lg:flex items-center gap-7 text-[13px] text-[#6B7280] font-medium">
             <a href="#cara-kerja" className="hover:text-[#111111] transition-colors">
               Cara Kerja
@@ -352,42 +343,115 @@ export default function LandingPage() {
             </a>
           </nav>
 
-          <div className="flex items-center gap-2.5">
-            <Suspense fallback={<div className="h-8 w-20 bg-[#F5F5F5] rounded-[4px]" />}>
+          {/* Header Action Buttons */}
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Suspense fallback={<div className="h-8 w-16 bg-[#F5F5F5] rounded-[4px]" />}>
               <AuthNav />
             </Suspense>
+
+            {/* Mobile Hamburger Button */}
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              className="lg:hidden p-2 rounded-md border border-[#E5E7EB] text-[#111111] hover:bg-[#F9FAFB] transition-colors"
+              aria-label={mobileMenuOpen ? "Tutup Menu" : "Buka Menu"}
+            >
+              {mobileMenuOpen ? <X className="size-4" /> : <Menu className="size-4" />}
+            </button>
           </div>
         </div>
+
+        {/* Mobile Dropdown Menu Drawer */}
+        {mobileMenuOpen && (
+          <div className="lg:hidden border-b border-[#E5E7EB] bg-[#FFFFFF] px-4 py-4 space-y-3 shadow-lg">
+            <div className="grid grid-cols-2 gap-2 text-xs font-medium text-[#4B5563]">
+              <a
+                href="#cara-kerja"
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-2.5 rounded-md hover:bg-[#F3F4F6] transition-colors"
+              >
+                Cara Kerja
+              </a>
+              <a
+                href="#simulator"
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-2.5 rounded-md hover:bg-[#F3F4F6] transition-colors"
+              >
+                Simulator
+              </a>
+              <a
+                href="#studio"
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-2.5 rounded-md hover:bg-[#F3F4F6] transition-colors"
+              >
+                Fitur Kanvas
+              </a>
+              <a
+                href="#perbandingan"
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-2.5 rounded-md hover:bg-[#F3F4F6] transition-colors"
+              >
+                Paket
+              </a>
+              <a
+                href="#optimizer"
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-2.5 rounded-md hover:bg-[#F3F4F6] transition-colors"
+              >
+                Kompresi
+              </a>
+              <a
+                href="#faq"
+                onClick={() => setMobileMenuOpen(false)}
+                className="p-2.5 rounded-md hover:bg-[#F3F4F6] transition-colors"
+              >
+                Tanya Jawab (FAQ)
+              </a>
+            </div>
+
+            <div className="pt-2 border-t border-[#E5E7EB] flex flex-col gap-2">
+              <Link
+                href="/trial"
+                onClick={() => setMobileMenuOpen(false)}
+                className="w-full text-center bg-[#111111] text-white py-2.5 px-4 rounded-md text-xs font-semibold uppercase tracking-wider flex items-center justify-center gap-2"
+              >
+                <Zap className="size-3.5 text-amber-400" />
+                <span>Coba Trial Langsung</span>
+              </Link>
+            </div>
+          </div>
+        )}
       </header>
 
       <main id="main-content">
+        {}
         {/* HERO SECTION */}
-        <section className="pt-16 pb-20 px-6 md:px-12 border-b border-[#E5E7EB]">
-          <div className="max-w-[1320px] mx-auto grid lg:grid-cols-12 gap-12 items-start">
-            <div className="lg:col-span-7 flex flex-col pt-2">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#F3F4F6] border border-[#E5E7EB] w-fit mb-5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500" />
-                <span className="text-xs font-medium text-[#4B5563]">
+        <section className="pt-10 sm:pt-16 pb-16 sm:pb-20 px-4 sm:px-6 md:px-12 border-b border-[#E5E7EB]">
+          <div className="max-w-[1320px] mx-auto grid lg:grid-cols-12 gap-10 lg:gap-12 items-start">
+            <div className="lg:col-span-7 flex flex-col pt-1">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#F3F4F6] border border-[#E5E7EB] w-fit mb-4 sm:mb-5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
+                <span className="text-[11px] sm:text-xs font-medium text-[#4B5563]">
                   Satu Template PDF • Ratusan Nama Penerima
                 </span>
               </div>
 
               <h1
-                className="text-4xl sm:text-5xl lg:text-[54px] font-bold leading-[1.12] tracking-[-1.2px] text-[#111111]"
+                className="text-3xl sm:text-4xl md:text-5xl lg:text-[52px] font-bold leading-[1.14] tracking-[-0.8px] sm:tracking-[-1.2px] text-[#111111]"
                 style={{ fontFamily: "var(--font-heading), sans-serif" }}
               >
                 Cara gampang cetak ratusan sertifikat dari Excel & CSV tanpa ribet ganti nama manual.
               </h1>
 
-              <p className="mt-6 text-base sm:text-lg text-[#6B7280] font-normal max-w-xl leading-relaxed">
+              <p className="mt-4 sm:mt-6 text-sm sm:text-base md:text-lg text-[#6B7280] font-normal max-w-xl leading-relaxed">
                 Capek salin nama satu demi satu di Canva atau pusing karena tata letak Mail Merge Word sering bergeser? Cukup upload template PDF, masukkan file CSV dari Excel, dan biarkan browser Anda merender ratusan sertifikat siap cetak seketika.
               </p>
 
-              {/* Primary Trial CTA button (Exclusive to Hero) */}
-              <div className="mt-8 flex flex-wrap items-center gap-3.5">
+              {/* Action Buttons */}
+              <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
                 <Link
                   href="/trial"
-                  className="inline-flex items-center gap-2 bg-[#111111] text-white px-5 py-2.5 rounded-md text-xs font-semibold uppercase tracking-wider hover:bg-[#333333] transition-colors"
+                  className="inline-flex items-center justify-center gap-2 bg-[#111111] text-white px-5 py-3 rounded-md text-xs font-semibold uppercase tracking-wider hover:bg-[#333333] transition-colors"
                 >
                   <Zap className="size-3.5 text-amber-400" />
                   Coba Trial Tanpa Login
@@ -396,46 +460,61 @@ export default function LandingPage() {
 
                 <Link
                   href="/register"
-                  className="inline-flex items-center px-4 py-2.5 rounded-md border border-[#E5E7EB] bg-transparent text-[#111111] text-xs font-semibold uppercase tracking-wider hover:bg-[#F9FAFB] transition-colors"
+                  className="inline-flex items-center justify-center px-4 py-3 rounded-md border border-[#E5E7EB] bg-transparent text-[#111111] text-xs font-semibold uppercase tracking-wider hover:bg-[#F9FAFB] transition-colors"
                 >
                   Daftar Akun Cloud
                 </Link>
               </div>
 
-              <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-[#6B7280] font-normal">
+              <div className="mt-4 flex flex-wrap items-center gap-2 text-[11px] sm:text-xs text-[#6B7280] font-normal">
                 <span>✓ Bebas watermark hingga 50 lembar pada mode trial</span>
-                <span className="text-[#D1D5DB]">•</span>
+                <span className="text-[#D1D5DB] hidden sm:inline">•</span>
                 <span>✓ Diproses langsung di komputer Anda</span>
               </div>
 
-              {/* Value Metrics */}
-              <div className="mt-14 pt-6 border-t border-[#E5E7EB] grid grid-cols-3 gap-6">
+              {/* Value Metrics Grid */}
+              <div className="mt-10 sm:mt-12 pt-6 border-t border-[#E5E7EB] grid grid-cols-3 gap-3 sm:gap-6">
                 <div>
-                  <div className="text-base font-semibold text-[#111111]" style={{ fontFamily: "var(--font-heading), sans-serif" }}>Vektor Tajam</div>
-                  <div className="text-xs text-[#6B7280] mt-0.5">Teks nama jernih dicetak</div>
+                  <div className="text-sm sm:text-base font-semibold text-[#111111]" style={{ fontFamily: "var(--font-heading), sans-serif" }}>Vektor Tajam</div>
+                  <div className="text-[11px] sm:text-xs text-[#6B7280] mt-0.5">Teks nama jernih dicetak</div>
                 </div>
                 <div>
-                  <div className="text-base font-semibold text-[#111111]" style={{ fontFamily: "var(--font-heading), sans-serif" }}>Latar Belakang</div>
-                  <div className="text-xs text-[#6B7280] mt-0.5">Kompresi kualitas pas</div>
+                  <div className="text-sm sm:text-base font-semibold text-[#111111]" style={{ fontFamily: "var(--font-heading), sans-serif" }}>Latar Belakang</div>
+                  <div className="text-[11px] sm:text-xs text-[#6B7280] mt-0.5">Kompresi kualitas pas</div>
                 </div>
                 <div>
-                  <div className="text-base font-semibold text-[#111111]" style={{ fontFamily: "var(--font-heading), sans-serif" }}>Data Aman</div>
-                  <div className="text-xs text-[#6B7280] mt-0.5">File aman di perangkat</div>
+                  <div className="text-sm sm:text-base font-semibold text-[#111111]" style={{ fontFamily: "var(--font-heading), sans-serif" }}>Data Aman</div>
+                  <div className="text-[11px] sm:text-xs text-[#6B7280] mt-0.5">File aman di perangkat</div>
                 </div>
               </div>
             </div>
 
             {/* Right Side: Interactive Simulator */}
-            <div id="simulator" className="lg:col-span-5">
-              <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-lg p-5 shadow-xs">
-                <div className="flex justify-between items-center border-b border-[#E5E7EB] pb-2.5 mb-4 text-xs font-medium text-[#6B7280]">
-                  <span className="uppercase tracking-wider">Simulasi Cetak Nama</span>
-                  <span className="text-[#111111] font-semibold">
+            <div id="simulator" className="lg:col-span-5 w-full">
+              <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-lg p-4 sm:p-5 shadow-xs">
+                <div className="flex justify-between items-center border-b border-[#E5E7EB] pb-2.5 mb-3 sm:mb-4 text-xs font-medium text-[#6B7280]">
+                  <span className="uppercase tracking-wider text-[11px] sm:text-xs">Simulasi Cetak Nama</span>
+                  <span className="text-[#111111] font-semibold text-[11px] sm:text-xs">
                     {isGenerating ? `Mencetak 0${currentPrintIndex}/05` : "Uji Coba Langsung"}
                   </span>
                 </div>
 
                 <div className="relative aspect-[16/10] overflow-hidden border border-[#E5E7EB] rounded-md bg-[#F9FAFB]">
+                  {/* Background Template Asli (Image Asset) */}
+                  <img
+                    src="/background.webp"
+                    alt="Background Template Sertifikat"
+                    className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none z-0"
+                    onError={(e) => {
+                      // Fallback jika belum diconvert ke webp, coba .png atau sembunyikan jika file belum ada
+                      if (!e.currentTarget.src.endsWith(".png")) {
+                        e.currentTarget.src = "/templates/template_01_preview.png";
+                      } else {
+                        e.currentTarget.style.display = "none";
+                      }
+                    }}
+                  />
+
                   {printedSheets.map((sheet, idx) => (
                     <div
                       key={sheet.id}
@@ -443,46 +522,59 @@ export default function LandingPage() {
                         transform: `translateY(${sheet.offsetY}px)`,
                         zIndex: 10 + idx,
                       }}
-                      className="absolute inset-0 bg-[#FFFFFF] border border-[#E5E7EB] p-4 rounded-md flex flex-col justify-between transition-all"
+                      className="absolute inset-0 bg-[#FFFFFF]/95 backdrop-blur-[1px] border border-[#E5E7EB] p-3 sm:p-4 rounded-md flex flex-col justify-between transition-all overflow-hidden"
                     >
-                      <div className="flex justify-between items-center text-xs text-[#6B7280] border-b border-[#E5E7EB] pb-1">
+                      <img
+                        src="/background.webp"
+                        alt=""
+                        className="absolute inset-0 w-full h-full object-cover pointer-events-none opacity-90 select-none z-0"
+                        onError={(e) => {
+                          if (!e.currentTarget.src.endsWith(".png")) {
+                            e.currentTarget.src = "/templates/template_01_preview.png";
+                          } else {
+                            e.currentTarget.style.display = "none";
+                          }
+                        }}
+                      />
+
+                      <div className="relative z-10 flex justify-between items-center text-[10px] sm:text-xs text-[#6B7280] border-b border-[#E5E7EB]/80 pb-1">
                         <span>Lembar #0{sheet.id + 1}</span>
                         <span className="text-emerald-700 font-semibold">SELESAI</span>
                       </div>
 
-                      <div className="text-center my-auto">
-                        <div className="text-[11px] uppercase tracking-wider text-[#6B7280] mb-1 font-medium">
+                      <div className="relative z-10 text-center my-auto">
+                        <div className="text-[10px] sm:text-[11px] uppercase tracking-wider text-[#6B7280] mb-0.5 sm:mb-1 font-medium">
                           Sertifikat Pelatihan
                         </div>
-                        <div className="text-base font-semibold text-[#111111] truncate px-2">
+                        <div className="text-sm sm:text-base font-semibold text-[#111111] truncate px-2">
                           {sheet.name}
                         </div>
                       </div>
 
-                      <div className="flex justify-between items-center text-xs text-[#6B7280] pt-1 border-t border-[#E5E7EB]">
+                      <div className="relative z-10 flex justify-between items-center text-[10px] sm:text-xs text-[#6B7280] pt-1 border-t border-[#E5E7EB]/80">
                         <span>PDF Siap Cetak</span>
                         <span>Lokal</span>
                       </div>
                     </div>
                   ))}
 
-                  <div className="relative z-0 p-5 h-full flex flex-col items-center justify-center text-center">
-                    <div className="text-xs uppercase tracking-wider text-[#6B7280] mb-1.5 font-medium">
+                  <div className="relative z-10 p-4 sm:p-5 h-full flex flex-col items-center justify-center text-center">
+                    <div className="text-[10px] sm:text-xs uppercase tracking-wider text-[#6B7280] mb-1 font-medium">
                       Pratinjau Sertifikat Pelatihan
                     </div>
 
                     <div
-                      className={`${fontFamilyType} text-[#111111] my-2 font-semibold px-4 break-words max-w-full leading-tight`}
-                      style={{ fontSize: `${fontSize}px` }}
+                      className={`${fontFamilyType} text-[#111111] my-1 sm:my-2 font-semibold px-2 sm:px-4 break-words max-w-full leading-tight`}
+                      style={{ fontSize: `${Math.max(16, fontSize - 4)}px` }}
                     >
                       {sampleName || "Nama Peserta"}
                     </div>
 
-                    <p className="text-xs text-[#6B7280] max-w-[260px] leading-relaxed mt-0.5">
+                    <p className="text-[10px] sm:text-xs text-[#6B7280] max-w-[240px] sm:max-w-[260px] leading-relaxed mt-0.5">
                       Telah mengikuti dan menyelesaikan kegiatan dengan baik.
                     </p>
 
-                    <div className="mt-3 pt-2 border-t border-[#E5E7EB] w-48 flex justify-between text-xs text-[#6B7280]">
+                    <div className="mt-2 sm:mt-3 pt-1.5 sm:pt-2 border-t border-[#E5E7EB] w-40 sm:w-48 flex justify-between text-[10px] sm:text-xs text-[#6B7280]">
                       <span>Format: PDF</span>
                       <span className="text-emerald-700 font-medium">Status: Siap</span>
                     </div>
@@ -497,11 +589,11 @@ export default function LandingPage() {
                 </div>
 
                 {/* Simulator Controls */}
-                <div className="mt-4 space-y-3">
+                <div className="mt-3 sm:mt-4 space-y-3">
                   <div>
                     <label
                       htmlFor="interactive-name"
-                      className="block text-xs uppercase font-medium text-[#6B7280] mb-1"
+                      className="block text-[11px] sm:text-xs uppercase font-medium text-[#6B7280] mb-1"
                     >
                       Coba Ubah Nama Peserta:
                     </label>
@@ -515,9 +607,9 @@ export default function LandingPage() {
                     />
                   </div>
 
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 sm:gap-3">
                     <div>
-                      <label className="block text-xs uppercase font-medium text-[#6B7280] mb-1">
+                      <label className="block text-[11px] sm:text-xs uppercase font-medium text-[#6B7280] mb-1">
                         Gaya Huruf:
                       </label>
                       <select
@@ -531,7 +623,7 @@ export default function LandingPage() {
                     </div>
 
                     <div>
-                      <label className="block text-xs uppercase font-medium text-[#6B7280] mb-1">
+                      <label className="block text-[11px] sm:text-xs uppercase font-medium text-[#6B7280] mb-1">
                         Ukuran ({fontSize}pt):
                       </label>
                       <input
@@ -540,16 +632,16 @@ export default function LandingPage() {
                         max="36"
                         value={fontSize}
                         onChange={(e) => setFontSize(Number(e.target.value))}
-                        className="w-full mt-2 accent-[#111111] cursor-pointer"
+                        className="w-full mt-1.5 accent-[#111111] cursor-pointer"
                       />
                     </div>
                   </div>
 
-                  <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#E5E7EB]">
+                  <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2 pt-2 border-t border-[#E5E7EB]">
                     <button
                       type="button"
                       onClick={copySampleNames}
-                      className="text-xs text-[#6B7280] hover:text-[#111111] inline-flex items-center gap-1.5 font-medium"
+                      className="text-xs text-[#6B7280] hover:text-[#111111] inline-flex items-center justify-center gap-1.5 font-medium py-1"
                     >
                       <Copy className="size-3" />
                       {copiedNotification ? "Tersalin!" : "Salin 5 Nama Sampel"}
@@ -559,7 +651,7 @@ export default function LandingPage() {
                       type="button"
                       onClick={triggerSimulatedGeneration}
                       disabled={isGenerating}
-                      className="bg-[#111111] text-white text-xs font-medium uppercase px-3.5 py-1.5 rounded-md hover:bg-[#333333] transition-colors flex items-center gap-1.5 disabled:opacity-40"
+                      className="bg-[#111111] text-white text-xs font-medium uppercase px-3.5 py-2 sm:py-1.5 rounded-md hover:bg-[#333333] transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40"
                     >
                       <Printer className="size-3" />
                       Uji Cetak 5 Lembar
@@ -571,15 +663,16 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {}
         {/* HOW IT WORKS SECTION */}
-        <section id="cara-kerja" className="py-20 px-6 md:px-12 border-b border-[#E5E7EB] bg-[#FAFAFA]">
+        <section id="cara-kerja" className="py-16 sm:py-20 px-4 sm:px-6 md:px-12 border-b border-[#E5E7EB] bg-[#FAFAFA]">
           <div className="max-w-[1320px] mx-auto">
-            <div className="mb-12 text-center max-w-xl mx-auto">
-              <span className="text-xs font-semibold uppercase tracking-wider text-[#6B7280] block mb-2">
+            <div className="mb-10 sm:mb-12 text-center max-w-xl mx-auto">
+              <span className="text-xs font-semibold uppercase tracking-wider text-[#6B7280] block mb-1.5 sm:mb-2">
                 Alur Pembuatan
               </span>
               <h2
-                className="text-2xl sm:text-4xl font-bold tracking-tight text-[#111111]"
+                className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-[#111111]"
                 style={{ fontFamily: "var(--font-heading), sans-serif" }}
               >
                 Cara buat ratusan sertifikat dalam 3 langkah.
@@ -589,7 +682,7 @@ export default function LandingPage() {
               </p>
             </div>
 
-            <div className="grid md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
               {[
                 { step: "01", title: "Upload Template PDF", desc: "Masukkan file desain sertifikat Anda dalam format PDF." },
                 { step: "02", title: "Masukkan Daftar CSV", desc: "Upload file CSV berisi nama-nama peserta dari Excel atau Google Sheets." },
@@ -597,23 +690,23 @@ export default function LandingPage() {
               ].map((step) => (
                 <div
                   key={step.step}
-                  className="bg-[#FFFFFF] border border-[#E5E7EB] p-6 rounded-lg flex flex-col justify-between"
+                  className="bg-[#FFFFFF] border border-[#E5E7EB] p-5 sm:p-6 rounded-lg flex flex-col justify-between"
                 >
                   <div>
                     <span
-                      className="text-2xl font-bold text-[#111111] block mb-3"
+                      className="text-xl sm:text-2xl font-bold text-[#111111] block mb-2 sm:mb-3"
                       style={{ fontFamily: "var(--font-heading), sans-serif" }}
                     >
                       {step.step}
                     </span>
-                    <h3 className="text-base font-semibold text-[#111111] mb-2">
+                    <h3 className="text-sm sm:text-base font-semibold text-[#111111] mb-1.5 sm:mb-2">
                       {step.title}
                     </h3>
                     <p className="text-xs text-[#6B7280] leading-relaxed font-normal">
                       {step.desc}
                     </p>
                   </div>
-                  <div className="mt-6 pt-3 border-t border-[#E5E7EB] flex items-center gap-1.5 text-xs font-medium text-[#111111]">
+                  <div className="mt-4 sm:mt-6 pt-3 border-t border-[#E5E7EB] flex items-center gap-1.5 text-xs font-medium text-[#111111]">
                     <Check className="size-3.5 text-emerald-600" />
                     <span>Otomatis & Cepat</span>
                   </div>
@@ -623,16 +716,17 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {}
         {/* STUDIO CANVAS SECTION */}
-        <section id="studio" className="py-20 px-6 md:px-12 border-b border-[#E5E7EB]">
+        <section id="studio" className="py-16 sm:py-20 px-4 sm:px-6 md:px-12 border-b border-[#E5E7EB]">
           <div className="max-w-[1320px] mx-auto">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-4">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 sm:mb-10 gap-3 sm:gap-4">
               <div>
-                <span className="text-xs font-semibold uppercase tracking-wider text-[#6B7280] block mb-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-[#6B7280] block mb-1.5 sm:mb-2">
                   Pengaturan Kanvas
                 </span>
                 <h2
-                  className="text-2xl sm:text-4xl font-bold tracking-tight text-[#111111]"
+                  className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-[#111111]"
                   style={{ fontFamily: "var(--font-heading), sans-serif" }}
                 >
                   Atur posisi nama dengan presisi tinggi.
@@ -644,40 +738,36 @@ export default function LandingPage() {
             </div>
 
             <div className="border border-[#E5E7EB] rounded-lg overflow-hidden bg-[#FFFFFF] shadow-xs">
-              <div className="h-11 border-b border-[#E5E7EB] px-4 flex items-center justify-between text-xs bg-[#FFFFFF]">
-                <div className="flex items-center gap-2">
-                  <div className="flex items-center gap-1.5 mr-2">
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#E5E7EB]" />
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#E5E7EB]" />
-                    <span className="w-2.5 h-2.5 rounded-full bg-[#E5E7EB]" />
+              <div className="h-10 sm:h-11 border-b border-[#E5E7EB] px-3 sm:px-4 flex items-center justify-between text-xs bg-[#FFFFFF]">
+                <div className="flex items-center gap-2 overflow-hidden">
+                  <div className="flex items-center gap-1 sm:gap-1.5 mr-1 shrink-0">
+                    <span className="w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full bg-[#E5E7EB]" />
+                    <span className="w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full bg-[#E5E7EB]" />
+                    <span className="w-2 sm:w-2.5 h-2 sm:h-2.5 rounded-full bg-[#E5E7EB]" />
                   </div>
-                  <span className="text-[#111111] font-semibold text-xs">SertiGen Studio</span>
+                  <span className="text-[#111111] font-semibold text-xs shrink-0">SertiGen Studio</span>
                   <span className="text-[#D1D5DB]">/</span>
-                  <span className="text-[#6B7280] text-xs">template_sertifikat.pdf</span>
+                  <span className="text-[#6B7280] text-xs truncate">template_sertifikat.pdf</span>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                   <button
                     type="button"
                     onClick={() => setIsEditorPaused(!isEditorPaused)}
-                    className="text-xs text-[#6B7280] hover:text-[#111111] inline-flex items-center gap-1 border border-[#E5E7EB] bg-[#F9FAFB] px-2.5 py-1 rounded-md font-medium"
+                    className="text-[11px] sm:text-xs text-[#6B7280] hover:text-[#111111] inline-flex items-center gap-1 border border-[#E5E7EB] bg-[#F9FAFB] px-2 sm:px-2.5 py-1 rounded-md font-medium"
                   >
                     {isEditorPaused ? (
                       <>
                         <Play className="size-2.5 fill-current" />
-                        <span>Lanjut Simulasi</span>
+                        <span className="hidden sm:inline">Lanjut Simulasi</span>
                       </>
                     ) : (
                       <>
                         <Pause className="size-2.5 fill-current" />
-                        <span>Jeda</span>
+                        <span className="hidden sm:inline">Jeda</span>
                       </>
                     )}
                   </button>
-
-                  <span className="text-xs text-[#6B7280] border border-[#E5E7EB] bg-[#FAFAFA] px-2.5 py-1 rounded-md hidden sm:inline font-medium">
-                    Mode Kanvas Aktif
-                  </span>
                 </div>
               </div>
 
@@ -693,8 +783,10 @@ export default function LandingPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-12 min-h-[380px]">
-                <div className="col-span-1 border-r border-[#E5E7EB] py-3 flex flex-col items-center gap-2 bg-[#FFFFFF]">
+              {/* Studio Body - Responsive on Mobile */}
+              <div className="flex flex-col md:grid md:grid-cols-12 min-h-[300px] sm:min-h-[380px]">
+                {/* Mobile Top Tabs or Desktop Left Dock */}
+                <div className="border-b md:border-b-0 md:border-r border-[#E5E7EB] py-2 md:py-3 px-3 md:px-0 flex md:flex-col items-center justify-around md:justify-start gap-2 bg-[#FFFFFF] md:col-span-1">
                   {[
                     { id: "files", label: "Berkas", icon: Folder },
                     { id: "elements", label: "Elemen", icon: Sliders },
@@ -707,7 +799,7 @@ export default function LandingPage() {
                     return (
                       <div
                         key={tab.id}
-                        className={`w-8 h-8 rounded-md flex items-center justify-center transition-colors ${
+                        className={`w-7 h-7 sm:w-8 sm:h-8 rounded-md flex items-center justify-center transition-colors ${
                           isTabActive ? "bg-[#111111] text-white" : "text-[#9CA3AF]"
                         }`}
                         title={tab.label}
@@ -718,6 +810,7 @@ export default function LandingPage() {
                   })}
                 </div>
 
+                {/* Left Inspector (Desktop only) */}
                 <div className="hidden md:flex md:col-span-3 border-r border-[#E5E7EB] p-4 flex-col justify-between bg-[#FFFFFF] text-xs">
                   <div className="space-y-3.5">
                     <div className="border-b border-[#E5E7EB] pb-2">
@@ -750,29 +843,44 @@ export default function LandingPage() {
                   </div>
                 </div>
 
-                <div className="col-span-11 md:col-span-8 bg-[#F9FAFB] p-6 flex flex-col items-center justify-between relative overflow-hidden select-none">
-                  <div className="w-full flex justify-between items-center text-xs text-[#6B7280] mb-2 font-medium">
-                    <span>Ukuran: 842 × 595 pt (A4 Landscape)</span>
-                    <span className="border border-[#E5E7EB] bg-white px-2.5 py-0.5 rounded-md">Zoom: 100%</span>
+                {/* Right Interactive Canvas Sheet */}
+                <div className="flex-1 md:col-span-8 bg-[#F9FAFB] p-3 sm:p-6 flex flex-col items-center justify-between relative overflow-hidden select-none">
+                  <div className="w-full flex justify-between items-center text-[11px] sm:text-xs text-[#6B7280] mb-2 font-medium">
+                    <span className="truncate">842 × 595 pt (A4 Landscape)</span>
+                    <span className="border border-[#E5E7EB] bg-white px-2 py-0.5 rounded-md shrink-0">100%</span>
                   </div>
 
-                  <div className="relative w-full max-w-[500px] aspect-[16/10] bg-white border border-[#E5E7EB] rounded-md shadow-sm flex flex-col justify-between p-5 overflow-hidden">
+                  <div className="relative w-full max-w-[480px] aspect-[16/10] bg-white border border-[#E5E7EB] rounded-md shadow-sm flex flex-col justify-between p-3.5 sm:p-5 overflow-hidden">
+                    {/* Background Template Asli di Mockup Studio */}
+                    <img
+                      src="/background.webp"
+                      alt="Background Template Kanvas"
+                      className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none z-0"
+                      onError={(e) => {
+                        if (!e.currentTarget.src.endsWith(".png")) {
+                          e.currentTarget.src = "/templates/template_01_preview.png";
+                        } else {
+                          e.currentTarget.style.display = "none";
+                        }
+                      }}
+                    />
+
                     {editorStep === 2 && (
                       <>
                         <div className="absolute top-0 bottom-0 left-1/2 w-px bg-[#111111] z-20 opacity-70" />
                         <div className="absolute left-0 right-0 top-1/2 h-px bg-[#111111] z-20 opacity-70" />
-                        <div className="absolute top-2 right-2 text-[10px] font-medium bg-[#111111] text-white px-2 py-0.5 rounded z-30">
+                        <div className="absolute top-1.5 right-1.5 text-[9px] sm:text-[10px] font-medium bg-[#111111] text-white px-1.5 py-0.5 rounded z-30">
                           Terkunci di Tengah
                         </div>
                       </>
                     )}
 
-                    <div className="text-center pt-1 z-0">
-                      <div className="text-[10px] uppercase tracking-wider text-[#9CA3AF] font-semibold">
+                    <div className="text-center pt-0.5 z-10">
+                      <div className="text-[8px] sm:text-[10px] uppercase tracking-wider text-[#9CA3AF] font-semibold">
                         Lembaga Pelatihan Nasional
                       </div>
                       <div
-                        className="text-xs sm:text-sm font-semibold text-[#111111] uppercase tracking-wider mt-0.5"
+                        className="text-[11px] sm:text-sm font-semibold text-[#111111] uppercase tracking-wider mt-0.5"
                         style={{ fontFamily: "var(--font-heading), sans-serif" }}
                       >
                         Sertifikat Kelulusan
@@ -780,28 +888,28 @@ export default function LandingPage() {
                     </div>
 
                     <div
-                      className={`relative mx-auto border transition-all duration-700 ease-out z-10 flex flex-col items-center px-4 py-1.5 rounded-md ${
+                      className={`relative mx-auto border transition-all duration-700 ease-out z-20 flex flex-col items-center px-3 sm:px-4 py-1 sm:py-1.5 rounded-md shadow-xs ${
                         editorStep === 0
-                          ? "border-[#111111] bg-[#F3F4F6] border-dashed"
+                          ? "border-[#111111] bg-white/95 border-dashed"
                           : editorStep === 1
                           ? "border-[#111111] bg-white shadow-md border-solid scale-[1.01]"
                           : editorStep === 2
-                          ? "border-[#111111] bg-[#F3F4F6] ring-1 ring-[#111111]/20"
+                          ? "border-[#111111] bg-white/95 ring-1 ring-[#111111]/20"
                           : "border-[#111111] bg-white"
                       }`}
                       style={{
                         transform:
                           editorStep === 0
-                            ? "translate(-40px, 15px)"
+                            ? "translate(-30px, 10px)"
                             : editorStep === 1
-                            ? "translate(-15px, 6px)"
+                            ? "translate(-12px, 4px)"
                             : editorStep === 2
                             ? "translate(0px, 0px)"
-                            : "translate(0px, -8px)",
+                            : "translate(0px, -6px)",
                       }}
                     >
                       <span
-                        className={`block text-xs sm:text-sm text-[#111111] transition-all duration-300 ${
+                        className={`block text-[11px] sm:text-sm text-[#111111] transition-all duration-300 ${
                           editorStep === 4
                             ? "font-serif tracking-wider font-semibold"
                             : "font-sans font-medium"
@@ -811,13 +919,13 @@ export default function LandingPage() {
                       </span>
                     </div>
 
-                    <div className="flex justify-between items-end pb-1 text-[10px] text-[#9CA3AF] border-t border-[#E5E7EB] pt-1 z-0 font-medium">
+                    <div className="flex justify-between items-end pb-0.5 text-[8px] sm:text-[10px] text-[#9CA3AF] border-t border-[#E5E7EB] pt-1 z-10 font-medium">
                       <span>No: SG-2026-081</span>
                       <span>Dokumen Resmi</span>
                     </div>
                   </div>
 
-                  <div className="w-full flex justify-between items-center text-xs text-[#6B7280] mt-2 font-medium">
+                  <div className="w-full flex justify-between items-center text-[11px] sm:text-xs text-[#6B7280] mt-2 font-medium">
                     <span className="text-[#111111] font-semibold">{currentStepData.coord}</span>
                     <span>{currentStepData.action}</span>
                   </div>
@@ -825,7 +933,8 @@ export default function LandingPage() {
               </div>
             </div>
 
-            <div className="mt-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-[#F9FAFB] border border-[#E5E7EB] p-4 rounded-lg">
+            {/* Stepper Navigator Controls */}
+            <div className="mt-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-[#F9FAFB] border border-[#E5E7EB] p-3.5 sm:p-4 rounded-lg">
               <div className="text-xs text-[#111111]">
                 <strong className="uppercase text-[10px] text-[#6B7280] block mb-0.5 font-semibold">
                   Langkah {editorStep + 1} dari 5: {currentStepData.title}
@@ -833,7 +942,7 @@ export default function LandingPage() {
                 {currentStepData.guide}
               </div>
 
-              <div className="flex items-center gap-1.5 shrink-0">
+              <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 self-end sm:self-center">
                 {studioSteps.map((step, idx) => (
                   <button
                     key={idx}
@@ -853,32 +962,36 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {}
         {/* TARGET AUDIENCES SECTION */}
-        <section className="py-20 px-6 md:px-12 border-b border-[#E5E7EB] bg-[#FAFAFA]">
+        <section className="py-16 sm:py-20 px-4 sm:px-6 md:px-12 border-b border-[#E5E7EB] bg-[#FAFAFA]">
           <div className="max-w-[1320px] mx-auto">
-            <div className="mb-12 text-center max-w-xl mx-auto">
-              <span className="text-xs font-semibold uppercase tracking-wider text-[#6B7280] block mb-2">
+            <div className="mb-10 sm:mb-12 text-center max-w-xl mx-auto">
+              <span className="text-xs font-semibold uppercase tracking-wider text-[#6B7280] block mb-1.5 sm:mb-2">
                 Cocok Untuk Siapa?
               </span>
               <h2
-                className="text-2xl sm:text-4xl font-bold tracking-tight text-[#111111]"
+                className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-[#111111]"
                 style={{ fontFamily: "var(--font-heading), sans-serif" }}
               >
                 Solusi praktis untuk berbagai kegiatan.
               </h2>
             </div>
 
-            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
               {useCases.map((aud) => (
                 <div
                   key={aud.id}
-                  className="bg-[#FFFFFF] border border-[#E5E7EB] p-6 rounded-lg flex flex-col justify-between"
+                  className="bg-[#FFFFFF] border border-[#E5E7EB] p-5 sm:p-6 rounded-lg flex flex-col justify-between"
                 >
                   <div>
-                    <h3 className="text-sm font-semibold text-[#111111] mb-2">{aud.title}</h3>
+                    <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded bg-[#F3F4F6] text-[#4B5563] inline-block mb-2.5">
+                      {aud.badge}
+                    </span>
+                    <h3 className="text-sm sm:text-base font-semibold text-[#111111] mb-1.5">{aud.title}</h3>
                     <p className="text-xs text-[#6B7280] font-normal leading-relaxed">{aud.desc}</p>
                   </div>
-                  <div className="mt-5 pt-3 border-t border-[#E5E7EB] flex items-center gap-1.5 text-xs font-medium text-[#111111]">
+                  <div className="mt-4 sm:mt-5 pt-3 border-t border-[#E5E7EB] flex items-center gap-1.5 text-xs font-medium text-[#111111]">
                     <Check className="size-3 text-emerald-600" />
                     <span>Teruji Praktis</span>
                   </div>
@@ -889,10 +1002,10 @@ export default function LandingPage() {
         </section>
 
         {/* PLAN COMPARISON SECTION */}
-        <section id="perbandingan" className="py-20 px-6 md:px-12 border-b border-[#E5E7EB] bg-[#FFFFFF]">
+        <section id="perbandingan" className="py-16 sm:py-20 px-4 sm:px-6 md:px-12 border-b border-[#E5E7EB] bg-[#FFFFFF]">
           <div className="max-w-[1320px] mx-auto">
-            <div className="mb-10 text-center max-w-xl mx-auto">
-              <span className="text-xs font-semibold uppercase tracking-wider text-[#6B7280] block mb-2">
+            <div className="mb-8 sm:mb-10 text-center max-w-xl mx-auto">
+              <span className="text-xs font-semibold uppercase tracking-wider text-[#6B7280] block mb-1.5 sm:mb-2">
                 Pilihan Penggunaan
               </span>
               <h2
@@ -908,12 +1021,12 @@ export default function LandingPage() {
 
             <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-lg overflow-hidden max-w-3xl mx-auto shadow-xs">
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs min-w-[560px]">
+                <table className="w-full text-left border-collapse text-xs min-w-[520px]">
                   <thead>
                     <tr className="border-b border-[#E5E7EB] bg-[#FAFAFA] text-xs font-semibold uppercase text-[#6B7280]">
-                      <th className="p-3.5 font-semibold">Fitur & Kapasitas</th>
-                      <th className="p-3.5 font-semibold w-48">Mode Trial (Tanpa Daftar)</th>
-                      <th className="p-3.5 font-semibold w-48 text-[#111111] bg-black/5">Akun Cloud Gratis</th>
+                      <th className="p-3 sm:p-3.5 font-semibold">Fitur & Kapasitas</th>
+                      <th className="p-3 sm:p-3.5 font-semibold w-44 sm:w-48">Mode Trial (Tanpa Daftar)</th>
+                      <th className="p-3 sm:p-3.5 font-semibold w-44 sm:w-48 text-[#111111] bg-black/5">Akun Cloud Gratis</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#E5E7EB]">
@@ -924,28 +1037,32 @@ export default function LandingPage() {
                       { feature: "Pengelolaan Data", trial: "Sekali Pakai", cloud: "Database & Riwayat Acara" },
                     ].map((row, idx) => (
                       <tr key={idx} className="hover:bg-[#F9FAFB] transition-colors">
-                        <td className="p-3.5 text-[#111111] font-medium">{row.feature}</td>
-                        <td className="p-3.5 text-[#6B7280] font-normal">{row.trial}</td>
-                        <td className="p-3.5 text-[#111111] font-semibold bg-black/5">{row.cloud}</td>
+                        <td className="p-3 sm:p-3.5 text-[#111111] font-medium">{row.feature}</td>
+                        <td className="p-3 sm:p-3.5 text-[#6B7280] font-normal">{row.trial}</td>
+                        <td className="p-3 sm:p-3.5 text-[#111111] font-semibold bg-black/5">{row.cloud}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
             </div>
+            <p className="text-center text-[11px] text-[#9CA3AF] mt-2 sm:hidden">
+              ← Geser tabel ke samping untuk melihat detail paket →
+            </p>
           </div>
         </section>
 
+        {}
         {/* OPTIMIZER SECTION */}
-        <section id="optimizer" className="py-20 px-6 md:px-12 border-b border-[#E5E7EB] bg-[#FAFAFA]">
+        <section id="optimizer" className="py-16 sm:py-20 px-4 sm:px-6 md:px-12 border-b border-[#E5E7EB] bg-[#FAFAFA]">
           <div className="max-w-[1320px] mx-auto">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-10 gap-4">
+            <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 sm:mb-10 gap-3 sm:gap-4">
               <div>
-                <span className="text-xs font-semibold uppercase tracking-wider text-[#6B7280] block mb-2">
+                <span className="text-xs font-semibold uppercase tracking-wider text-[#6B7280] block mb-1.5 sm:mb-2">
                   Kompresi Dokumen
                 </span>
                 <h2
-                  className="text-2xl sm:text-4xl font-bold tracking-tight text-[#111111]"
+                  className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-[#111111]"
                   style={{ fontFamily: "var(--font-heading), sans-serif" }}
                 >
                   File ZIP tetap ringan walau cetak ribuan lembar.
@@ -956,9 +1073,9 @@ export default function LandingPage() {
               </p>
             </div>
 
-            <div className="bg-[#FFFFFF] border border-[#E5E7EB] p-6 sm:p-8 rounded-lg">
-              <div className="grid lg:grid-cols-12 gap-8 items-center">
-                <div className="lg:col-span-6 space-y-5">
+            <div className="bg-[#FFFFFF] border border-[#E5E7EB] p-5 sm:p-8 rounded-lg">
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-8 items-center">
+                <div className="lg:col-span-6 space-y-4 sm:space-y-5">
                   <div>
                     <div className="flex justify-between items-center text-xs mb-1.5 font-medium">
                       <span className="text-[#6B7280]">Skala Kompresi Kanvas</span>
@@ -999,26 +1116,26 @@ export default function LandingPage() {
                   </div>
                 </div>
 
-                <div className="lg:col-span-6 grid grid-cols-2 gap-4">
-                  <div className="bg-[#F9FAFB] border border-[#E5E7EB] p-5 rounded-lg flex flex-col justify-between">
-                    <span className="text-xs text-[#6B7280] block mb-1 font-medium">Ukuran Asli</span>
+                <div className="lg:col-span-6 grid grid-cols-2 gap-3 sm:gap-4">
+                  <div className="bg-[#F9FAFB] border border-[#E5E7EB] p-4 sm:p-5 rounded-lg flex flex-col justify-between">
+                    <span className="text-[11px] sm:text-xs text-[#6B7280] block mb-1 font-medium">Ukuran Asli</span>
                     <div
-                      className="text-2xl sm:text-3xl font-bold text-[#111111]"
+                      className="text-xl sm:text-3xl font-bold text-[#111111]"
                       style={{ fontFamily: "var(--font-heading), sans-serif" }}
                     >
                       12.5 MB
                     </div>
                   </div>
 
-                  <div className="bg-[#FFFFFF] border border-[#111111] p-5 rounded-lg flex flex-col justify-between">
-                    <span className="text-xs text-[#111111] font-bold block mb-1">Setelah Diatur</span>
+                  <div className="bg-[#FFFFFF] border border-[#111111] p-4 sm:p-5 rounded-lg flex flex-col justify-between">
+                    <span className="text-[11px] sm:text-xs text-[#111111] font-bold block mb-1">Setelah Diatur</span>
                     <div
-                      className="text-2xl sm:text-3xl font-bold text-[#111111]"
+                      className="text-xl sm:text-3xl font-bold text-[#111111]"
                       style={{ fontFamily: "var(--font-heading), sans-serif" }}
                     >
                       {optimizedSizeMB} MB
                     </div>
-                    <span className="text-xs text-[#6B7280] mt-3 pt-2 border-t border-[#E5E7EB] font-medium">
+                    <span className="text-[10px] sm:text-xs text-[#6B7280] mt-2 sm:mt-3 pt-1.5 sm:pt-2 border-t border-[#E5E7EB] font-medium">
                       Penghematan: <strong className="text-[#111111]">{savingsPercent}%</strong>
                     </span>
                   </div>
@@ -1029,27 +1146,27 @@ export default function LandingPage() {
         </section>
 
         {/* SECURITY & PRIVACY SECTION */}
-        <section id="security" className="py-20 px-6 md:px-12 border-b border-[#E5E7EB] bg-[#FFFFFF]">
+        <section id="security" className="py-16 sm:py-20 px-4 sm:px-6 md:px-12 border-b border-[#E5E7EB] bg-[#FFFFFF]">
           <div className="max-w-[1320px] mx-auto">
-            <div className="mb-12">
-              <span className="text-xs font-semibold uppercase tracking-wider text-[#6B7280] block mb-2">
+            <div className="mb-10 sm:mb-12">
+              <span className="text-xs font-semibold uppercase tracking-wider text-[#6B7280] block mb-1.5 sm:mb-2">
                 Privasi Data
               </span>
               <h2
-                className="text-2xl sm:text-4xl font-bold tracking-tight text-[#111111]"
+                className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-[#111111]"
                 style={{ fontFamily: "var(--font-heading), sans-serif" }}
               >
                 Data peserta aman karena diproses di komputer Anda.
               </h2>
-              <p className="mt-3 text-xs sm:text-sm text-[#6B7280] max-w-xl font-normal leading-relaxed">
+              <p className="mt-2.5 sm:mt-3 text-xs sm:text-sm text-[#6B7280] max-w-xl font-normal leading-relaxed">
                 Pada mode Trial dan Studio Mandiri, daftar nama peserta diproses langsung di perangkat Anda tanpa dikirim ke server luar.
               </p>
             </div>
 
-            <div className="grid md:grid-cols-3 gap-6">
-              <div className="bg-[#FFFFFF] border border-[#E5E7EB] p-6 rounded-lg flex flex-col justify-between">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+              <div className="bg-[#FFFFFF] border border-[#E5E7EB] p-5 sm:p-6 rounded-lg flex flex-col justify-between">
                 <div>
-                  <h3 className="text-sm font-semibold text-[#111111] mb-1.5">
+                  <h3 className="text-sm sm:text-base font-semibold text-[#111111] mb-1.5">
                     Mesin WebAssembly
                   </h3>
                   <p className="text-xs text-[#6B7280] leading-relaxed font-normal">
@@ -1058,9 +1175,9 @@ export default function LandingPage() {
                 </div>
               </div>
 
-              <div className="bg-[#FFFFFF] border border-[#E5E7EB] p-6 rounded-lg flex flex-col justify-between">
+              <div className="bg-[#FFFFFF] border border-[#E5E7EB] p-5 sm:p-6 rounded-lg flex flex-col justify-between">
                 <div>
-                  <h3 className="text-sm font-semibold text-[#111111] mb-1.5">
+                  <h3 className="text-sm sm:text-base font-semibold text-[#111111] mb-1.5">
                     Pemulihan Sesi Otomatis
                   </h3>
                   <p className="text-xs text-[#6B7280] leading-relaxed font-normal">
@@ -1069,9 +1186,9 @@ export default function LandingPage() {
                 </div>
               </div>
 
-              <div className="bg-[#FFFFFF] border border-[#E5E7EB] p-6 rounded-lg flex flex-col justify-between">
+              <div className="bg-[#FFFFFF] border border-[#E5E7EB] p-5 sm:p-6 rounded-lg flex flex-col justify-between">
                 <div>
-                  <h3 className="text-sm font-semibold text-[#111111] mb-1.5">
+                  <h3 className="text-sm sm:text-base font-semibold text-[#111111] mb-1.5">
                     Latar Belakang Lancar
                   </h3>
                   <p className="text-xs text-[#6B7280] leading-relaxed font-normal">
@@ -1084,14 +1201,14 @@ export default function LandingPage() {
         </section>
 
         {/* TECHNICAL SPECS SECTION */}
-        <section id="specs" className="py-20 px-6 md:px-12 border-b border-[#E5E7EB] bg-[#FAFAFA]">
+        <section id="specs" className="py-16 sm:py-20 px-4 sm:px-6 md:px-12 border-b border-[#E5E7EB] bg-[#FAFAFA]">
           <div className="max-w-[1320px] mx-auto">
-            <div className="mb-10">
-              <span className="text-xs font-semibold uppercase tracking-wider text-[#6B7280] block mb-2">
+            <div className="mb-8 sm:mb-10">
+              <span className="text-xs font-semibold uppercase tracking-wider text-[#6B7280] block mb-1.5 sm:mb-2">
                 Spesifikasi
               </span>
               <h2
-                className="text-2xl sm:text-4xl font-bold tracking-tight text-[#111111]"
+                className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-[#111111]"
                 style={{ fontFamily: "var(--font-heading), sans-serif" }}
               >
                 Rekomendasi perangkat.
@@ -1107,7 +1224,7 @@ export default function LandingPage() {
               ].map((spec, idx) => (
                 <div
                   key={spec.label}
-                  className="py-4.5 grid grid-cols-1 md:grid-cols-12 gap-3 items-baseline"
+                  className="py-3.5 sm:py-4.5 grid grid-cols-1 md:grid-cols-12 gap-1.5 sm:gap-3 items-baseline"
                 >
                   <div className="md:col-span-1 text-xs font-bold text-[#6B7280]">
                     0{idx + 1}
@@ -1115,10 +1232,10 @@ export default function LandingPage() {
                   <div className="md:col-span-4 text-xs uppercase font-semibold text-[#6B7280]">
                     {spec.label}
                   </div>
-                  <div className="md:col-span-4 text-sm font-semibold text-[#111111]">
+                  <div className="md:col-span-4 text-xs sm:text-sm font-semibold text-[#111111]">
                     {spec.value}
                   </div>
-                  <div className="md:col-span-3 text-xs text-[#6B7280] font-normal">
+                  <div className="md:col-span-3 text-[11px] sm:text-xs text-[#6B7280] font-normal">
                     {spec.desc}
                   </div>
                 </div>
@@ -1127,33 +1244,34 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {}
         {/* FAQ SECTION */}
-        <section id="faq" className="py-20 px-6 md:px-12 border-b border-[#E5E7EB] bg-[#FFFFFF]">
-          <div className="max-w-[1320px] mx-auto grid lg:grid-cols-12 gap-10">
+        <section id="faq" className="py-16 sm:py-20 px-4 sm:px-6 md:px-12 border-b border-[#E5E7EB] bg-[#FFFFFF]">
+          <div className="max-w-[1320px] mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-10">
             <div className="lg:col-span-5">
-              <span className="text-xs font-semibold uppercase tracking-wider text-[#6B7280] block mb-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-[#6B7280] block mb-1.5 sm:mb-2">
                 Tanya Jawab
               </span>
               <h2
-                className="text-2xl sm:text-4xl font-bold tracking-tight text-[#111111]"
+                className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-[#111111]"
                 style={{ fontFamily: "var(--font-heading), sans-serif" }}
               >
                 Pertanyaan yang sering ditanyakan.
               </h2>
             </div>
 
-            <div className="lg:col-span-7 divide-y divide-[#E5E7EB] border-y border-[#E5E7EB] bg-[#FFFFFF] px-6 rounded-lg">
+            <div className="lg:col-span-7 divide-y divide-[#E5E7EB] border-y border-[#E5E7EB] bg-[#FFFFFF] px-3 sm:px-6 rounded-lg">
               {faqs.map((faq, idx) => {
                 const isOpen = openFaq === idx;
                 return (
-                  <div key={idx} className="py-4.5">
+                  <div key={idx} className="py-4 sm:py-4.5">
                     <button
                       type="button"
                       onClick={() => toggleFaq(idx)}
                       aria-expanded={isOpen}
-                      className="w-full flex justify-between items-center text-left"
+                      className="w-full flex justify-between items-center text-left py-1"
                     >
-                      <span className="text-sm font-semibold text-[#111111] pr-4">{faq.q}</span>
+                      <span className="text-xs sm:text-sm font-semibold text-[#111111] pr-3">{faq.q}</span>
                       <ChevronDown
                         className={`size-4 text-[#6B7280] shrink-0 transition-transform duration-200 ${
                           isOpen ? "rotate-180 text-[#111111]" : ""
@@ -1161,7 +1279,7 @@ export default function LandingPage() {
                       />
                     </button>
                     {isOpen && (
-                      <div className="mt-2.5 pt-1 text-xs text-[#6B7280] font-normal leading-relaxed">
+                      <div className="mt-2 pt-1 text-xs text-[#6B7280] font-normal leading-relaxed">
                         {faq.a}
                       </div>
                     )}
@@ -1174,7 +1292,7 @@ export default function LandingPage() {
       </main>
 
       {/* FOOTER */}
-      <footer className="border-t border-[#E5E7EB] bg-[#FFFFFF] py-12 px-6 md:px-12 text-xs text-[#6B7280]">
+      <footer className="border-t border-[#E5E7EB] bg-[#FFFFFF] py-10 sm:py-12 px-4 sm:px-6 md:px-12 text-xs text-[#6B7280]">
         <div className="max-w-[1320px] mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-6 border-b border-[#E5E7EB] pb-8">
           <div>
             <span
@@ -1188,7 +1306,7 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="flex flex-wrap gap-6 text-xs font-medium">
+          <div className="flex flex-wrap gap-4 sm:gap-6 text-xs font-medium">
             <a href="#cara-kerja" className="hover:text-[#111111]">Cara Kerja</a>
             <a href="#simulator" className="hover:text-[#111111]">Simulator</a>
             <a href="#studio" className="hover:text-[#111111]">Fitur Kanvas</a>
@@ -1197,9 +1315,9 @@ export default function LandingPage() {
           </div>
         </div>
 
-        <div className="max-w-[1320px] mx-auto flex flex-col sm:flex-row justify-between items-center gap-3 pt-6 text-xs">
+        <div className="max-w-[1320px] mx-auto flex flex-col sm:flex-row justify-between items-center gap-3 pt-6 text-xs text-center sm:text-left">
           <span>© {new Date().getFullYear()} SertiGen. Hak cipta dilindungi.</span>
-          <div className="flex items-center gap-4 text-[#6B7280]">
+          <div className="flex items-center gap-3 sm:gap-4 text-[#6B7280]">
             <span>Pemrosesan PDF Lokal</span>
             <span className="text-[#D1D5DB]">•</span>
             <span>Kebijakan Privasi</span>
