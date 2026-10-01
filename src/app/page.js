@@ -429,12 +429,7 @@ export default function LandingPage() {
         <section className="pt-10 sm:pt-16 pb-16 sm:pb-20 px-4 sm:px-6 md:px-12 border-b border-[#E5E7EB]">
           <div className="max-w-[1320px] mx-auto grid lg:grid-cols-12 gap-10 lg:gap-12 items-start">
             <div className="lg:col-span-7 flex flex-col pt-1">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-[#F3F4F6] border border-[#E5E7EB] w-fit mb-4 sm:mb-5">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 shrink-0" />
-                <span className="text-[11px] sm:text-xs font-medium text-[#4B5563]">
-                  Satu Template PDF • Ratusan Nama Penerima
-                </span>
-              </div>
+              
 
               <h1
                 className="text-3xl sm:text-4xl md:text-5xl lg:text-[52px] font-bold leading-[1.14] tracking-[-0.8px] sm:tracking-[-1.2px] text-[#111111]"
