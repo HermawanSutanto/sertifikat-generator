@@ -1,99 +1,78 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import Papa from "papaparse";
+import { PDFDocument } from "pdf-lib";
 import { useAuth } from "@/context/AuthContext";
-import { auth, db } from "@/lib/firebase";
-import { updateProfile } from "firebase/auth";
+import { db } from "@/lib/firebase";
 import {
   doc,
   getDoc,
-  setDoc,
+  getDocFromCache,
   updateDoc,
   collection,
+  getDocs,
+  writeBatch,
+  deleteDoc,
+  addDoc,
+  increment,
   serverTimestamp,
 } from "firebase/firestore";
-import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
-);
-const ASSET_BUCKET = "project-assets";
+// Helper batas waktu agar permintaan ke Firestore tidak macet saat jaringan bermasalah
+const withTimeout = (promise, ms = 6000, errorMsg = "Koneksi ke Firestore timeout (jaringan terhambat).") => {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error(errorMsg)), ms)),
+  ]);
+};
 
-// Ikon Vektor Minimalis
-const Spinner = ({ className = "w-4 h-4 text-current", ...props }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" className={className} {...props}>
-    <path fill="currentColor" d="M12,23a9.63,9.63,0,0,1-8-9.5,9.51,9.51,0,0,1,6.79-9.1A1,1,0,0,1,12,5.19a8.4,8.4,0,0,0-6.1,8.31,8.44,8.44,0,0,0,8.38,8.38A1,1,0,0,1,12,23Z">
-      <animateTransform attributeName="transform" type="rotate" dur="0.75s" from="0 12 12" to="360 12 12" repeatCount="indefinite" />
-    </path>
-  </svg>
-);
-
-const IconUser = (props) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
-  </svg>
-);
-
-const IconBuilding = (props) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3.75 21h16.5M4.5 3h15M5.25 3v18m13.5-18v18M9 6.75h1.5m-1.5 3h1.5m-1.5 3h1.5m3-6H15m-1.5 3H15m-1.5 3H15M9 21v-3.375c0-.621.504-1.125 1.125-1.125h3.75c.621 0 1.125.504 1.125 1.125V21" />
-  </svg>
-);
-
-const IconCheck = (props) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.5 12.75l6 6 9-13.5" />
-  </svg>
-);
-
-const IconTrash = (props) => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M14.74 9l-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 01-2.244 2.077H8.084a2.25 2.25 0 01-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 00-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 013.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 00-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 00-7.5 0" />
-  </svg>
-);
-
-export default function ProfilePage() {
+export default function EventDetailPage() {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const params = useParams();
+  const searchParams = useSearchParams();
 
-  const [activeTab, setActiveTab] = useState("personal"); // "personal" | "organization"
+  // Deteksi fleksibel ID event dari parameter path atau URL query string
+  const rawParamValue = params?.id || params?.eventId || (params ? Object.values(params)[0] : null);
+  const queryParamValue = searchParams?.get("id") || searchParams?.get("eventId");
+  const eventId = rawParamValue || queryParamValue;
 
-  // Status State
-  const [isLoadingData, setIsLoadingData] = useState(true);
-  const [isSaving, setIsSaving] = useState(false);
+  // State Data Event & Peserta
+  const [eventData, setEventData] = useState(null);
+  const [participants, setParticipants] = useState([]);
+  const [pageSizes, setPageSizes] = useState({ 1: { width: 842, height: 595 } });
+  const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [statusMessage, setStatusMessage] = useState({ text: "", type: "" });
 
-  // State Profil Personal
-  const [personalData, setPersonalData] = useState({
-    namaLengkap: "",
-    nomorWhatsapp: "",
-    jabatan: "",
+  // State Pilihan Checkbox Peserta
+  const [selectedIds, setSelectedIds] = useState(new Set());
+
+  // State Modal Tambah Peserta Manual
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [manualName, setManualName] = useState("");
+  const [manualEmail, setManualEmail] = useState("");
+  const [isAddingParticipant, setIsAddingParticipant] = useState(false);
+
+  // State Dialog Konfirmasi Hapus Dinamis (Mendukung mode satuan, batch terpilih, dan kosongkan semua)
+  const [deleteDialog, setDeleteDialog] = useState({
+    isOpen: false,
+    mode: "single", // "single" | "selected" | "all"
+    participantId: null,
+    participantName: "",
+    isDeleting: false,
   });
 
-  // State Organisasi / Workspace
-  const [orgId, setOrgId] = useState(null);
-  const [orgData, setOrgData] = useState({
-    namaOrganisasi: "",
-    tipeOrganisasi: "personal",
-    emailResmi: "",
-    website: "",
-    nomorTelepon: "",
-    alamatJalan: "",
-    alamatKota: "",
-    nomorSuratPrefix: "SERTI",
-    nomorSuratKode: "IND",
-    logoUrl: "",
-    capStempelUrl: "",
-  });
+  // State Pemrosesan Render Wasm Sisi Klien
+  const [isRendering, setIsRendering] = useState(false);
+  const [renderProgress, setRenderProgress] = useState(null);
 
-  // Ref berkas upload
-  const logoInputRef = useRef(null);
-  const stempelInputRef = useRef(null);
-  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
-  const [isUploadingStempel, setIsUploadingStempel] = useState(false);
+  // Referensi DOM Elemen
+  const csvInputRef = useRef(null);
+  const previewCanvasRef = useRef(null);
 
   useEffect(() => {
     if (!loading && !user) {
@@ -108,277 +87,687 @@ export default function ProfilePage() {
     }, 4000);
   };
 
-  // Muat data profil pengguna dan organisasi aktif
-  useEffect(() => {
-    if (!user) return;
+  const fetchEventAndParticipants = useCallback(async () => {
+    if (!user || !eventId) {
+      if (!loading && (!user || !eventId)) {
+        setIsLoading(false);
+        setLoadError("ID Event tidak terdeteksi di URL.");
+      }
+      return;
+    }
 
-    const loadProfileAndOrg = async () => {
-      setIsLoadingData(true);
+    setIsLoading(true);
+    setLoadError("");
+
+    try {
+      // 1. Ambil data dokumen event utama
+      const eventDocRef = doc(db, "events", eventId);
+      let eventSnap;
       try {
-        const userRef = doc(db, "users", user.uid);
-        const userSnap = await getDoc(userRef);
-
-        let currentActiveOrgId = null;
-
-        if (userSnap.exists()) {
-          const uData = userSnap.data();
-          setPersonalData({
-            namaLengkap: uData.namaLengkap || user.displayName || "",
-            nomorWhatsapp: uData.nomorWhatsapp || "",
-            jabatan: uData.jabatan || "",
-          });
-          currentActiveOrgId = uData.activeOrgId || null;
-        } else {
-          const initialName = user.displayName || user.email?.split("@")[0] || "Pengguna SertiGen";
-          await setDoc(userRef, {
-            uid: user.uid,
-            email: user.email,
-            namaLengkap: initialName,
-            nomorWhatsapp: "",
-            jabatan: "Penyelenggara Mandiri",
-            accountType: "personal",
-            dibuatPada: serverTimestamp(),
-            terakhirLogin: serverTimestamp(),
-          });
-          setPersonalData((prev) => ({
-            ...prev,
-            namaLengkap: initialName,
-          }));
+        eventSnap = await withTimeout(getDoc(eventDocRef), 6000);
+      } catch (timeoutErr) {
+        console.warn("Fetch Firestore timeout, beralih ke cache lokal...", timeoutErr.message);
+        try {
+          eventSnap = await getDocFromCache(eventDocRef);
+        } catch {
+          throw new Error("Gagal menghubungi Firestore dalam 6 detik. Periksa koneksi internet.");
         }
+      }
 
-        // Ambil data organisasi terkait jika sudah ada
-        if (currentActiveOrgId) {
-          const orgRef = doc(db, "organizations", currentActiveOrgId);
-          const orgSnap = await getDoc(orgRef);
-          if (orgSnap.exists()) {
-            const o = orgSnap.data();
-            setOrgId(orgSnap.id);
-            setOrgData({
-              namaOrganisasi: o.namaOrganisasi || "",
-              tipeOrganisasi: o.tipeOrganisasi || "personal",
-              emailResmi: o.emailResmi || "",
-              website: o.website || "",
-              nomorTelepon: o.nomorTelepon || "",
-              alamatJalan: o.alamat?.jalan || "",
-              alamatKota: o.alamat?.kota || "",
-              nomorSuratPrefix: o.nomorSuratFormat?.prefix || (o.tipeOrganisasi === "personal" ? "SERTI" : "SK-SERTI"),
-              nomorSuratKode: o.nomorSuratFormat?.kodeBagian || (o.tipeOrganisasi === "personal" ? "IND" : "HRD"),
-              logoUrl: o.branding?.logoUrl || "",
-              capStempelUrl: o.branding?.capStempelUrl || "",
+      if (!eventSnap || !eventSnap.exists()) {
+        notify("Event tidak ditemukan atau telah dihapus.", "error");
+        setLoadError("Dokumen event tidak ditemukan di database.");
+        setIsLoading(false);
+        return;
+      }
+
+      const eventPayload = { id: eventSnap.id, ...eventSnap.data() };
+
+      if (eventPayload.userId && eventPayload.userId !== user.uid) {
+        notify("Anda tidak memiliki hak akses ke event ini.", "error");
+        setLoadError("Akses ditolak: Dokumen ini bukan milik akun Anda.");
+        setIsLoading(false);
+        return;
+      }
+
+      setEventData(eventPayload);
+
+      // 2. Ambil ukuran dimensi halaman template PDF jika tersedia
+      if (eventPayload.storageRefs?.templatePdf?.url) {
+        try {
+          const res = await fetch(eventPayload.storageRefs.templatePdf.url);
+          if (res.ok) {
+            const ab = await res.arrayBuffer();
+            const pdfDoc = await PDFDocument.load(ab);
+            const sizes = {};
+            pdfDoc.getPages().forEach((p, idx) => {
+              const { width, height } = p.getSize();
+              sizes[idx + 1] = { width, height };
             });
+            setPageSizes(sizes);
           }
+        } catch (e) {
+          console.warn("Gagal membaca ukuran halaman PDF:", e);
+        }
+      }
+
+      // 3. Ambil data peserta dari subkoleksi event
+      try {
+        const pesertaColRef = collection(db, `events/${eventId}/peserta`);
+        const pesertaSnap = await withTimeout(getDocs(pesertaColRef), 5000);
+
+        const list = pesertaSnap.docs.map((d) => ({
+          id: d.id,
+          ...d.data(),
+        }));
+
+        list.sort((a, b) => (a.nomorUrut || 0) - (b.nomorUrut || 0));
+        setParticipants(list);
+        setSelectedIds(new Set());
+      } catch (subErr) {
+        console.warn("Subkoleksi peserta kosong atau gagal dibaca:", subErr.message);
+        setParticipants([]);
+      }
+    } catch (err) {
+      console.error("Gagal memuat data event:", err);
+      setLoadError(err.message || "Gagal memuat data event.");
+      notify("Gagal: " + err.message, "error");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [user, eventId, loading]);
+
+  useEffect(() => {
+    if (user && eventId) {
+      fetchEventAndParticipants();
+    }
+  }, [user, eventId, fetchEventAndParticipants]);
+
+  const renderInterpolatedText = (cfg, row) => {
+    if (cfg.is_custom_var) {
+      const parts = (cfg.custom_var_values || "").split(",").map((s) => s.trim());
+      return parts[0] || `[${cfg.custom_var_name || cfg.column_name}]`;
+    }
+
+    if (cfg.static_text !== undefined && cfg.static_text !== "") {
+      let text = cfg.static_text;
+      if (row) {
+        Object.entries(row).forEach(([k, v]) => {
+          const valStr = String(v ?? "");
+          text = text.replaceAll(`{${k}}`, valStr);
+          text = text.replaceAll(`{${k}:uppercase}`, valStr.toUpperCase());
+        });
+      }
+      return text;
+    }
+
+    return (row && row[cfg.column_name]) ? String(row[cfg.column_name]) : `[${cfg.column_name}]`;
+  };
+
+  useEffect(() => {
+    if (!eventData?.storageRefs?.templatePdf?.url || !previewCanvasRef.current) return;
+
+    let isSubscribed = true;
+
+    const renderThumbnail = async () => {
+      try {
+        const pdfjsLib = await import("pdfjs-dist/legacy/build/pdf");
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `//unpkg.com/pdfjs-dist@${pdfjsLib.version}/legacy/build/pdf.worker.min.mjs`;
+
+        const loadingTask = pdfjsLib.getDocument(eventData.storageRefs.templatePdf.url);
+        const pdf = await loadingTask.promise;
+        const page = await pdf.getPage(1);
+
+        if (!isSubscribed) return;
+
+        const viewport = page.getViewport({ scale: 0.35 });
+        const canvas = previewCanvasRef.current;
+        if (!canvas) return;
+
+        const ctx = canvas.getContext("2d");
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+
+        await page.render({ canvasContext: ctx, viewport }).promise;
+
+        if (eventData.configs && Array.isArray(eventData.configs)) {
+          const sampleRow = participants[0]?.attributes || {
+            Nama: participants[0]?.nama || "Contoh Nama Peserta",
+            Email: participants[0]?.email || "peserta@example.com",
+          };
+
+          eventData.configs.forEach((cfg) => {
+            if (cfg.enabled === false) return;
+            if (cfg.page_number && cfg.page_number !== 1) return;
+
+            if (cfg.type === "image" && cfg.data_url) {
+              const img = new Image();
+              img.onload = () => {
+                ctx.drawImage(
+                  img,
+                  (cfg.x || 0) * 0.35,
+                  (cfg.y || 0) * 0.35,
+                  (cfg.max_width || 100) * 0.35,
+                  (cfg.height || 60) * 0.35
+                );
+              };
+              img.src = cfg.data_url;
+              return;
+            }
+
+            const text = renderInterpolatedText(cfg, sampleRow);
+            ctx.font = `${Math.round((cfg.font_size || 24) * 0.35)}px sans-serif`;
+            ctx.fillStyle = cfg.color || "#111111";
+            ctx.textAlign = cfg.align || "left";
+
+            let xPos = (cfg.x || 0) * 0.35;
+            if (cfg.align === "center") xPos += ((cfg.max_width || 200) * 0.35) / 2;
+            if (cfg.align === "right") xPos += (cfg.max_width || 200) * 0.35;
+
+            const yPos = ((cfg.y || 100) + (cfg.font_size || 24)) * 0.35;
+            ctx.fillText(text, xPos, yPos);
+          });
         }
       } catch (err) {
-        console.error("Gagal membaca profil:", err);
-        notify("Kendala membaca profil: " + err.message, "error");
-      } finally {
-        setIsLoadingData(false);
+        console.warn("Pratinjau canvas tidak dapat dimuat:", err.message);
       }
     };
 
-    loadProfileAndOrg();
-  }, [user]);
+    renderThumbnail();
 
-  // Unggah Logo atau Cap Stempel ke Supabase Storage
-  const handleUploadBrandingAsset = async (file, assetType) => {
-    if (!file || !user) return;
+    return () => {
+      isSubscribed = false;
+    };
+  }, [eventData, participants]);
 
-    // Validasi ukuran berkas (Maks 2 MB)
-    if (file.size > 2 * 1024 * 1024) {
-      notify("Ukuran berkas maksimal 2 MB.", "error");
-      return;
-    }
+  const handleImportCsv = (e) => {
+    const file = e.target.files?.[0];
+    if (!file || !eventId) return;
 
-    const isLogo = assetType === "logo";
-    if (isLogo) setIsUploadingLogo(true);
-    else setIsUploadingStempel(true);
+    notify("Membaca berkas CSV...", "info");
 
-    try {
-      // Pastikan targetOrgId sinkron dengan ID Firestore agar tidak terjadi berkas yatim
-      let currentTargetOrgId = orgId;
-      if (!currentTargetOrgId) {
-        const preAllocatedOrgRef = doc(collection(db, "organizations"));
-        currentTargetOrgId = preAllocatedOrgRef.id;
-        setOrgId(currentTargetOrgId);
-      }
+    Papa.parse(file, {
+      header: true,
+      skipEmptyLines: true,
+      complete: async (results) => {
+        const rows = results.data;
+        if (!rows || rows.length === 0) {
+          notify("Berkas CSV tidak memuat data yang valid.", "error");
+          return;
+        }
 
-      const ext = file.name.split(".").pop();
-      const filePath = `${user.uid}/organizations/${currentTargetOrgId}/${assetType}_${Date.now()}.${ext}`;
+        try {
+          notify(`Menyimpan ${rows.length} peserta ke database...`, "info");
+          const colRef = collection(db, `events/${eventId}/peserta`);
+          const currentCount = participants.length;
 
-      const { error: uploadError } = await supabase.storage
-        .from(ASSET_BUCKET)
-        .upload(filePath, file, {
-          contentType: file.type || "image/png",
-          upsert: true,
-        });
+          // Deteksi dinamis nama kolom pertama dan kolom email
+          const fields = results.meta?.fields || (rows[0] ? Object.keys(rows[0]) : []);
+          const firstCol = fields[0] || "Nama";
+          const emailCol = fields.find((f) => /email|e-mail|surel|mail/i.test(f)) || "Email";
 
-      if (uploadError) throw new Error(uploadError.message);
+          for (let i = 0; i < rows.length; i += 400) {
+            const batch = writeBatch(db);
+            const chunk = rows.slice(i, i + 400);
 
-      const { data: urlData } = supabase.storage
-        .from(ASSET_BUCKET)
-        .getPublicUrl(filePath);
+            chunk.forEach((row, chunkIdx) => {
+              const globalIdx = currentCount + i + chunkIdx + 1;
+              const newDocRef = doc(colRef);
 
-      if (isLogo) {
-        setOrgData((prev) => ({ ...prev, logoUrl: urlData.publicUrl }));
-        notify("Logo berhasil diunggah.", "success");
-      } else {
-        setOrgData((prev) => ({ ...prev, capStempelUrl: urlData.publicUrl }));
-        notify("Cap / Tanda tangan berhasil diunggah.", "success");
-      }
-    } catch (err) {
-      console.error("Gagal unggah berkas:", err);
-      notify("Gagal mengunggah berkas: " + err.message, "error");
-    } finally {
-      if (isLogo) setIsUploadingLogo(false);
-      else setIsUploadingStempel(false);
-    }
+              // Ambil kolom pertama secara langsung sebagai identitas nama
+              const rawName = row[firstCol] || row.Nama || row.nama || row.NAME || `Peserta ${globalIdx}`;
+              const rawEmail = row[emailCol] || row.Email || row.email || "";
+
+              batch.set(newDocRef, {
+                nomorUrut: globalIdx,
+                nama: String(rawName).trim(),
+                email: String(rawEmail).trim(),
+                attributes: row,
+                diunduh: false,
+                dibuatPada: serverTimestamp(),
+              });
+            });
+
+            await batch.commit();
+          }
+
+          // Sinkronisasi totalPeserta ke dokumen induk
+          await updateDoc(doc(db, "events", eventId), {
+            totalPeserta: currentCount + rows.length,
+            diperbaruiPada: serverTimestamp(),
+          });
+
+          notify(`Berhasil mengimpor ${rows.length} peserta.`, "success");
+          await fetchEventAndParticipants();
+        } catch (err) {
+          console.error("Gagal impor CSV:", err);
+          notify("Gagal mengimpor data peserta: " + err.message, "error");
+        }
+      },
+      error: (err) => {
+        notify("Gagal membaca CSV: " + err.message, "error");
+      },
+    });
+
+    e.target.value = "";
   };
 
-  // Simpan Tab 1: Profil Pribadi
-  const handleSavePersonal = async (e) => {
+  const handleAddManualParticipant = async (e) => {
     e.preventDefault();
-    if (!user) return;
+    if (!manualName.trim()) return;
 
-    setIsSaving(true);
+    setIsAddingParticipant(true);
     try {
-      const trimmedName = personalData.namaLengkap.trim();
+      const colRef = collection(db, `events/${eventId}/peserta`);
+      const nextNumber = participants.length + 1;
 
-      // Sinkronkan ke Firebase Auth agar navbar & dashboard langsung terbarui
-      if (auth.currentUser && trimmedName) {
-        await updateProfile(auth.currentUser, { displayName: trimmedName });
-      }
+      await addDoc(colRef, {
+        nomorUrut: nextNumber,
+        nama: manualName.trim(),
+        email: manualEmail.trim(),
+        attributes: {
+          Nama: manualName.trim(),
+          Email: manualEmail.trim(),
+        },
+        diunduh: false,
+        dibuatPada: serverTimestamp(),
+      });
 
-      // Simpan ke Firestore
-      const userRef = doc(db, "users", user.uid);
-      await updateDoc(userRef, {
-        namaLengkap: trimmedName,
-        nomorWhatsapp: personalData.nomorWhatsapp.trim(),
-        jabatan: personalData.jabatan.trim(),
+      await updateDoc(doc(db, "events", eventId), {
+        totalPeserta: increment(1),
         diperbaruiPada: serverTimestamp(),
       });
 
-      notify("Profil personal berhasil diperbarui.", "success");
+      setManualName("");
+      setManualEmail("");
+      setShowAddModal(false);
+      notify("Peserta berhasil ditambahkan.", "success");
+      await fetchEventAndParticipants();
     } catch (err) {
-      console.error("Gagal menyimpan profil personal:", err);
-      notify("Gagal menyimpan profil: " + err.message, "error");
+      console.error("Gagal menambah peserta:", err);
+      notify("Gagal menambah peserta: " + err.message, "error");
     } finally {
-      setIsSaving(false);
+      setIsAddingParticipant(false);
     }
   };
 
-  // Simpan Tab 2: Profil Organisasi / Ruang Kerja
-  const handleSaveOrganization = async (e) => {
-    e.preventDefault();
-    if (!user) return;
+  const confirmDeleteSingleParticipant = async () => {
+    const { participantId } = deleteDialog;
+    if (!participantId) return;
 
-    if (!orgData.namaOrganisasi.trim()) {
-      notify("Nama entitas atau ruang kerja wajib diisi.", "error");
+    setDeleteDialog((prev) => ({ ...prev, isDeleting: true }));
+    try {
+      await deleteDoc(doc(db, `events/${eventId}/peserta`, participantId));
+      await updateDoc(doc(db, "events", eventId), {
+        totalPeserta: increment(-1),
+        diperbaruiPada: serverTimestamp(),
+      });
+
+      setParticipants((prev) => prev.filter((p) => p.id !== participantId));
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        next.delete(participantId);
+        return next;
+      });
+      notify("Peserta berhasil dihapus.", "success");
+      setDeleteDialog({ isOpen: false, mode: "single", participantId: null, participantName: "", isDeleting: false });
+    } catch (err) {
+      notify("Gagal menghapus peserta: " + err.message, "error");
+      setDeleteDialog((prev) => ({ ...prev, isDeleting: false }));
+    }
+  };
+
+  const confirmDeleteSelectedParticipants = async () => {
+    if (!eventId || selectedIds.size === 0) return;
+
+    setDeleteDialog((prev) => ({ ...prev, isDeleting: true }));
+    try {
+      notify(`Menghapus ${selectedIds.size} peserta terpilih...`, "info");
+      const idsToDelete = Array.from(selectedIds);
+
+      for (let i = 0; i < idsToDelete.length; i += 400) {
+        const batch = writeBatch(db);
+        const chunk = idsToDelete.slice(i, i + 400);
+        chunk.forEach((id) => {
+          batch.delete(doc(db, `events/${eventId}/peserta`, id));
+        });
+        await batch.commit();
+      }
+
+      const count = idsToDelete.length;
+      await updateDoc(doc(db, "events", eventId), {
+        totalPeserta: increment(-count),
+        diperbaruiPada: serverTimestamp(),
+      });
+
+      setParticipants((prev) => prev.filter((p) => !selectedIds.has(p.id)));
+      setSelectedIds(new Set());
+      notify(`Berhasil menghapus ${count} peserta.`, "success");
+      setDeleteDialog({ isOpen: false, mode: "single", participantId: null, participantName: "", isDeleting: false });
+    } catch (err) {
+      console.error("Gagal menghapus peserta terpilih:", err);
+      notify("Gagal menghapus data: " + err.message, "error");
+      setDeleteDialog((prev) => ({ ...prev, isDeleting: false }));
+    }
+  };
+
+  const confirmDeleteAllParticipants = async () => {
+    if (!eventId) return;
+
+    setDeleteDialog((prev) => ({ ...prev, isDeleting: true }));
+    try {
+      notify("Mengosongkan seluruh data peserta event...", "info");
+      const colRef = collection(db, `events/${eventId}/peserta`);
+      const snap = await getDocs(colRef);
+      const docs = snap.docs;
+
+      for (let i = 0; i < docs.length; i += 400) {
+        const batch = writeBatch(db);
+        docs.slice(i, i + 400).forEach((d) => batch.delete(d.ref));
+        await batch.commit();
+      }
+
+      await updateDoc(doc(db, "events", eventId), {
+        totalPeserta: 0,
+        diperbaruiPada: serverTimestamp(),
+      });
+
+      setParticipants([]);
+      setSelectedIds(new Set());
+      notify("Seluruh data peserta berhasil dibersihkan. Siap mengunggah CSV baru.", "success");
+      setDeleteDialog({ isOpen: false, mode: "single", participantId: null, participantName: "", isDeleting: false });
+    } catch (err) {
+      console.error("Gagal mengosongkan peserta:", err);
+      notify("Gagal mengosongkan data: " + err.message, "error");
+      setDeleteDialog((prev) => ({ ...prev, isDeleting: false }));
+    }
+  };
+
+  const handleConfirmDelete = () => {
+    if (deleteDialog.mode === "all") {
+      confirmDeleteAllParticipants();
+    } else if (deleteDialog.mode === "selected") {
+      confirmDeleteSelectedParticipants();
+    } else {
+      confirmDeleteSingleParticipant();
+    }
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === participants.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(participants.map((p) => p.id)));
+    }
+  };
+
+  const toggleSelectOne = (id) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const buildFormattedConfigs = (rawConfigs) => {
+    return (rawConfigs || [])
+      .filter((c) => c.enabled !== false && c.type !== "image")
+      .map((c) => {
+        const page = c.page_number || 1;
+        const size = pageSizes[page] || { height: 595 };
+        const colName = c.is_custom_var ? c.custom_var_name || c.column_name : c.column_name;
+
+        return {
+          column_name: colName,
+          static_text: c.static_text || null,
+          x: Number(c.x),
+          y: Number(c.y),
+          font_size: parseFloat(c.font_size || 24),
+          line_height: parseFloat(c.line_height || 1.2),
+          letter_spacing: parseFloat(c.letter_spacing || 0),
+          max_width: parseFloat(c.max_width),
+          align: c.align || "left",
+          page_number: page,
+          page_height: size.height,
+          color: c.color || "#111111",
+        };
+      });
+  };
+
+  const bakeImagesIntoPdf = async (baseArrayBuffer, rawConfigs) => {
+    const imageConfigs = (rawConfigs || []).filter((c) => c.enabled !== false && c.type === "image" && c.data_url);
+    if (imageConfigs.length === 0) {
+      return new Uint8Array(baseArrayBuffer);
+    }
+
+    const pdfDocLib = await PDFDocument.load(baseArrayBuffer);
+
+    for (const imgCfg of imageConfigs) {
+      const pageIndex = Math.max(0, (imgCfg.page_number || 1) - 1);
+      const page = pdfDocLib.getPage(pageIndex);
+      const { height: pageH } = page.getSize();
+
+      const res = await fetch(imgCfg.data_url);
+      const imgBytes = await res.arrayBuffer();
+
+      let embedded;
+      if (imgCfg.mime_type?.includes("jpeg") || imgCfg.mime_type?.includes("jpg")) {
+        embedded = await pdfDocLib.embedJpg(imgBytes);
+      } else {
+        embedded = await pdfDocLib.embedPng(imgBytes);
+      }
+
+      const pdfY = pageH - Number(imgCfg.y) - Number(imgCfg.height);
+
+      page.drawImage(embedded, {
+        x: Number(imgCfg.x),
+        y: pdfY,
+        width: Number(imgCfg.max_width),
+        height: Number(imgCfg.height),
+      });
+    }
+
+    const bakedBytes = await pdfDocLib.save();
+    return new Uint8Array(bakedBytes);
+  };
+
+  const handleDownloadSingle = async (peserta) => {
+    if (!eventData?.storageRefs?.templatePdf?.url) {
+      notify("Template PDF belum diunggah. Silakan klik 'Edit Desain' untuk mengatur template.", "error");
       return;
     }
 
-    setIsSaving(true);
     try {
-      const cleanOrgName = orgData.namaOrganisasi.trim();
-      const userRef = doc(db, "users", user.uid);
+      notify(`Merender sertifikat ${peserta.nama}...`, "info");
 
-      // Gunakan ID yang sudah ada atau siapkan ID dokumen baru
-      const targetOrgRef = orgId
-        ? doc(db, "organizations", orgId)
-        : doc(collection(db, "organizations"));
+      const templateRes = await fetch(eventData.storageRefs.templatePdf.url);
+      if (!templateRes.ok) throw new Error("Gagal mengambil file template PDF dari storage.");
+      const templateRawBuffer = await templateRes.arrayBuffer();
+      const templateUint8 = await bakeImagesIntoPdf(templateRawBuffer, eventData.configs);
 
-      const finalOrgId = targetOrgRef.id;
-      if (!orgId) setOrgId(finalOrgId);
-
-      const payload = {
-        namaOrganisasi: cleanOrgName,
-        tipeOrganisasi: orgData.tipeOrganisasi,
-        emailResmi: orgData.emailResmi.trim(),
-        website: orgData.website.trim(),
-        nomorTelepon: orgData.nomorTelepon.trim(),
-        alamat: {
-          jalan: orgData.alamatJalan.trim(),
-          kota: orgData.alamatKota.trim(),
-        },
-        branding: {
-          logoUrl: orgData.logoUrl || null,
-          capStempelUrl: orgData.capStempelUrl || null,
-        },
-        nomorSuratFormat: {
-          prefix: orgData.nomorSuratPrefix.trim() || (orgData.tipeOrganisasi === "personal" ? "SERTI" : "SK-SERTI"),
-          kodeBagian: orgData.nomorSuratKode.trim() || (orgData.tipeOrganisasi === "personal" ? "IND" : "HRD"),
-        },
-        pemilikId: user.uid,
-        diperbaruiPada: serverTimestamp(),
-      };
-
-      const existingOrgSnap = await getDoc(targetOrgRef);
-
-      if (!existingOrgSnap.exists()) {
-        payload.dibuatPada = serverTimestamp();
-        await setDoc(targetOrgRef, payload);
-
-        await updateDoc(userRef, {
-          activeOrgId: finalOrgId,
-          accountType: orgData.tipeOrganisasi,
-          organizations: [
-            {
-              orgId: finalOrgId,
-              role: "owner",
-              namaOrganisasi: cleanOrgName,
-            },
-          ],
-        });
-      } else {
-        await updateDoc(targetOrgRef, payload);
-
-        const uSnap = await getDoc(userRef);
-        if (uSnap.exists()) {
-          const currentOrgs = uSnap.data().organizations || [];
-          const updatedOrgs = currentOrgs.map((item) =>
-            item.orgId === finalOrgId ? { ...item, namaOrganisasi: cleanOrgName } : item
-          );
-          if (!updatedOrgs.some((item) => item.orgId === finalOrgId)) {
-            updatedOrgs.push({ orgId: finalOrgId, role: "owner", namaOrganisasi: cleanOrgName });
+      let fontBytes = null;
+      if (eventData.storageRefs?.customFont?.url) {
+        try {
+          const fontRes = await fetch(eventData.storageRefs.customFont.url);
+          if (fontRes.ok) {
+            fontBytes = new Uint8Array(await fontRes.arrayBuffer());
           }
-
-          await updateDoc(userRef, {
-            accountType: orgData.tipeOrganisasi,
-            organizations: updatedOrgs,
-          });
+        } catch (fontErr) {
+          console.warn("Gagal memuat custom font:", fontErr);
         }
       }
 
-      notify("Pengaturan identitas lembaga berhasil disimpan.", "success");
+      const wasm = await import("@/rust_wasm/pkg/pdf_cert_wasm.js");
+      await wasm.default();
+
+      const rowPayload = [peserta.attributes || { Nama: peserta.nama, Email: peserta.email || "" }];
+      const formattedConfigs = buildFormattedConfigs(eventData.configs);
+
+      const zipBytes = wasm.generate_certificates_chunk(
+        templateUint8,
+        rowPayload,
+        formattedConfigs,
+        (peserta.nomorUrut || 1) - 1,
+        fontBytes || undefined,
+        eventData.filenamePattern || "sertifikat_{Nama}_{index}"
+      );
+
+      const blob = new Blob([zipBytes], { type: "application/zip" });
+      const downloadUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = downloadUrl;
+      anchor.download = `sertifikat_${peserta.nama.replace(/\s+/g, "_")}.zip`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      URL.revokeObjectURL(downloadUrl);
+
+      notify(`Sertifikat ${peserta.nama} siap diunduh!`, "success");
     } catch (err) {
-      console.error("Gagal simpan organisasi:", err);
-      notify("Gagal menyimpan organisasi: " + err.message, "error");
-    } finally {
-      setIsSaving(false);
+      console.error("Gagal render sertifikat satuan:", err);
+      notify("Gagal merender sertifikat: " + err.message, "error");
     }
   };
 
-  if (loading || !user || isLoadingData) {
+  const handleDownloadSelectedBatch = async () => {
+    if (selectedIds.size === 0) return;
+
+    if (!eventData?.storageRefs?.templatePdf?.url) {
+      notify("Template PDF belum dikonfigurasi. Atur template terlebih dahulu di Studio.", "error");
+      return;
+    }
+
+    const selectedList = participants.filter((p) => selectedIds.has(p.id));
+    setIsRendering(true);
+    setRenderProgress({ current: 0, total: selectedList.length });
+
+    try {
+      notify(`Mempersiapkan batch untuk ${selectedList.length} peserta...`, "info");
+
+      const templateRes = await fetch(eventData.storageRefs.templatePdf.url);
+      const templateRawBuffer = await templateRes.arrayBuffer();
+      const templateUint8 = await bakeImagesIntoPdf(templateRawBuffer, eventData.configs);
+
+      let fontBytes = null;
+      if (eventData.storageRefs?.customFont?.url) {
+        try {
+          const fontRes = await fetch(eventData.storageRefs.customFont.url);
+          if (fontRes.ok) {
+            fontBytes = new Uint8Array(await fontRes.arrayBuffer());
+          }
+        } catch (fontErr) {
+          console.warn("Gagal memuat custom font:", fontErr);
+        }
+      }
+
+      const rows = selectedList.map((p) => p.attributes || { Nama: p.nama, Email: p.email || "" });
+      const formattedConfigs = buildFormattedConfigs(eventData.configs);
+
+      const worker = new Worker(new URL("../../cetak-lokal/pdfWorker.js", import.meta.url));
+
+      worker.postMessage(
+        {
+          templateUint8,
+          groupName: "terpilih",
+          rows,
+          startOffset: 0,
+          configs: formattedConfigs,
+          fontBytes: fontBytes || undefined,
+          filenamePattern: eventData.filenamePattern || "sertifikat_{Nama}_{index}",
+        },
+        [templateUint8.buffer]
+      );
+
+      worker.onmessage = (e) => {
+        const { type, zipBytes, error } = e.data;
+        if (type === "BATCH_COMPLETE") {
+          const blob = new Blob([zipBytes], { type: "application/zip" });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = `batch_sertifikat_${selectedList.length}_peserta_${Date.now()}.zip`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+
+          setIsRendering(false);
+          setRenderProgress(null);
+          worker.terminate();
+          notify(`Berhasil mengunduh ${selectedList.length} sertifikat dalam berkas ZIP.`, "success");
+        } else if (type === "ERROR") {
+          worker.terminate();
+          setIsRendering(false);
+          setRenderProgress(null);
+          notify("Terjadi kesalahan pada worker: " + error, "error");
+        }
+      };
+
+      worker.onerror = (err) => {
+        worker.terminate();
+        setIsRendering(false);
+        setRenderProgress(null);
+        notify("Worker crash: " + err.message, "error");
+      };
+    } catch (err) {
+      console.error("Gagal eksekusi batch:", err);
+      notify("Gagal memulai batch rendering: " + err.message, "error");
+      setIsRendering(false);
+      setRenderProgress(null);
+    }
+  };
+
+  if (loadError) {
     return (
-      <div className="min-h-screen bg-[#FFFFFF] flex flex-col items-center justify-center font-mono text-xs text-[#6B7280] space-y-3">
-        <div className="w-5 h-5 border-2 border-[#111111] border-t-transparent rounded-full animate-spin" />
-        <p>Memuat profil akun & ruang kerja...</p>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <div className="max-w-md w-full bg-white border border-red-300 rounded p-6 shadow-sm text-center space-y-4">
+          <div className="w-12 h-12 mx-auto bg-red-50 text-red-600 rounded-full flex items-center justify-center font-bold text-xl">
+            !
+          </div>
+          <h2 className="text-base font-bold text-gray-900">Kendala Memuat Event</h2>
+          <p className="text-xs font-mono text-gray-600 bg-gray-100 p-3 rounded text-left break-words">
+            {loadError}
+          </p>
+          <div className="flex gap-2 justify-center pt-2">
+            <button
+              onClick={() => fetchEventAndParticipants()}
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2 rounded transition"
+            >
+              🔄 Coba Muat Ulang
+            </button>
+            <Link
+              href="/dashboard/events"
+              className="border border-gray-300 hover:bg-gray-50 text-gray-700 text-xs font-semibold px-4 py-2 rounded transition"
+            >
+              Kembali ke Daftar Event
+            </Link>
+          </div>
+        </div>
       </div>
     );
   }
 
-  const isPersonalType = orgData.tipeOrganisasi === "personal";
+  if (loading || isLoading || !user) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex flex-col items-center justify-center font-mono text-xs text-gray-600 space-y-3">
+        <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+        <p>Menghubungkan ke database event dan peserta...</p>
+        <span className="text-[11px] text-gray-400">ID: {eventId || "..."}</span>
+      </div>
+    );
+  }
 
   return (
-    <div className="min-h-screen bg-[#FFFFFF] text-[#111111] font-sans antialiased pb-20">
-      {/* Toast Notifikasi Minimalis */}
+    <div className="min-h-screen bg-gray-50 text-gray-900 font-sans pb-12">
       {statusMessage.text && (
         <div
-          className={`fixed top-4 right-4 z-50 px-4 py-2.5 rounded-[4px] border text-xs font-mono transition-all duration-150 ${
+          className={`fixed top-4 right-4 z-50 px-4 py-2.5 rounded shadow-lg text-xs font-mono border ${
             statusMessage.type === "error"
-              ? "bg-[#FFFFFF] text-[#D92D20] border-[#D92D20]"
+              ? "bg-red-500 text-white border-red-600"
               : statusMessage.type === "success"
-              ? "bg-[#111111] text-[#FFFFFF] border-[#111111]"
-              : "bg-[#FFFFFF] text-[#111111] border-[#E5E7EB]"
+              ? "bg-emerald-600 text-white border-emerald-700"
+              : "bg-gray-800 text-white border-gray-900"
           }`}
         >
           {statusMessage.text}
@@ -386,499 +775,379 @@ export default function ProfilePage() {
       )}
 
       {/* Header Navigasi */}
-      <header className="sticky top-0 z-30 bg-[#FFFFFF]/90 border-b border-[#E5E7EB] backdrop-blur-md px-6 h-16 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link
-            href="/dashboard"
-            className="text-base font-medium tracking-tight text-[#111111] hover:text-[#6B7280] transition-colors"
-          >
-            SertiGen
+      <header className="border-b bg-white px-6 py-4 flex items-center justify-between sticky top-0 z-30">
+        <div className="flex items-center gap-2 text-sm">
+          <Link href="/dashboard" className="text-gray-500 hover:text-black">
+            Dashboard
           </Link>
-          <span className="text-[#B0B6C3]">/</span>
-          <span className="text-xs font-mono text-[#6B7280] uppercase tracking-wider">
-            Pengaturan Profil & Lembaga
+          <span className="text-gray-300">/</span>
+          <span className="font-bold text-gray-900 truncate max-w-xs">
+            {eventData?.namaEvent || "Detail"}
           </span>
         </div>
 
         <Link
-          href="/dashboard"
-          className="text-xs font-mono px-3 py-1.5 border border-[#E5E7EB] hover:bg-[#F5F5F5] rounded-[4px] transition-colors text-[#111111]"
+          href={`/dashboard/cetak-lokal?eventId=${eventId}`}
+          className="bg-gray-900 hover:bg-black text-white text-xs font-semibold px-4 py-2 rounded flex items-center gap-1.5 transition"
         >
-          ← Kembali ke Dashboard
+          <span>✏️ Edit Desain di Studio</span>
         </Link>
       </header>
 
       {/* Konten Utama */}
-      <main className="max-w-4xl mx-auto px-6 pt-10 space-y-8">
-        <div>
-          <div className="flex items-center gap-3">
-            <span className="text-[11px] font-mono uppercase text-[#6B7280] tracking-wider">
-              Identitas & Sertifikasi
-            </span>
-            <span className="text-[#B0B6C3]">/</span>
-            <span className="text-[11px] font-mono text-[#6B7280]">
-              ID: {user.uid.slice(0, 8)}
-            </span>
-          </div>
-          <h1 className="text-3xl sm:text-4xl font-light tracking-[-1px] text-[#111111] mt-3">
-            Pengaturan Akun & Lembaga
-          </h1>
-          <p className="text-xs font-mono text-[#6B7280] mt-2 font-light">
-            Konfigurasikan informasi pribadi dan identitas penyelenggara untuk aset sertifikat resmi.
-          </p>
-        </div>
-
-        {/* Tab Switcher */}
-        <div className="flex border-b border-[#E5E7EB] gap-6">
-          <button
-            type="button"
-            onClick={() => setActiveTab("personal")}
-            className={`pb-3 text-xs font-mono uppercase tracking-wider transition-colors border-b-2 -mb-px flex items-center gap-2 ${
-              activeTab === "personal"
-                ? "border-[#111111] text-[#111111] font-medium"
-                : "border-transparent text-[#6B7280] hover:text-[#111111]"
-            }`}
-          >
-            <IconUser className="w-3.5 h-3.5" />
-            <span>Profil Pribadi</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={() => setActiveTab("organization")}
-            className={`pb-3 text-xs font-mono uppercase tracking-wider transition-colors border-b-2 -mb-px flex items-center gap-2 ${
-              activeTab === "organization"
-                ? "border-[#111111] text-[#111111] font-medium"
-                : "border-transparent text-[#6B7280] hover:text-[#111111]"
-            }`}
-          >
-            <IconBuilding className="w-3.5 h-3.5" />
-            <span>{isPersonalType ? "Ruang Kerja Mandiri" : "Lembaga / Perusahaan (B2B)"}</span>
-            {orgData.namaOrganisasi && (
-              <span className="text-[10px] bg-[#F5F5F5] text-[#111111] border border-[#E5E7EB] px-1.5 py-0.5 rounded-[2px] font-mono lowercase">
-                {orgData.namaOrganisasi}
-              </span>
-            )}
-          </button>
-        </div>
-
-        {/* TAB 1: FORM PERSONAL */}
-        {activeTab === "personal" && (
-          <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-md p-6 space-y-6">
-            <div className="border-b border-[#E5E7EB] pb-3">
-              <h2 className="text-sm font-medium text-[#111111]">
-                Data Akun Personal
-              </h2>
-              <p className="text-xs text-[#6B7280] font-mono mt-0.5">
-                Informasi identitas penanggung jawab atau pemilik akun platform.
-              </p>
-            </div>
-
-            <form onSubmit={handleSavePersonal} className="space-y-4 max-w-lg">
-              <div>
-                <label className="block text-[11px] font-mono uppercase text-[#6B7280] mb-1.5">
-                  Email Akun (Firebase Auth)
-                </label>
-                <input
-                  type="email"
-                  disabled
-                  value={user.email}
-                  className="w-full text-xs font-mono bg-[#F5F5F5] border border-[#E5E7EB] rounded-[4px] p-2.5 text-[#6B7280] cursor-not-allowed"
-                />
+      <main className="max-w-6xl mx-auto p-6 space-y-6">
+        {/* Ringkasan Acara & Pratinjau */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="md:col-span-2 bg-white border rounded p-6 flex flex-col justify-between space-y-4">
+            <div>
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-mono uppercase bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded">
+                  Event Aktif
+                </span>
+                <span className="text-xs font-mono text-gray-400">ID: {eventId}</span>
               </div>
 
+              <h1 className="text-2xl font-bold mt-2">{eventData?.namaEvent}</h1>
+              <p className="text-xs font-mono text-gray-500 mt-1">
+                Tanggal: <strong>{eventData?.tanggalEvent || "Belum ditentukan"}</strong> | Pola berkas:{" "}
+                <code className="bg-gray-100 px-1.5 py-0.5 rounded text-gray-800">
+                  {eventData?.filenamePattern || "sertifikat_{Nama}_{index}"}
+                </code>
+              </p>
+
+              <div className="mt-4 text-xs text-gray-600 space-y-1">
+                <p>
+                  • Tata Letak:{" "}
+                  <strong>{eventData?.configs?.length || 0} elemen teks/gambar dikonfigurasi</strong>
+                </p>
+                <p>
+                  • Template PDF:{" "}
+                  <strong>
+                    {eventData?.storageRefs?.templatePdf?.url ? "Tersimpan di Cloud" : "Belum diunggah"}
+                  </strong>
+                </p>
+              </div>
+            </div>
+
+            {/* Tombol Aksi Impor, Tambah, Kosongkan, dan Studio */}
+            <div className="pt-4 border-t flex flex-wrap items-center gap-2">
+              <input
+                type="file"
+                ref={csvInputRef}
+                accept=".csv"
+                onChange={handleImportCsv}
+                className="hidden"
+              />
+              <button
+                onClick={() => csvInputRef.current?.click()}
+                className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2 rounded transition"
+              >
+                📥 Impor Peserta (.csv)
+              </button>
+
+              <button
+                onClick={() => setShowAddModal(true)}
+                className="border border-gray-300 hover:bg-gray-50 text-gray-700 text-xs font-semibold px-3 py-2 rounded transition"
+              >
+                + Tambah Manual
+              </button>
+
+              {participants.length > 0 && (
+                <button
+                  onClick={() =>
+                    setDeleteDialog({
+                      isOpen: true,
+                      mode: "all",
+                      participantId: null,
+                      participantName: "",
+                      isDeleting: false,
+                    })
+                  }
+                  className="border border-red-200 text-red-600 hover:bg-red-50 text-xs font-semibold px-3 py-2 rounded transition"
+                  title="Hapus semua peserta agar bisa impor CSV baru dari awal"
+                >
+                  🗑️ Kosongkan Data
+                </button>
+              )}
+
+              <Link
+                href={`/dashboard/cetak-lokal?eventId=${eventId}`}
+                className="border border-gray-300 hover:bg-gray-50 text-gray-700 text-xs font-semibold px-3 py-2 rounded transition ml-auto"
+              >
+                Buka Canvas Studio →
+              </Link>
+            </div>
+          </div>
+
+          {/* Kotak Pratinjau Template */}
+          <div className="bg-white border rounded p-4 flex flex-col items-center justify-center text-center">
+            <span className="text-xs font-mono text-gray-500 mb-2 font-bold uppercase">
+              Pratinjau Desain
+            </span>
+
+            {eventData?.storageRefs?.templatePdf?.url ? (
+              <div className="border border-gray-200 shadow-sm rounded overflow-hidden max-h-48 flex items-center justify-center bg-gray-50">
+                <canvas ref={previewCanvasRef} className="max-w-full h-auto" />
+              </div>
+            ) : (
+              <div className="border border-dashed border-gray-300 rounded p-6 w-full text-center space-y-2">
+                <p className="text-xs text-gray-500">Template belum dimuat ke cloud.</p>
+                <Link
+                  href={`/dashboard/cetak-lokal?eventId=${eventId}`}
+                  className="text-xs font-bold text-blue-600 hover:underline block"
+                >
+                  Unggah & Desain di Studio →
+                </Link>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {}
+        <div className="bg-white border rounded overflow-hidden shadow-sm">
+          <div className="p-4 border-b flex flex-wrap items-center justify-between gap-3 bg-gray-50">
+            <div className="flex items-center gap-3">
+              <h2 className="font-bold text-sm">Daftar Peserta ({participants.length})</h2>
+              {selectedIds.size > 0 && (
+                <span className="text-xs font-mono bg-blue-100 text-blue-800 font-bold px-2 py-0.5 rounded">
+                  {selectedIds.size} dipilih
+                </span>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              {selectedIds.size > 0 && (
+                <>
+                  <button
+                    onClick={() =>
+                      setDeleteDialog({
+                        isOpen: true,
+                        mode: "selected",
+                        participantId: null,
+                        participantName: "",
+                        isDeleting: false,
+                      })
+                    }
+                    className="border border-red-300 hover:bg-red-50 text-red-600 text-xs font-semibold px-3 py-2 rounded transition"
+                  >
+                    Hapus Terpilih ({selectedIds.size})
+                  </button>
+
+                  <button
+                    onClick={handleDownloadSelectedBatch}
+                    disabled={isRendering}
+                    className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-4 py-2 rounded flex items-center gap-2 transition disabled:opacity-50"
+                  >
+                    {isRendering ? (
+                      <span>
+                        Merender ({renderProgress?.current || 0}/{renderProgress?.total || 0})...
+                      </span>
+                    ) : (
+                      <span>📦 Unduh Terpilih ({selectedIds.size}) ke ZIP</span>
+                    )}
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {}
+          {participants.length === 0 ? (
+            <div className="p-12 text-center text-sm text-gray-500 space-y-2">
+              <p>Belum ada data peserta untuk event ini.</p>
+              <button
+                onClick={() => csvInputRef.current?.click()}
+                className="text-xs font-bold text-blue-600 hover:underline"
+              >
+                Klik di sini untuk mengimpor berkas CSV
+              </button>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead>
+                  <tr className="border-b bg-gray-100 text-gray-600 font-mono">
+                    <th className="p-3 w-10 text-center">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.size === participants.length && participants.length > 0}
+                        onChange={toggleSelectAll}
+                        className="cursor-pointer"
+                      />
+                    </th>
+                    <th className="p-3 w-12 text-center">No</th>
+                    <th className="p-3">Nama Lengkap</th>
+                    <th className="p-3">Email</th>
+                    <th className="p-3 text-right">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {participants.map((p, idx) => (
+                    <tr key={p.id} className="hover:bg-gray-50 transition">
+                      <td className="p-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(p.id)}
+                          onChange={() => toggleSelectOne(p.id)}
+                          className="cursor-pointer"
+                        />
+                      </td>
+                      <td className="p-3 text-center font-mono text-gray-400">
+                        {p.nomorUrut || idx + 1}
+                      </td>
+                      <td className="p-3 font-semibold text-gray-900">{p.nama}</td>
+                      <td className="p-3 text-gray-500 font-mono">{p.email || "-"}</td>
+                      <td className="p-3 text-right space-x-2">
+                        <button
+                          onClick={() => handleDownloadSingle(p)}
+                          className="px-2.5 py-1 bg-white border border-gray-300 hover:bg-gray-100 text-gray-800 rounded font-semibold transition"
+                        >
+                          Unduh ZIP
+                        </button>
+                        <button
+                          onClick={() =>
+                            setDeleteDialog({
+                              isOpen: true,
+                              mode: "single",
+                              participantId: p.id,
+                              participantName: p.nama,
+                              isDeleting: false,
+                            })
+                          }
+                          className="px-2 py-1 text-red-600 hover:bg-red-50 rounded transition"
+                        >
+                          Hapus
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </main>
+
+      {}
+      {showAddModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded max-w-sm w-full p-5 space-y-4 shadow-xl">
+            <h3 className="font-bold text-sm">Tambah Peserta Manual</h3>
+            <form onSubmit={handleAddManualParticipant} className="space-y-3">
               <div>
-                <label className="block text-[11px] font-mono uppercase text-[#6B7280] mb-1.5">
-                  Nama Lengkap Penanggung Jawab *
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Nama Lengkap
                 </label>
                 <input
                   type="text"
                   required
-                  placeholder="Contoh: Budi Santoso, S.Kom."
-                  value={personalData.namaLengkap}
-                  onChange={(e) =>
-                    setPersonalData({ ...personalData, namaLengkap: e.target.value })
-                  }
-                  className="w-full text-xs border border-[#E5E7EB] rounded-[4px] p-2.5 outline-none focus:border-[#111111] transition-colors"
+                  placeholder="Contoh: Budi Santoso"
+                  value={manualName}
+                  onChange={(e) => setManualName(e.target.value)}
+                  className="w-full text-xs border rounded p-2 outline-none focus:border-blue-500"
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#6B7280] mb-1.5">
-                    Nomor WhatsApp / Kontak
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="08123456789"
-                    value={personalData.nomorWhatsapp}
-                    onChange={(e) =>
-                      setPersonalData({ ...personalData, nomorWhatsapp: e.target.value })
-                    }
-                    className="w-full text-xs border border-[#E5E7EB] rounded-[4px] p-2.5 outline-none focus:border-[#111111] font-mono transition-colors"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-mono uppercase text-[#6B7280] mb-1.5">
-                    Jabatan / Posisi
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="Contoh: Instruktur / Ketua Panitia"
-                    value={personalData.jabatan}
-                    onChange={(e) =>
-                      setPersonalData({ ...personalData, jabatan: e.target.value })
-                    }
-                    className="w-full text-xs border border-[#E5E7EB] rounded-[4px] p-2.5 outline-none focus:border-[#111111] transition-colors"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-[#E5E7EB]">
-                <button
-                  type="submit"
-                  disabled={isSaving}
-                  className="px-4 py-2 text-xs font-mono uppercase bg-[#111111] hover:bg-[#333333] text-white rounded-[4px] transition-colors disabled:opacity-40 flex items-center gap-2"
-                >
-                  {isSaving ? <Spinner /> : null}
-                  <span>{isSaving ? "Menyimpan..." : "Simpan Profil Personal"}</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
-
-        {/* TAB 2: FORM ORGANISASI / RUANG KERJA */}
-        {activeTab === "organization" && (
-          <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-md p-6 space-y-6">
-            <div className="flex flex-wrap items-center justify-between border-b border-[#E5E7EB] pb-3 gap-2">
               <div>
-                <h2 className="text-sm font-medium text-[#111111]">
-                  {isPersonalType ? "Identitas Ruang Kerja Mandiri" : "Identitas Entitas Badan Usaha"}
-                </h2>
-                <p className="text-xs text-[#6B7280] font-mono mt-0.5">
-                  ID Dokumen: <code className="bg-[#F5F5F5] px-1.5 py-0.5 rounded border border-[#E5E7EB] text-[#111111]">organizations/{orgId || "baru"}</code>
-                </p>
-              </div>
-              <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-[2px] bg-[#F5F5F5] text-[#6B7280] border border-[#E5E7EB]">
-                {isPersonalType ? "Akun Perseorangan" : "Multi-Tenancy Siap"}
-              </span>
-            </div>
-
-            <form onSubmit={handleSaveOrganization} className="space-y-6">
-              {/* Seksi 1: Data Identitas Penyelenggara */}
-              <div className="space-y-4">
-                <h3 className="text-xs font-mono uppercase text-[#6B7280] border-b border-[#E5E7EB] pb-1">
-                  1. Informasi Penyelenggara
-                </h3>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="sm:col-span-2">
-                    <label className="block text-[11px] font-mono uppercase text-[#6B7280] mb-1.5">
-                      {isPersonalType
-                        ? "Nama Jenama / Komunitas / Studio *"
-                        : "Nama Resmi Instansi / Perusahaan / PT *"}
-                    </label>
-                    <input
-                      type="text"
-                      required
-                      placeholder={
-                        isPersonalType
-                          ? "Contoh: Budi Studio / Kursus Desain Mandiri"
-                          : "Contoh: PT Teknologi Bangsa Indonesia"
-                      }
-                      value={orgData.namaOrganisasi}
-                      onChange={(e) => setOrgData({ ...orgData, namaOrganisasi: e.target.value })}
-                      className="w-full text-xs border border-[#E5E7EB] rounded-[4px] p-2.5 outline-none focus:border-[#111111] transition-colors"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-mono uppercase text-[#6B7280] mb-1.5">
-                      Tipe Penyelenggara
-                    </label>
-                    <select
-                      value={orgData.tipeOrganisasi}
-                      onChange={(e) => setOrgData({ ...orgData, tipeOrganisasi: e.target.value })}
-                      className="w-full text-xs border border-[#E5E7EB] rounded-[4px] p-2.5 outline-none focus:border-[#111111] bg-[#FFFFFF] transition-colors"
-                    >
-                      <option value="personal">Perseorangan / Mandiri</option>
-                      <option value="pt">Perseroan Terbatas (PT)</option>
-                      <option value="cv">CV / Firma</option>
-                      <option value="universitas">Universitas / Sekolah</option>
-                      <option value="instansi_pemerintah">Instansi Pemerintah</option>
-                      <option value="yayasan">Yayasan / LSM</option>
-                      <option value="komunitas">Komunitas / Organisasi</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-[11px] font-mono uppercase text-[#6B7280] mb-1.5">
-                      Email Kontak Resmi
-                    </label>
-                    <input
-                      type="email"
-                      placeholder="kontak@lembaga.com"
-                      value={orgData.emailResmi}
-                      onChange={(e) => setOrgData({ ...orgData, emailResmi: e.target.value })}
-                      className="w-full text-xs border border-[#E5E7EB] rounded-[4px] p-2.5 outline-none focus:border-[#111111] font-mono transition-colors"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-mono uppercase text-[#6B7280] mb-1.5">
-                      Website / Media Sosial
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="https://lembaga.co.id"
-                      value={orgData.website}
-                      onChange={(e) => setOrgData({ ...orgData, website: e.target.value })}
-                      className="w-full text-xs border border-[#E5E7EB] rounded-[4px] p-2.5 outline-none focus:border-[#111111] transition-colors"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-mono uppercase text-[#6B7280] mb-1.5">
-                      Nomor Telepon Kantor/HP
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="08123456789"
-                      value={orgData.nomorTelepon}
-                      onChange={(e) => setOrgData({ ...orgData, nomorTelepon: e.target.value })}
-                      className="w-full text-xs border border-[#E5E7EB] rounded-[4px] p-2.5 outline-none focus:border-[#111111] font-mono transition-colors"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <div className="sm:col-span-2">
-                    <label className="block text-[11px] font-mono uppercase text-[#6B7280] mb-1.5">
-                      Alamat / Domisili
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Jl. Sudirman No. 45"
-                      value={orgData.alamatJalan}
-                      onChange={(e) => setOrgData({ ...orgData, alamatJalan: e.target.value })}
-                      className="w-full text-xs border border-[#E5E7EB] rounded-[4px] p-2.5 outline-none focus:border-[#111111] transition-colors"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-mono uppercase text-[#6B7280] mb-1.5">
-                      Kota & Provinsi
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Jakarta Selatan, DKI"
-                      value={orgData.alamatKota}
-                      onChange={(e) => setOrgData({ ...orgData, alamatKota: e.target.value })}
-                      className="w-full text-xs border border-[#E5E7EB] rounded-[4px] p-2.5 outline-none focus:border-[#111111] transition-colors"
-                    />
-                  </div>
-                </div>
+                <label className="block text-xs font-semibold text-gray-700 mb-1">
+                  Email (Opsional)
+                </label>
+                <input
+                  type="email"
+                  placeholder="budi@example.com"
+                  value={manualEmail}
+                  onChange={(e) => setManualEmail(e.target.value)}
+                  className="w-full text-xs border rounded p-2 outline-none focus:border-blue-500"
+                />
               </div>
 
-              {/* Seksi 2: Aturan Penomoran Surat / Registrasi */}
-              <div className="space-y-4 pt-2">
-                <h3 className="text-xs font-mono uppercase text-[#6B7280] border-b border-[#E5E7EB] pb-1">
-                  2. Aturan Pola Penomoran Sertifikat
-                </h3>
-                <p className="text-xs text-[#6B7280] font-mono">
-                  Pola ini digunakan sebagai nomor unik dokumen sertifikat setiap peserta.
-                </p>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-lg">
-                  <div>
-                    <label className="block text-[11px] font-mono uppercase text-[#6B7280] mb-1.5">
-                      Prefix Dokumen
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Contoh: SK-SERTI / NO"
-                      value={orgData.nomorSuratPrefix}
-                      onChange={(e) => setOrgData({ ...orgData, nomorSuratPrefix: e.target.value })}
-                      className="w-full text-xs font-mono border border-[#E5E7EB] rounded-[4px] p-2.5 outline-none focus:border-[#111111] transition-colors"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-[11px] font-mono uppercase text-[#6B7280] mb-1.5">
-                      Kode Bagian / Divisi
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Contoh: HRD / IND / DIKTI"
-                      value={orgData.nomorSuratKode}
-                      onChange={(e) => setOrgData({ ...orgData, nomorSuratKode: e.target.value })}
-                      className="w-full text-xs font-mono border border-[#E5E7EB] rounded-[4px] p-2.5 outline-none focus:border-[#111111] transition-colors"
-                    />
-                  </div>
-                </div>
-
-                <div className="p-3 bg-[#F5F5F5] border border-[#E5E7EB] rounded-[4px] text-xs font-mono text-[#6B7280]">
-                  Pratinjau Nomor Unik:{" "}
-                  <strong className="text-[#111111]">
-                    {orgData.nomorSuratPrefix || "SK"}/{orgData.nomorSuratKode || "HRD"}/2026/0001
-                  </strong>
-                </div>
-              </div>
-
-              {/* Seksi 3: Aset Branding Visual */}
-              <div className="space-y-4 pt-2">
-                <h3 className="text-xs font-mono uppercase text-[#6B7280] border-b border-[#E5E7EB] pb-1">
-                  3. Aset Visual Resmi (Supabase Storage)
-                </h3>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-                  {/* Upload Logo */}
-                  <div className="border border-[#E5E7EB] rounded-md p-4 space-y-3 flex flex-col justify-between bg-[#F5F5F5]">
-                    <div>
-                      <span className="text-xs font-medium text-[#111111] block">
-                        {isPersonalType ? "Logo / Inisial Jenama" : "Logo Lembaga (PNG Transparan)"}
-                      </span>
-                      <p className="text-[11px] text-[#6B7280] font-mono mt-0.5">
-                        Logo utama untuk disematkan pada kanvas sertifikat. Maks 2 MB.
-                      </p>
-                    </div>
-
-                    <div className="h-28 border border-dashed border-[#E5E7EB] rounded-[4px] bg-[#FFFFFF] flex items-center justify-center p-2 overflow-hidden">
-                      {orgData.logoUrl ? (
-                        <img
-                          src={orgData.logoUrl}
-                          alt="Logo Organisasi"
-                          className="max-h-full max-w-full object-contain"
-                        />
-                      ) : (
-                        <span className="text-xs text-[#B0B6C3] font-mono">Belum ada logo diunggah</span>
-                      )}
-                    </div>
-
-                    <input
-                      type="file"
-                      ref={logoInputRef}
-                      accept="image/png, image/jpeg"
-                      onChange={(e) => handleUploadBrandingAsset(e.target.files?.[0], "logo")}
-                      className="hidden"
-                    />
-
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        disabled={isUploadingLogo}
-                        onClick={() => logoInputRef.current?.click()}
-                        className="flex-1 py-1.5 text-xs font-mono uppercase rounded-[4px] border border-[#111111] bg-[#111111] text-white hover:bg-[#333333] transition-colors flex items-center justify-center gap-1.5"
-                      >
-                        {isUploadingLogo ? <Spinner /> : null}
-                        <span>{isUploadingLogo ? "Mengunggah..." : "Pilih Logo"}</span>
-                      </button>
-
-                      {orgData.logoUrl && (
-                        <button
-                          type="button"
-                          onClick={() => setOrgData((prev) => ({ ...prev, logoUrl: "" }))}
-                          className="p-1.5 text-[#6B7280] hover:text-[#D92D20] rounded-[4px] border border-[#E5E7EB] bg-[#FFFFFF] transition-colors"
-                          title="Hapus Logo"
-                        >
-                          <IconTrash className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Upload Cap Stempel atau Tanda Tangan */}
-                  <div className="border border-[#E5E7EB] rounded-md p-4 space-y-3 flex flex-col justify-between bg-[#F5F5F5]">
-                    <div>
-                      <span className="text-xs font-medium text-[#111111] block">
-                        {isPersonalType
-                          ? "Tanda Tangan Digital (PNG Transparan)"
-                          : "Cap Stempel Resmi (PNG Transparan)"}
-                      </span>
-                      <p className="text-[11px] text-[#6B7280] font-mono mt-0.5">
-                        {isPersonalType
-                          ? "Tanda tangan transparan penanggung jawab. Maks 2 MB."
-                          : "Cap stempel transparan di area tanda tangan. Maks 2 MB."}
-                      </p>
-                    </div>
-
-                    <div className="h-28 border border-dashed border-[#E5E7EB] rounded-[4px] bg-[#FFFFFF] flex items-center justify-center p-2 overflow-hidden">
-                      {orgData.capStempelUrl ? (
-                        <img
-                          src={orgData.capStempelUrl}
-                          alt="Cap / TTD"
-                          className="max-h-full max-w-full object-contain"
-                        />
-                      ) : (
-                        <span className="text-xs text-[#B0B6C3] font-mono">Belum ada berkas diunggah</span>
-                      )}
-                    </div>
-
-                    <input
-                      type="file"
-                      ref={stempelInputRef}
-                      accept="image/png"
-                      onChange={(e) => handleUploadBrandingAsset(e.target.files?.[0], "stempel")}
-                      className="hidden"
-                    />
-
-                    <div className="flex gap-2">
-                      <button
-                        type="button"
-                        disabled={isUploadingStempel}
-                        onClick={() => stempelInputRef.current?.click()}
-                        className="flex-1 py-1.5 text-xs font-mono uppercase rounded-[4px] border border-[#111111] bg-[#111111] text-white hover:bg-[#333333] transition-colors flex items-center justify-center gap-1.5"
-                      >
-                        {isUploadingStempel ? <Spinner /> : null}
-                        <span>
-                          {isUploadingStempel
-                            ? "Mengunggah..."
-                            : isPersonalType
-                            ? "Pilih Tanda Tangan"
-                            : "Pilih Cap Stempel"}
-                        </span>
-                      </button>
-
-                      {orgData.capStempelUrl && (
-                        <button
-                          type="button"
-                          onClick={() => setOrgData((prev) => ({ ...prev, capStempelUrl: "" }))}
-                          className="p-1.5 text-[#6B7280] hover:text-[#D92D20] rounded-[4px] border border-[#E5E7EB] bg-[#FFFFFF] transition-colors"
-                          title="Hapus Berkas"
-                        >
-                          <IconTrash className="w-4 h-4" />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Tombol Simpan Organisasi */}
-              <div className="pt-4 border-t border-[#E5E7EB] flex items-center justify-between">
-                <span className="text-xs font-mono text-[#6B7280]">
-                  {isPersonalType
-                    ? "Dapat ditingkatkan ke status Badan Hukum/PT kapan saja."
-                    : "Identitas ini otomatis terhubung pada seluruh sertifikat event."}
-                </span>
-
+              <div className="flex justify-end gap-2 pt-3 border-t">
+                <button
+                  type="button"
+                  onClick={() => setShowAddModal(false)}
+                  className="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 rounded"
+                >
+                  Batal
+                </button>
                 <button
                   type="submit"
-                  disabled={isSaving}
-                  className="px-4 py-2 text-xs font-mono uppercase bg-[#111111] hover:bg-[#333333] text-white rounded-[4px] transition-colors disabled:opacity-40 flex items-center gap-2"
+                  disabled={isAddingParticipant}
+                  className="px-4 py-1.5 text-xs bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded disabled:opacity-50"
                 >
-                  {isSaving ? <Spinner /> : null}
-                  <span>{isSaving ? "Menyimpan ke Cloud..." : "Simpan Pengaturan Lembaga"}</span>
+                  {isAddingParticipant ? "Menyimpan..." : "Simpan Peserta"}
                 </button>
               </div>
             </form>
           </div>
-        )}
-      </main>
+        </div>
+      )}
+
+      {}
+      {deleteDialog.isOpen && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded max-w-sm w-full p-5 space-y-3 shadow-xl">
+            <h3 className="font-bold text-sm text-red-600">
+              {deleteDialog.mode === "all"
+                ? "Kosongkan Seluruh Peserta?"
+                : deleteDialog.mode === "selected"
+                ? `Hapus ${selectedIds.size} Peserta Terpilih?`
+                : "Hapus Peserta?"}
+            </h3>
+
+            <p className="text-xs text-gray-600 leading-relaxed">
+              {deleteDialog.mode === "all" ? (
+                <>
+                  Apakah Anda yakin ingin menghapus seluruh{" "}
+                  <strong>{participants.length} data peserta</strong> dari event ini? Seluruh data
+                  pada database akan dibersihkan agar Anda dapat mengimpor kembali berkas CSV baru.
+                </>
+              ) : deleteDialog.mode === "selected" ? (
+                <>
+                  Apakah Anda yakin ingin menghapus <strong>{selectedIds.size} peserta</strong> yang
+                  dipilih? Data yang dihapus tidak dapat dipulihkan.
+                </>
+              ) : (
+                <>
+                  Apakah Anda yakin ingin menghapus peserta{" "}
+                  <strong>{deleteDialog.participantName}</strong>? Data yang dihapus tidak dapat
+                  dikembalikan.
+                </>
+              )}
+            </p>
+
+            <div className="flex justify-end gap-2 pt-3 border-t">
+              <button
+                type="button"
+                disabled={deleteDialog.isDeleting}
+                onClick={() =>
+                  setDeleteDialog({
+                    isOpen: false,
+                    mode: "single",
+                    participantId: null,
+                    participantName: "",
+                    isDeleting: false,
+                  })
+                }
+                className="px-3 py-1.5 text-xs text-gray-600 hover:bg-gray-100 rounded disabled:opacity-50"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                disabled={deleteDialog.isDeleting}
+                onClick={handleConfirmDelete}
+                className="px-4 py-1.5 text-xs bg-red-600 hover:bg-red-700 text-white font-semibold rounded disabled:opacity-50"
+              >
+                {deleteDialog.isDeleting
+                  ? "Menghapus..."
+                  : deleteDialog.mode === "all"
+                  ? "Ya, Kosongkan Data"
+                  : "Hapus"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
