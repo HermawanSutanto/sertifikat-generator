@@ -226,50 +226,71 @@ const TutorialModal = ({ isOpen, onClose }) => {
 
   const steps = [
     {
-      title: "1. Pemilihan Template & Data Peserta",
+      title: "1. Pemilihan Template & Berkas Peserta",
       tab: "Berkas",
-      desc: "Buka panel 'Berkas' di bilah kiri. Anda dapat memilih Template Bawaan yang sudah dilengkapi tata letak, atau mengunggah template PDF mandiri beserta file CSV peserta.",
+      desc: "• Template PDF: Pilih salah satu dari 4 'Template Bawaan' siap pakai, atau unggah berkas PDF sertifikat Anda sendiri (A4 Landscape/Portrait).\n• Data CSV: Unggah berkas .csv yang diekspor dari Microsoft Excel atau Google Sheets. Baris pertama otomatis dibaca sebagai nama kolom (header).\n• Kompresi PDF: Atur skala resample dan kualitas JPEG template di panel bawah tab Berkas agar ukuran arsip ZIP tidak membengkak.",
     },
     {
-      title: "2. Menambahkan Elemen Desain",
+      title: "2. Menata Letak & Posisi Elemen Teks",
       tab: "Elemen",
-      desc: "Tersedia elemen teks statis, teks variabel mandiri, serta integrasi aset resmi (Logo & Tanda Tangan) dari profil organisasi Anda yang dapat dipasang ke kanvas dalam satu klik.",
+      desc: "• Klik langsung pada kotak elemen di kanvas untuk mengaktifkan kontrol pengatur posisi.\n• Seret (drag) elemen ke area yang diinginkan. Fitur Smart Snap otomatis menampilkan garis bantu magnetik di titik tengah lembar.\n• Gunakan panel Inspektor untuk mengatur ukuran font (pt), lebar kotak pembatas (bounding box), warna teks, dan perataan teks (Kiri, Tengah, Kanan).",
     },
     {
-      title: "3. Cara Kerja Teks Variabel",
-      tab: "Variabel",
-      desc: "Teks Variabel memungkinkan Anda membuat kolom baru secara fleksibel:\n• Tentukan nama variabel (contoh: 'prodi') dan daftarnya (contoh: 'Informatika, Mesin').\n• Jika jumlah kata sama dengan baris peserta, nilainya diisi berurutan per peserta.\n• Jika berbeda, sistem otomatis memakai nilai pertama untuk semua peserta.",
+      title: "3. Teks Variabel Dinamis & Statis",
+      tab: "Variabel & Statis",
+      desc: "• Teks Statis: Tambahkan teks bebas yang tidak ada di CSV, seperti nomor SK atau tanggal acara. Anda bisa menyisipkan placeholder data CSV, contoh: 'Nomor: 081/{NomorUrut}/2026' atau '{Nama:uppercase}'.\n• Teks Variabel: Buat variabel kolom baru secara mandiri tanpa mengubah file CSV (misal: predikat kelulusan). Cukup ketik nama variabel dan pisahkan nilainya dengan tanda koma.",
     },
     {
-      title: "4. Pengelompokan Berkas ZIP & Optimasi RAM",
-      tab: "Pengelompokan",
-      desc: "Di tab 'Preset', Anda dapat memilih cara pemecahan arsip ZIP:\n• Berdasarkan Jumlah: Memecah arsip ZIP sesuai kuota kapasitas memori perangkat.\n• Berdasarkan Kolom: Memecah arsip ZIP per kategori otomatis (misal: per Prodi).\n• Sistem otomatis men-stream berkas langsung ke disk untuk menjaga konsumsi RAM rendah.",
+      title: "4. Pemasangan Aset Resmi (Logo & Tanda Tangan)",
+      tab: "Aset Resmi",
+      desc: "• 1-Klik Pasang Profil: Jika Anda telah mengunggah Logo Lembaga atau Tanda Tangan / Cap Stempel di menu 'Profil & Lembaga', klik tombol aset profil untuk langsung menempelkannya ke kanvas.\n• Unggah Manual: Anda juga dapat mengunggah berkas gambar transparan (PNG/JPG) tambahan secara langsung melalui tombol '+ Unggah Gambar'.\n• Ubah skala lebar dan tinggi gambar langsung di kanvas atau via kotak input numerik.",
     },
     {
-      title: "5. Sinkronisasi Cloud & Pintasan Kanvas",
-      tab: "Cloud & Shortcut",
-      desc: "Saat membuka event dari dashboard, klik tombol 'Simpan ke Event' di header atas untuk mengunggah template PDF, peserta, dan tata letak langsung ke database Cloud.\n• Tombol Panah: Geser elemen 1pt (Shift = 10pt)\n• Ctrl/Cmd + D: Duplikat elemen aktif\n• Ctrl/Cmd + Z / Y: Urungkan (Undo) atau Ulangi (Redo)",
+      title: "5. Pilihan Tipografi & Koleksi Font",
+      tab: "Tipografi",
+      desc: "SertiGen menyediakan 3 metode pemilihan font:\n1. Koleksi Font Bawaan: Pilihan font formal populer (Roboto, Poppins, Montserrat, Playfair Display, Lora, Caveat, Pacifico) yang langsung dimuat cepat dari server.\n2. Unggah Font Kustom: Unggah berkas font jenama Anda sendiri (.ttf atau .otf) hingga 15 MB.\n3. Pindai Font Sistem Operasi: Khusus browser Chromium (Chrome/Edge desktop), Anda bisa memindai seluruh font yang sudah terpasang di komputer Anda.",
+    },
+    {
+      title: "6. Pengelompokan Arsip ZIP & Optimasi RAM",
+      tab: "Pengelompokan ZIP",
+      desc: "Di tab 'Preset', Anda dapat mengatur distribusi ekspor berkas:\n• Berdasarkan Jumlah: Memecah arsip ZIP per 250, 500, atau 1.000 berkas untuk mencegah kehabisan memori RAM.\n• Berdasarkan Kolom: Memecah arsip ZIP otomatis per kategori (misal: per divisi, per prodi, atau per kelas).\n• Pola Nama File: Tentukan pola penamaan PDF individual, contoh: 'sertifikat_{Nama}_{index}'.",
+    },
+    {
+      title: "7. Sinkronisasi Cloud & Pintasan Keyboard Lengkap",
+      tab: "Shortcut & Cloud",
+      desc: "Bekerja lebih cepat dengan memanfaatkan pintasan keyboard:\n• Ctrl + S / ⌘ + S: Simpan seluruh tata letak, font, gambar, dan peserta ke Cloud Event.\n• Tombol Panah (↑ ↓ ← →): Geser elemen aktif sejauh 1 pt (Tahan tombol Shift untuk geser 10 pt).\n• Ctrl + Z / ⌘ + Z: Urungkan (Undo) hingga 50 riwayat perubahan.\n• Ctrl + Y / Ctrl + Shift + Z: Ulangi (Redo).\n• Ctrl + D / ⌘ + D: Duplikat elemen aktif.\n• Tombol Delete / Backspace: Hapus elemen aktif.",
     },
   ];
 
   return (
-    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-      <div className="border border-[#E5E7EB] rounded-md max-w-lg w-full p-6 space-y-5 bg-[#FFFFFF]">
+    <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
+      <div className="border border-[#E5E7EB] rounded-md max-w-lg w-full p-6 space-y-5 bg-[#FFFFFF] shadow-xl relative">
         <div className="flex items-center justify-between border-b border-[#E5E7EB] pb-3">
           <div className="flex items-center gap-2">
             <span className="p-1.5 bg-[#F5F5F5] text-[#111111] border border-[#E5E7EB] rounded-[4px]">
               <IconHelp className="w-4 h-4" />
             </span>
             <h3 className="text-xs font-mono uppercase tracking-wider text-[#111111]">
-              Panduan Penggunaan Studio
+              Panduan Penggunaan Studio Kanvas
             </h3>
           </div>
-          <span className="text-xs font-mono text-[#6B7280]">
-            {currentStep + 1} / {steps.length}
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-xs font-mono text-[#6B7280]">
+              {currentStep + 1} / {steps.length}
+            </span>
+            <button
+              type="button"
+              onClick={onClose}
+              className="w-6 h-6 flex items-center justify-center rounded-[3px] border border-transparent hover:border-[#E5E7EB] hover:bg-[#F5F5F5] text-[#6B7280] hover:text-[#111111] font-mono text-sm transition-colors"
+              title="Tutup Panduan (Esc)"
+              aria-label="Tutup Panduan"
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
-        <div className="space-y-3 min-h-[155px]">
+        <div className="space-y-3 min-h-[175px]">
           <div className="flex items-center gap-2">
             <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-[2px] bg-[#F5F5F5] text-[#111111] border border-[#E5E7EB]">
               {steps[currentStep].tab}
@@ -278,7 +299,7 @@ const TutorialModal = ({ isOpen, onClose }) => {
               {steps[currentStep].title}
             </h4>
           </div>
-          <p className="text-xs text-[#6B7280] leading-relaxed whitespace-pre-line">
+          <p className="text-xs text-[#6B7280] leading-relaxed whitespace-pre-line font-light">
             {steps[currentStep].desc}
           </p>
         </div>
@@ -287,6 +308,7 @@ const TutorialModal = ({ isOpen, onClose }) => {
           {steps.map((_, idx) => (
             <button
               key={idx}
+              type="button"
               onClick={() => setCurrentStep(idx)}
               className={`h-1 transition-all rounded-full ${
                 currentStep === idx ? "w-6 bg-[#111111]" : "w-2 bg-[#E5E7EB] hover:bg-[#B0B6C3]"
@@ -298,6 +320,7 @@ const TutorialModal = ({ isOpen, onClose }) => {
 
         <div className="flex items-center justify-between pt-3 border-t border-[#E5E7EB]">
           <button
+            type="button"
             onClick={() => setCurrentStep((prev) => Math.max(0, prev - 1))}
             disabled={currentStep === 0}
             className="px-3.5 py-1.5 text-xs rounded-[4px] border border-[#E5E7EB] bg-transparent text-[#111111] hover:bg-[#F5F5F5] transition-colors disabled:opacity-30"
@@ -306,8 +329,16 @@ const TutorialModal = ({ isOpen, onClose }) => {
           </button>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-3.5 py-1.5 text-xs rounded-[4px] border border-[#E5E7EB] bg-transparent text-[#6B7280] hover:text-[#111111] hover:bg-[#F5F5F5] transition-colors"
+            >
+              Tutup Panduan
+            </button>
             {currentStep < steps.length - 1 ? (
               <button
+                type="button"
                 onClick={() => setCurrentStep((prev) => Math.min(steps.length - 1, prev + 1))}
                 className="px-4 py-1.5 text-xs rounded-[4px] text-white bg-[#111111] hover:bg-[#333333] transition-colors"
               >
@@ -315,10 +346,11 @@ const TutorialModal = ({ isOpen, onClose }) => {
               </button>
             ) : (
               <button
+                type="button"
                 onClick={onClose}
                 className="px-4 py-1.5 text-xs rounded-[4px] text-white bg-[#111111] hover:bg-[#333333] transition-colors"
               >
-                Mulai Studio
+                Mulai Mendesain
               </button>
             )}
           </div>
@@ -338,6 +370,11 @@ export default function CetakLokal() {
   const [isCloudSaving, setIsCloudSaving] = useState(false);
   const [cloudSaveStatus, setCloudSaveStatus] = useState("");
   const [hasNewCsvUpload, setHasNewCsvUpload] = useState(false);
+
+  // Status Perubahan Belum Disimpan & Modal Konfirmasi Keluar
+  const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [showExitConfirmModal, setShowExitConfirmModal] = useState(false);
+  const [pendingExitUrl, setPendingExitUrl] = useState(null);
 
   const [orgBranding, setOrgBranding] = useState({
     logoUrl: "",
@@ -442,6 +479,7 @@ export default function CetakLokal() {
       setSelectedFontBytes(bytes);
       setSelectedLocalFontFamily(chosen.family);
       setSelectedFontStyle("Regular");
+      setHasUnsavedChanges(true);
 
       // Simpan ke Supabase jika sedang berada dalam mode Cloud Event
       if (eventId && user) {
@@ -520,6 +558,7 @@ export default function CetakLokal() {
       setSelectedFontBytes(bytes);
       setSelectedLocalFontFamily(cleanFamilyName);
       setSelectedFontStyle("Regular");
+      setHasUnsavedChanges(true);
 
       // Simpan langsung ke Supabase Storage jika dalam mode Cloud Event
       if (eventId && user) {
@@ -625,6 +664,7 @@ export default function CetakLokal() {
 
       setSelectedFontBytes(bytes);
       setSelectedFontStyle(chosen.style || "Regular");
+      setHasUnsavedChanges(true);
     } catch (err) {
       setFontDetectionError(`Gagal memuat font "${family}": ${err.message}`);
       setSelectedLocalFontFamily("");
@@ -638,6 +678,7 @@ export default function CetakLokal() {
     setSelectedLocalFontFamily("");
     setSelectedFontBytes(null);
     setSelectedFontStyle("");
+    setHasUnsavedChanges(true);
 
     if (eventId && user) {
       try {
@@ -693,6 +734,9 @@ export default function CetakLokal() {
   const [isRestoring, setIsRestoring] = useState(false);
   const hasCheckedAutosaveRef = useRef(false);
   const configsSaveTimerRef = useRef(null);
+
+  // Simpan referensi fungsi save untuk dipanggil dari pintasan keyboard Ctrl + S
+  const handleSaveToCloudRef = useRef(null);
 
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
@@ -886,6 +930,7 @@ export default function CetakLokal() {
           message: `Event "${data.namaEvent}" siap diedit.`,
           type: "success",
         });
+        setHasUnsavedChanges(false);
       } catch (err) {
         console.error("Gagal sinkronisasi cloud:", err);
         setNotification({
@@ -1052,9 +1097,10 @@ export default function CetakLokal() {
         diperbaruiPada: serverTimestamp(),
       });
 
+      setHasUnsavedChanges(false);
       setNotification({
         show: true,
-        message: "Perubahan berhasil disinkronkan ke Cloud.",
+        message: "Perubahan berhasil disinkronkan ke Cloud (Ctrl+S).",
         type: "success",
       });
     } catch (err) {
@@ -1067,6 +1113,46 @@ export default function CetakLokal() {
     } finally {
       setIsCloudSaving(false);
       setCloudSaveStatus("");
+    }
+  };
+
+  handleSaveToCloudRef.current = handleSaveToCloud;
+
+  // Peringatan konfirmasi peramban saat pengguna me-refresh atau menutup tab dengan perubahan belum disimpan
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      if (hasUnsavedChanges && eventId) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [hasUnsavedChanges, eventId]);
+
+  // Handler navigasi internal yang aman
+  const handleSafeNavigation = (targetUrl) => {
+    if (hasUnsavedChanges && eventId) {
+      setPendingExitUrl(targetUrl);
+      setShowExitConfirmModal(true);
+    } else {
+      router.push(targetUrl);
+    }
+  };
+
+  const handleConfirmExitWithoutSaving = () => {
+    setHasUnsavedChanges(false);
+    setShowExitConfirmModal(false);
+    if (pendingExitUrl) {
+      router.push(pendingExitUrl);
+    }
+  };
+
+  const handleSaveAndExit = async () => {
+    setShowExitConfirmModal(false);
+    await handleSaveToCloud();
+    if (pendingExitUrl) {
+      router.push(pendingExitUrl);
     }
   };
 
@@ -1114,9 +1200,24 @@ export default function CetakLokal() {
     };
 
     const onKeyDown = (e) => {
-      if (isEditableTarget(e.target)) return;
-
       const isMeta = e.ctrlKey || e.metaKey;
+
+      // Dukungan pintasan Ctrl + S / Cmd + S di seluruh kanvas dan input form
+      if (isMeta && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        if (eventId) {
+          handleSaveToCloudRef.current?.();
+        } else {
+          setNotification({
+            show: true,
+            message: "Sesi lokal tersimpan otomatis di IndexedDB browser Anda.",
+            type: "success",
+          });
+        }
+        return;
+      }
+
+      if (isEditableTarget(e.target)) return;
 
       if (isMeta && e.key.toLowerCase() === "z") {
         e.preventDefault();
@@ -1166,7 +1267,7 @@ export default function CetakLokal() {
 
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [activeColumn]);
+  }, [activeColumn, eventId]);
 
   const formatBytes = (bytes) => {
     if (!bytes || bytes <= 0) return "0 B";
@@ -1290,6 +1391,7 @@ export default function CetakLokal() {
   const processAndSetPdfTemplate = async (file) => {
     setOriginalTemplateRawFile(file);
     setOriginalTemplateSize(file.size);
+    setHasUnsavedChanges(true);
 
     try {
       const compressedFile = await compressPdfTemplate(file, compressionScale, compressionQuality);
@@ -1338,6 +1440,7 @@ export default function CetakLokal() {
     if (!chosen) return;
 
     setIsLoadingBuiltIn(true);
+    setHasUnsavedChanges(true);
     try {
       const res = await fetch(chosen.pdfPath);
       if (!res.ok) throw new Error(`Berkas PDF tidak ditemukan (${res.status})`);
@@ -1391,6 +1494,7 @@ export default function CetakLokal() {
     if (!file) return;
     setCsvFile(file);
     setHasNewCsvUpload(true);
+    setHasUnsavedChanges(true);
     Papa.parse(file, {
       header: true,
       skipEmptyLines: true,
@@ -1596,6 +1700,7 @@ export default function CetakLokal() {
   const commitConfigs = (updaterFn) => {
     pushHistorySnapshot(configsRef.current);
     setConfigs(updaterFn);
+    setHasUnsavedChanges(true);
   };
 
   const handleUndo = () => {
@@ -1603,6 +1708,7 @@ export default function CetakLokal() {
       if (h.past.length === 0) return h;
       const previous = h.past[h.past.length - 1];
       setConfigs(previous);
+      setHasUnsavedChanges(true);
       return { past: h.past.slice(0, -1), future: [configsRef.current, ...h.future] };
     });
   };
@@ -1612,6 +1718,7 @@ export default function CetakLokal() {
       if (h.future.length === 0) return h;
       const next = h.future[0];
       setConfigs(next);
+      setHasUnsavedChanges(true);
       return { past: [...h.past, configsRef.current], future: h.future.slice(1) };
     });
   };
@@ -1842,6 +1949,7 @@ export default function CetakLokal() {
       historyBurstActiveRef.current = false;
     }, HISTORY_BURST_MS);
 
+    setHasUnsavedChanges(true);
     setConfigs((prev) =>
       prev.map((cfg) => (cfg.column_name === colName ? { ...cfg, ...newProps } : cfg))
     );
@@ -2406,6 +2514,74 @@ export default function CetakLokal() {
         onClose={() => setIsTutorialOpen(false)}
       />
 
+      {}
+      {/* Indikator Loading Simpan Layar Penuh */}
+      {isCloudSaving && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
+          <div className="border border-[#E5E7EB] rounded-md max-w-sm w-full p-6 space-y-4 bg-[#FFFFFF] text-center shadow-2xl">
+            <div className="w-8 h-8 border-3 border-[#111111] border-t-transparent rounded-full animate-spin mx-auto" />
+            <div>
+              <h3 className="text-sm font-medium tracking-tight text-[#111111]">
+                Menyimpan ke Cloud Event...
+              </h3>
+              <p className="text-xs font-mono text-[#6B7280] mt-1">
+                {cloudSaveStatus || "Sedang mengunggah aset dan memperbarui database..."}
+              </p>
+            </div>
+            <div className="pt-2 border-t border-[#E5E7EB] flex items-center justify-center gap-1.5 text-[10px] font-mono text-[#6B7280]">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <span>Pintasan Cepat: Ctrl + S / ⌘ + S</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {}
+      {/* Modal Dialog Konfirmasi Perubahan Belum Disimpan */}
+      {showExitConfirmModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
+          <div className="border border-[#E5E7EB] rounded-md max-w-md w-full p-6 space-y-4 bg-[#FFFFFF] shadow-2xl">
+            <div className="flex items-start gap-3">
+              <div className="p-2 bg-amber-50 text-amber-600 border border-amber-200 rounded-[4px] shrink-0">
+                <IconAlertTriangle className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-sm font-medium tracking-tight text-[#111111]">
+                  Ada Perubahan Belum Disimpan!
+                </h3>
+                <p className="text-xs text-[#6B7280] mt-1 leading-relaxed">
+                  Tata letak, posisi teks, atau aset yang baru saja Anda ubah belum disimpan ke Cloud Event. Jika Anda keluar sekarang, perubahan tersebut akan hilang.
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-[#E5E7EB]">
+              <button
+                type="button"
+                onClick={() => setShowExitConfirmModal(false)}
+                className="px-3.5 py-1.5 text-xs font-mono rounded-[4px] border border-[#E5E7EB] bg-transparent text-[#6B7280] hover:text-[#111111] hover:bg-[#F5F5F5] transition-colors"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmExitWithoutSaving}
+                className="px-3.5 py-1.5 text-xs font-mono rounded-[4px] border border-red-200 bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
+              >
+                Keluar Tanpa Simpan
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveAndExit}
+                className="px-4 py-1.5 text-xs font-mono uppercase rounded-[4px] text-white bg-[#111111] hover:bg-[#333333] transition-colors"
+              >
+                Simpan & Keluar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Input Berkas Gambar Tersembunyi */}
       <input
         type="file"
@@ -2476,12 +2652,13 @@ export default function CetakLokal() {
       {/* HEADER UTAMA */}
       <header className="h-14 border-b border-[#E5E7EB] px-6 flex items-center justify-between shrink-0 z-30 bg-[#FFFFFF]">
         <div className="flex items-center gap-3">
-          <Link
-            href="/"
-            className="text-sm font-medium tracking-tight text-[#111111] hover:text-[#6B7280] transition-colors"
+          <button
+            type="button"
+            onClick={() => handleSafeNavigation("/")}
+            className="text-sm font-medium tracking-tight text-[#111111] hover:text-[#6B7280] transition-colors cursor-pointer"
           >
             SertiGen
-          </Link>
+          </button>
           <span className="text-[#E5E7EB]">/</span>
           <span className="text-xs font-mono uppercase text-[#6B7280]">
             {eventId ? "Mode Event Cloud" : "Studio Mandiri"}
@@ -2498,6 +2675,14 @@ export default function CetakLokal() {
           <span className="text-xs font-mono truncate max-w-xs text-[#6B7280]">
             {templateFile ? templateFile.name : "Tanpa Template"}
           </span>
+          {hasUnsavedChanges && eventId && (
+            <span
+              className="text-[9px] font-mono uppercase tracking-wider text-amber-700 bg-amber-50 px-2 py-0.5 rounded-[2px] border border-amber-200"
+              title="Perubahan belum tersimpan. Tekan Ctrl+S untuk menyimpan."
+            >
+              Belum Disimpan ●
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-2.5">
@@ -2506,10 +2691,15 @@ export default function CetakLokal() {
               type="button"
               onClick={handleSaveToCloud}
               disabled={isCloudSaving}
-              className="px-3 py-1.5 text-xs font-mono uppercase rounded-[4px] border border-[#111111] bg-[#111111] text-white hover:bg-[#333333] disabled:opacity-50 flex items-center gap-1.5 transition-colors"
+              className={`px-3 py-1.5 text-xs font-mono uppercase rounded-[4px] border flex items-center gap-1.5 transition-colors disabled:opacity-50 ${
+                hasUnsavedChanges
+                  ? "bg-amber-600 hover:bg-amber-700 text-white border-amber-600 animate-pulse"
+                  : "bg-[#111111] hover:bg-[#333333] text-white border-[#111111]"
+              }`}
+              title="Simpan perubahan ke Cloud (Pintasan: Ctrl + S)"
             >
               {isCloudSaving ? <Spinner /> : null}
-              <span>{isCloudSaving ? cloudSaveStatus || "Menyimpan..." : "Simpan ke Event"}</span>
+              <span>{isCloudSaving ? cloudSaveStatus || "Menyimpan..." : "Simpan (Ctrl+S)"}</span>
             </button>
           )}
 
@@ -2517,7 +2707,7 @@ export default function CetakLokal() {
             type="button"
             onClick={() => setIsTutorialOpen(true)}
             className="p-1.5 rounded-[4px] border border-[#E5E7EB] text-[#6B7280] hover:text-[#111111] hover:bg-[#F5F5F5] transition-colors"
-            title="Panduan Penggunaan"
+            title="Panduan Penggunaan Lengkap"
             aria-label="Panduan Penggunaan"
           >
             <IconHelp className="w-4 h-4" />
@@ -2572,12 +2762,13 @@ export default function CetakLokal() {
             )}
           </div>
 
-          <Link
-            href={eventId ? `/dashboard/events/${eventId}` : "/dashboard"}
-            className="px-3 py-1.5 text-xs font-mono uppercase text-[#6B7280] hover:text-[#111111] rounded-[4px] border border-transparent hover:border-[#E5E7EB] transition-colors ml-1"
+          <button
+            type="button"
+            onClick={() => handleSafeNavigation(eventId ? `/dashboard/events/${eventId}` : "/dashboard")}
+            className="px-3 py-1.5 text-xs font-mono uppercase text-[#6B7280] hover:text-[#111111] rounded-[4px] border border-transparent hover:border-[#E5E7EB] transition-colors ml-1 cursor-pointer"
           >
             {eventId ? "Ke Event" : "Keluar"}
-          </Link>
+          </button>
         </div>
       </header>
 

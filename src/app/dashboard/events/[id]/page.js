@@ -1047,7 +1047,7 @@ export default function EventDetailPage() {
       <div className="min-h-screen bg-[#FFFFFF] flex flex-col items-center justify-center font-mono text-xs text-[#6B7280] space-y-3">
         <div className="w-5 h-5 border-2 border-[#111111] border-t-transparent rounded-full animate-spin" />
         <p>Memuat data acara dan daftar peserta...</p>
-        {/* <span className="text-[11px] text-[#B0B6C3]">ID: {eventId || "..."}</span> */}
+        <span className="text-[11px] text-[#B0B6C3]">ID: {eventId || "..."}</span>
       </div>
     );
   }
@@ -1117,7 +1117,7 @@ export default function EventDetailPage() {
                 <span className="text-[10px] font-mono uppercase bg-[#F5F5F5] text-[#111111] px-2 py-0.5 rounded-[2px] border border-[#E5E7EB]">
                   {eventData?.tanggalEvent || "Tanpa Tanggal"}
                 </span>
-                {/* <span className="text-[11px] font-mono text-[#6B7280]">ID: {eventId}</span> */}
+                <span className="text-[11px] font-mono text-[#6B7280]">ID: {eventId}</span>
               </div>
 
               <h1 className="text-2xl sm:text-3xl font-light tracking-[-0.5px] text-[#111111] mt-3">
