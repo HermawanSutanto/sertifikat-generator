@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Inter, JetBrains_Mono } from "next/font/google";
 import {
   signInWithEmailAndPassword,
   signInWithPopup,
@@ -19,18 +18,6 @@ import {
   serverTimestamp,
 } from "firebase/firestore";
 import { auth, db } from "@/lib/firebase";
-
-const sansFont = Inter({
-  subsets: ["latin"],
-  weight: ["300", "400", "500", "600"],
-  variable: "--font-sans",
-});
-
-const monoFont =  Inter({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-mono",
-});
 
 const EyeIcon = (props) => (
   <svg
@@ -209,19 +196,16 @@ export default function LoginPage() {
   };
 
   return (
-    <main
-      className={`${sansFont.variable} ${monoFont.variable} min-h-screen bg-[#FFFFFF] text-[#111111] flex flex-col justify-center items-center px-6 py-16 selection:bg-[#111111] selection:text-white font-sans antialiased`}
-      style={{ fontFamily: "var(--font-sans), sans-serif" }}
-    >
+    <main className="min-h-screen bg-[#FFFFFF] text-[#111111] flex flex-col justify-center items-center px-6 py-16 selection:bg-[#111111] selection:text-white font-sans antialiased">
       <div className="w-full max-w-[380px] space-y-8">
         <div className="space-y-2 text-left">
           <Link
             href="/"
-            className="text-xs font-mono tracking-tight uppercase text-[#6B7280] hover:text-[#111111] transition-colors"
+            className="text-xs font-medium tracking-tight uppercase text-[#6B7280] hover:text-[#111111] transition-colors inline-flex items-center gap-1.5"
           >
-            SertiGen
+            ← Kembali ke Beranda
           </Link>
-          <h1 className="text-3xl font-light tracking-[-1px] text-[#111111]">
+          <h1 className="text-3xl font-bold tracking-tight text-[#111111]">
             Selamat datang kembali
           </h1>
           <p className="text-xs text-[#6B7280]">
@@ -233,7 +217,7 @@ export default function LoginPage() {
           type="button"
           onClick={handleGoogleLogin}
           disabled={isLoading}
-          className="w-full py-2.5 px-4 text-xs font-mono uppercase rounded-[4px] border border-[#E5E7EB] bg-[#FFFFFF] text-[#111111] hover:bg-[#F5F5F5] transition-colors flex items-center justify-center gap-2.5 disabled:opacity-50"
+          className="w-full py-2.5 px-4 text-xs font-semibold uppercase tracking-wider rounded-md border border-[#E5E7EB] bg-[#FFFFFF] text-[#111111] hover:bg-[#F9FAFB] transition-colors flex items-center justify-center gap-2.5 disabled:opacity-50"
         >
           <IconGoogle />
           <span>Lanjut dengan Google</span>
@@ -241,7 +225,7 @@ export default function LoginPage() {
 
         <div className="relative flex items-center">
           <div className="flex-grow border-t border-[#E5E7EB]" />
-          <span className="shrink mx-3 text-[#6B7280] text-[10px] font-mono uppercase tracking-wider">
+          <span className="shrink mx-3 text-[#6B7280] text-xs uppercase tracking-wider">
             atau gunakan email
           </span>
           <div className="flex-grow border-t border-[#E5E7EB]" />
@@ -249,7 +233,7 @@ export default function LoginPage() {
 
         <form onSubmit={handleLogin} className="space-y-4">
           <div>
-            <label className="block text-[11px] font-mono uppercase text-[#6B7280] mb-1.5">
+            <label className="block text-xs font-semibold text-[#6B7280] uppercase tracking-wider mb-1.5">
               Email
             </label>
             <input
@@ -258,12 +242,12 @@ export default function LoginPage() {
               onChange={(e) => setEmail(e.target.value)}
               required
               placeholder="nama@email.com"
-              className="w-full px-3 py-2 text-xs font-mono text-[#111111] border border-[#E5E7EB] rounded-[4px] bg-[#FFFFFF] focus:outline-none focus:border-[#111111] transition-colors"
+              className="w-full px-3 py-2 text-xs text-[#111111] border border-[#E5E7EB] rounded-md bg-[#FFFFFF] focus:outline-none focus:border-[#111111] transition-colors"
             />
           </div>
 
           <div>
-            <label className="block text-[11px] font-mono uppercase text-[#6B7280] mb-1.5">
+            <label className="block text-xs font-semibold text-[#6B7280] uppercase tracking-wider mb-1.5">
               Password
             </label>
             <div className="relative">
@@ -274,7 +258,7 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 required
                 placeholder="••••••••"
-                className="w-full px-3 py-2 text-xs text-[#111111] border border-[#E5E7EB] rounded-[4px] bg-[#FFFFFF] focus:outline-none focus:border-[#111111] transition-colors pr-9"
+                className="w-full px-3 py-2 text-xs text-[#111111] border border-[#E5E7EB] rounded-md bg-[#FFFFFF] focus:outline-none focus:border-[#111111] transition-colors pr-9"
               />
               <button
                 type="button"
@@ -287,7 +271,7 @@ export default function LoginPage() {
           </div>
 
           {error && (
-            <p className="text-[#D92D20] text-xs font-mono bg-[#F5F5F5] p-2.5 rounded-[4px] border border-[#E5E7EB]">
+            <p className="text-red-600 text-xs bg-red-50 p-2.5 rounded-md border border-red-200">
               [!] {error}
             </p>
           )}
@@ -295,7 +279,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={isLoading}
-            className="w-full py-2.5 text-xs font-mono uppercase text-white bg-[#111111] rounded-[4px] hover:bg-[#333333] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+            className="w-full py-2.5 text-xs font-semibold uppercase tracking-wider text-white bg-[#111111] rounded-md hover:bg-[#333333] transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
           >
             {isLoading ? (
               <>
@@ -308,9 +292,9 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <p className="text-center text-xs text-[#6B7280] font-mono pt-4 border-t border-[#E5E7EB]">
+        <p className="text-center text-xs text-[#6B7280] pt-4 border-t border-[#E5E7EB]">
           Belum punya akun?{" "}
-          <Link href="/register" className="text-[#111111] hover:underline">
+          <Link href="/register" className="text-[#111111] font-semibold hover:underline">
             Daftar di sini
           </Link>
         </p>

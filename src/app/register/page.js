@@ -288,6 +288,15 @@ export default function RegisterPage() {
     return (
       <main className="min-h-screen bg-[#FFFFFF] text-[#111111] flex flex-col justify-center items-center px-6 py-16 font-sans antialiased">
         <div className="w-full max-w-[420px] bg-[#FFFFFF] border border-[#E5E7EB] rounded-lg p-8 space-y-6 shadow-xs text-center">
+          <div className="flex justify-start">
+            <Link
+              href="/"
+              className="text-xs text-[#6B7280] hover:text-[#111111] transition-colors inline-flex items-center gap-1.5"
+            >
+              ← Kembali ke Beranda
+            </Link>
+          </div>
+
           <div className="w-12 h-12 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-600 flex items-center justify-center mx-auto">
             <IconMailCheck className="w-6 h-6" />
           </div>
@@ -349,6 +358,13 @@ export default function RegisterPage() {
             >
               Lanjutkan ke Dashboard →
             </button>
+
+            <Link
+              href="/"
+              className="w-full py-2.5 text-xs font-semibold rounded-md border border-[#E5E7EB] text-[#4B5563] hover:text-[#111111] hover:bg-[#F9FAFB] transition-colors inline-flex items-center justify-center gap-1.5"
+            >
+              ← Kembali ke Halaman Utama
+            </Link>
           </div>
 
           <p className="text-xs text-[#6B7280] pt-2 border-t border-[#E5E7EB]">
@@ -376,7 +392,7 @@ export default function RegisterPage() {
         <div className="space-y-2 text-left">
           <Link
             href="/"
-            className="text-xs font-medium tracking-tight uppercase text-[#6B7280] hover:text-[#111111] transition-colors"
+            className="text-xs font-medium tracking-tight uppercase text-[#6B7280] hover:text-[#111111] transition-colors inline-flex items-center gap-1.5"
           >
             ← Kembali ke Beranda
           </Link>
