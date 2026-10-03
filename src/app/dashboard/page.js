@@ -189,8 +189,8 @@ export default function DashboardPage() {
       return;
     }
 
-    // Batasi kuota akun cloud gratis hanya 1 event aktif
-    if (events.length >= 1) {
+    const maxAllowed = userData?.maxActiveEvents || (isPremium ? 50 : 1);
+    if (events.length >= maxAllowed) {
       setShowPremiumModal(true);
       return;
     }
@@ -515,7 +515,7 @@ export default function DashboardPage() {
               </span>
               <span className="text-[#B0B6C3]">/</span>
               <span className="text-[11px] font-mono text-[#6B7280]">
-                Slot Cloud: <strong className={events.length >= 1 ? "text-amber-800 font-medium" : "text-[#111111] font-medium"}>{events.length}/1 Event</strong>
+                Slot Cloud: <strong className={events.length >= (isPremium ? (userData?.maxActiveEvents || 50) : 1) ? "text-amber-800 font-medium" : "text-[#111111] font-medium"}>{events.length}/{isPremium ? (userData?.maxActiveEvents || 50) : 1} Event ({isPremium ? "Premium" : "Free"})</strong>
               </span>
               <span className="text-[#B0B6C3]">/</span>
               <Link
@@ -523,6 +523,13 @@ export default function DashboardPage() {
                 className="text-[11px] font-mono text-[#6B7280] hover:text-[#111111] transition-colors underline underline-offset-2"
               >
                 Atur Identitas Penyelenggara
+              </Link>
+              <span className="text-[#B0B6C3]">/</span>
+              <Link
+                href="/dashboard/billing"
+                className="text-[11px] font-mono text-[#6B7280] hover:text-[#111111] transition-colors underline underline-offset-2"
+              >
+                Langganan & Billing
               </Link>
             </div>
             <h1 className="text-3xl sm:text-4xl font-light tracking-[-1px] text-[#111111] mt-3">
@@ -535,6 +542,14 @@ export default function DashboardPage() {
 
           <div className="flex flex-wrap items-center gap-3 shrink-0">
             <Link
+              href="/dashboard/billing"
+              className="px-4 py-2.5 h-10 text-xs rounded-[4px] border border-[#E5E7EB] hover:bg-[#F5F5F5] text-[#111111] flex items-center gap-2 transition-colors"
+            >
+              <span className={`w-2 h-2 rounded-full ${isPremium ? "bg-emerald-500" : "bg-amber-400"}`} />
+              <span>{isPremium ? "Paket Premium" : "Upgrade ke Premium"}</span>
+            </Link>
+
+            <Link
               href="/dashboard/cetak-lokal"
               className="px-4 py-2.5 h-10 text-xs rounded-[4px] border border-[#E5E7EB] hover:bg-[#F5F5F5] text-[#111111] flex items-center gap-2 transition-colors"
             >
@@ -542,21 +557,21 @@ export default function DashboardPage() {
               <span>Studio Instan (Offline)</span>
             </Link>
 
-            {}
+            {/* Tombol Buat Event Baru */}
             <button
               onClick={handleOpenCreateEvent}
               className={`px-4 py-2.5 h-10 text-xs rounded-[4px] flex items-center gap-2 transition-colors ${
-                events.length >= 1
+                events.length >= (isPremium ? (userData?.maxActiveEvents || 50) : 1)
                   ? "bg-[#FFFFFF] text-[#111111] border border-[#E5E7EB] hover:bg-[#F5F5F5]"
                   : isEmailVerified
                   ? "bg-[#111111] hover:bg-[#333333] text-white"
                   : "bg-[#F3F4F6] text-[#9CA3AF] border border-[#E5E7EB] hover:border-amber-300 hover:text-amber-800"
               }`}
             >
-              {events.length >= 1 ? (
+              {events.length >= (isPremium ? (userData?.maxActiveEvents || 50) : 1) ? (
                 <>
                   <IconPlus className="w-3.5 h-3.5 text-[#6B7280]" />
-                  <span>Tambah Event (Premium)</span>
+                  <span>Tambah Event ({isPremium ? "Batas Kuota" : "Upgrade"})</span>
                 </>
               ) : isEmailVerified ? (
                 <>
@@ -573,7 +588,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {}
+        {/* List Events Section */}
         <div className="space-y-6">
           <div className="flex items-center justify-between border-b border-[#E5E7EB] pb-4">
             <div className="flex items-center gap-3">
@@ -581,7 +596,7 @@ export default function DashboardPage() {
                 Event & Acara Tersimpan
               </h2>
               <span className="text-[11px] font-mono text-[#6B7280] bg-[#F5F5F5] px-2 py-0.5 rounded-[4px]">
-                {events.length} / 1 Kuota Gratis
+                {events.length} / {isPremium ? (userData?.maxActiveEvents || 50) : 1} Kuota {isPremium ? "Premium" : "Gratis"}
               </span>
             </div>
 
@@ -826,7 +841,7 @@ export default function DashboardPage() {
             <div className="flex items-start justify-between">
               <div className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-amber-500/10 border border-amber-500/20 text-amber-900 text-[10px] font-mono font-semibold uppercase tracking-wider">
                 <span className="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse" />
-                <span>Paket Premium • Segera Hadir</span>
+                <span>Paket Premium</span>
               </div>
               <button
                 type="button"
@@ -848,7 +863,7 @@ export default function DashboardPage() {
 
             <div className="p-3.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-[4px] space-y-2 text-xs text-[#52525B]">
               <div className="font-semibold text-[#111111] flex items-center gap-1.5 text-[11px] uppercase tracking-wider">
-                <span>Keunggulan Paket Premium (Roadmap):</span>
+                <span>Keunggulan Paket Premium:</span>
               </div>
               <ul className="space-y-1.5 text-[11px] font-light">
                 <li className="flex items-start gap-2">
@@ -866,10 +881,6 @@ export default function DashboardPage() {
               </ul>
             </div>
 
-            <div className="p-3 bg-amber-50/70 border border-amber-200/80 rounded-[4px] text-[11px] text-amber-900 leading-relaxed font-light">
-              <strong>Solusi Saat Ini:</strong> Anda dapat mengekspor seluruh sertifikat event yang ada, lalu menghapusnya untuk mengosongkan slot gratis. Atau gunakan <strong>Studio Instan (Offline)</strong> untuk merender sertifikat massal tanpa database.
-            </div>
-
             <div className="flex flex-col sm:flex-row justify-end gap-2 pt-2 border-t border-[#E5E7EB]">
               {events[0] && (
                 <Link
@@ -880,13 +891,13 @@ export default function DashboardPage() {
                   Buka Event Aktif ({events[0].namaEvent?.slice(0, 16)}...)
                 </Link>
               )}
-              <button
-                type="button"
+              <Link
+                href="/dashboard/billing"
                 onClick={() => setShowPremiumModal(false)}
-                className="px-4 py-2 text-xs font-mono uppercase bg-[#111111] hover:bg-[#333333] text-white rounded-[4px] transition-colors"
+                className="px-4 py-2 text-xs font-mono uppercase bg-[#111111] hover:bg-[#333333] text-white rounded-[4px] transition-colors text-center"
               >
-                Mengerti
-              </button>
+                Upgrade ke Premium →
+              </Link>
             </div>
           </div>
         </div>

@@ -39,7 +39,7 @@ const faqs = [
   {
     id: "faq-pricing",
     q: "Berapa biaya penggunaannya dan apa beda tiap paket?",
-    a: "Mode Trial bisa dipakai langsung tanpa login, dan 50 sertifikat pertama per sesi bebas watermark. Akun Cloud Gratis (masuk dengan Google atau email terverifikasi) menyimpan 1 event aktif di cloud dan bebas watermark. Paket Premium masih rencana (Segera Hadir) untuk mengelola banyak event sekaligus; harga dan fitur finalnya belum ditetapkan.",
+    a: "Akun Komunitas gratis selamanya untuk 1 acara aktif hingga 100 peserta. Untuk kepanitiaan kampus yang membutuhkan kapasitas lebih besar, tersedia Event Pass Mahasiswa (Rp25.000 sekali bayar untuk 1 acara hingga 1.000 peserta) dan Paket BEM & Himpunan (Rp49.000/bulan untuk hingga 15 acara aktif simultan dan 2.500 peserta per acara). Seluruh sertifikat di SertiGen bebas watermark.",
   },
   {
     id: "faq-speed",
@@ -48,8 +48,8 @@ const faqs = [
   },
   {
     id: "faq-cancellation",
-    q: "Bagaimana pembatalan dan penghapusan data?",
-    a: "SertiGen tidak memungut biaya langganan berulang. Anda bisa berhenti kapan saja dan menghapus event dari dashboard; template dan data peserta event tersebut akan dihapus dari sistem aktif kami. Salinan di cadangan penyedia infrastruktur dapat bertahan sementara sebelum hilang lewat siklus normalnya.",
+    q: "Bagaimana pembatalan dan pembayaran?",
+    a: "Event Pass tidak memiliki biaya berulang karena bersifat sekali bayar per acara. Untuk Paket BEM & Himpunan, Anda bebas berhenti langganan kapan saja tanpa ikatan kontrak. Pembayaran diproses aman melalui DOKU Jokul dengan QRIS, e-wallet, dan Virtual Account Bank.",
   },
   {
     id: "faq-integration",
@@ -90,9 +90,9 @@ const technicalSpecs = [
     desc: "Uji internal: 1.000 sertifikat (PDF 2 halaman, 5 kolom) selesai dalam kurang dari 5 menit",
   },
   {
-    label: "Biaya & Komitmen",
-    value: "Gratis",
-    desc: "Tanpa tagihan berulang, bebas hapus data dan akun kapan saja",
+    label: "Biaya & Paket",
+    value: "Mulai Rp 0",
+    desc: "Gratis 1 event. Tersedia Event Pass Rp25.000 atau Bulanan Rp49.000 untuk organisasi mahasiswa",
   },
 ];
 
@@ -181,14 +181,6 @@ const studioSteps = [
 ];
 
 const STEP_DURATION_MS = 3500;
-
-// GANTI dengan email Anda untuk menerima pendaftaran daftar tunggu Premium.
-const WAITLIST_EMAIL = "ganti-email@contoh.com";
-const waitlistHref = `mailto:${WAITLIST_EMAIL}?subject=${encodeURIComponent(
-  "Daftar Tunggu Premium SertiGen"
-)}&body=${encodeURIComponent(
-  "Halo SertiGen,\n\nSaya tertarik dengan Paket Premium.\n\nNama / lembaga:\nJenis lembaga (sekolah, kampus, bootcamp, EO, dll):\nPerkiraan jumlah sertifikat per bulan:\nKebutuhan utama:\n"
-)}`;
 
 export default function LandingPage() {
   // Hero Live Interactive State
@@ -291,13 +283,32 @@ export default function LandingPage() {
         applicationCategory: "BusinessApplication",
         operatingSystem: "Web Browser",
         url: "https://cert.krovida.my.id",
-        offers: {
-          "@type": "Offer",
-          price: "0",
-          priceCurrency: "IDR",
-          availability: "https://schema.org/InStock",
-          description: "Mode Trial gratis dan Akun Cloud Gratis dengan 1 event aktif tersimpan.",
-        },
+        offers: [
+          {
+            "@type": "Offer",
+            name: "Akun Komunitas",
+            price: "0",
+            priceCurrency: "IDR",
+            availability: "https://schema.org/InStock",
+            description: "Gratis 1 event aktif tersimpan hingga 100 peserta, tanpa watermark.",
+          },
+          {
+            "@type": "Offer",
+            name: "Event Pass Mahasiswa",
+            price: "25000",
+            priceCurrency: "IDR",
+            availability: "https://schema.org/InStock",
+            description: "Sekali bayar untuk 1 acara mandiri hingga 1.000 peserta, revisi nama mandiri, dan portal unduhan.",
+          },
+          {
+            "@type": "Offer",
+            name: "Paket BEM & Himpunan",
+            price: "49000",
+            priceCurrency: "IDR",
+            availability: "https://schema.org/InStock",
+            description: "Langganan bulanan fleksibel hingga 15 acara aktif simultan dan 2.500 peserta per acara dengan kustomisasi identitas organisasi.",
+          },
+        ],
         description:
           "Pembuat sertifikat massal dari daftar nama CSV dan template PDF. File PDF dibuat di browser pengguna dengan Rust WebAssembly.",
       },
@@ -1133,125 +1144,361 @@ export default function LandingPage() {
         </section>
 
         {}
-        <section id="perbandingan" className="py-16 sm:py-20 px-4 sm:px-6 md:px-8 border-b border-[#E4E4E7] bg-[#FFFFFF]">
+        <section id="perbandingan" className="py-16 sm:py-24 px-4 sm:px-6 md:px-8 border-b border-[#E4E4E7] bg-[#FFFFFF]">
           <div className="max-w-[1240px] mx-auto">
-            <div className="mb-10 text-center max-w-xl mx-auto">
+            {/* Header */}
+            <div className="mb-12 text-center max-w-2xl mx-auto">
               <span className="text-xs font-semibold uppercase tracking-wider text-[#71717A] block mb-1">
-                Transparansi Biaya
+                Biaya Transparan & Ramah Kas Mahasiswa
               </span>
               <h2
                 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#18181B]"
                 style={{ fontFamily: "var(--font-heading), sans-serif" }}
               >
-                Gratis. Ini batas dan rencananya.
+                Pilihan Paket untuk Kepanitiaan Kampus
               </h2>
-              <p className="mt-2 text-xs sm:text-sm text-[#71717A]">
-                Saat ini semua fitur yang tersedia gratis. Pakai Mode Trial untuk langsung mencoba, atau Akun Cloud untuk menyimpan event Anda.
+              <p className="mt-2 text-xs sm:text-sm text-[#71717A] leading-relaxed">
+                Mulai dari gratis untuk coba langsung fitur kanvas, hingga paket hemat sekali bayar atau bulanan untuk BEM, Himpunan, dan panitia webinar. Tanpa biaya tersembunyi.
               </p>
             </div>
 
-            <div className="bg-[#FFFFFF] border border-[#E4E4E7] rounded-lg overflow-hidden max-w-4xl mx-auto shadow-xs">
+            {/* Pricing Cards Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto mb-16 items-stretch">
+              {/* Card 1: Akun Komunitas */}
+              <div className="bg-[#FFFFFF] border border-[#E4E4E7] rounded-xl p-6 flex flex-col justify-between hover:border-[#A1A1AA] transition-colors shadow-xs">
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-[#F4F4F5] text-[#52525B]">
+                      Gratis Selamanya
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-bold text-[#18181B] mb-1">Akun Komunitas</h3>
+                  <p className="text-xs text-[#71717A] leading-relaxed mb-5">
+                    Cocok untuk coba langsung fitur kanvas atau kepanitiaan webinar skala kecil.
+                  </p>
+                  <div className="mb-6">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-3xl font-extrabold text-[#18181B]" style={{ fontFamily: "var(--font-heading), sans-serif" }}>
+                        Rp 0
+                      </span>
+                    </div>
+                    <span className="text-[11px] text-[#71717A] block mt-0.5">Gratis tanpa kartu kredit</span>
+                  </div>
+
+                  <div className="space-y-2.5 text-xs text-[#52525B] pt-4 border-t border-[#E4E4E7] mb-6">
+                    <div className="flex items-start gap-2">
+                      <Check className="size-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <span>1 Event aktif tersimpan</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Check className="size-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <span>Hingga 100 peserta per acara</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Check className="size-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <span>Tanpa watermark pada sertifikat</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Check className="size-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <span>Tautan portal unduhan mandiri</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Check className="size-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <span>Ekspor arsip ZIP di browser</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Check className="size-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <span>Render lokal 100% cepat & privat</span>
+                    </div>
+                  </div>
+                </div>
+
+                <Link
+                  href="/register"
+                  className="w-full text-center py-2.5 px-4 rounded font-semibold text-xs border border-[#18181B] text-[#18181B] hover:bg-[#F4F4F5] transition-colors"
+                >
+                  Daftar Akun Gratis
+                </Link>
+              </div>
+
+              {/* Card 2: Event Pass Mahasiswa (Featured) */}
+              <div className="bg-[#FFFFFF] border-2 border-[#18181B] rounded-xl p-6 flex flex-col justify-between shadow-md relative">
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-[#18181B] text-white px-3 py-0.5 rounded-full text-[10px] font-bold tracking-wider uppercase">
+                  Paling Populer untuk Kepanitiaan
+                </div>
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-3 mt-1">
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-[#18181B] text-white">
+                      Sekali Bayar
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-bold text-[#18181B] mb-1">Event Pass Mahasiswa</h3>
+                  <p className="text-xs text-[#71717A] leading-relaxed mb-5">
+                    Untuk seminar, lomba, atau webinar kampus satu kali jalan tanpa tagihan berulang.
+                  </p>
+                  <div className="mb-6">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-3xl font-extrabold text-[#18181B]" style={{ fontFamily: "var(--font-heading), sans-serif" }}>
+                        Rp 25.000
+                      </span>
+                      <span className="text-xs text-[#71717A]">/ acara</span>
+                    </div>
+                    <span className="text-[11px] text-[#71717A] block mt-0.5">Sekali bayar, aktif sampai acara selesai</span>
+                  </div>
+
+                  <div className="space-y-2.5 text-xs text-[#18181B] pt-4 border-t border-[#E4E4E7] mb-6">
+                    <div className="flex items-start gap-2">
+                      <Check className="size-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <span className="font-medium">1 Slot Acara Mandiri</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Check className="size-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <span>Hingga 1.000 peserta per acara</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Check className="size-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <span>Tanpa watermark pada sertifikat</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Check className="size-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <span>Portal unduhan mandiri peserta</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Check className="size-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <span className="font-semibold text-emerald-700">Revisi nama mandiri oleh peserta</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Check className="size-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <span>Ekspor massal ZIP cepat</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Check className="size-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <span>Bayar via QRIS, E-Wallet, & VA Bank</span>
+                    </div>
+                  </div>
+                </div>
+
+                <Link
+                  href="/dashboard/billing"
+                  className="w-full text-center py-2.5 px-4 rounded font-semibold text-xs bg-[#18181B] text-white hover:bg-[#27272A] transition-colors shadow-xs flex items-center justify-center gap-1.5"
+                >
+                  Beli Event Pass
+                  <ArrowRight className="size-3.5" />
+                </Link>
+              </div>
+
+              {/* Card 3: Paket BEM & Himpunan */}
+              <div className="bg-[#FFFFFF] border border-[#E4E4E7] rounded-xl p-6 flex flex-col justify-between hover:border-[#A1A1AA] transition-colors shadow-xs">
+                <div>
+                  <div className="flex items-center justify-between gap-2 mb-3">
+                    <span className="text-[10px] font-bold uppercase tracking-wider px-2.5 py-1 rounded bg-[#F4F4F5] text-[#52525B]">
+                      BEM & Himpunan Jurusan
+                    </span>
+                  </div>
+                  <h3 className="text-lg font-bold text-[#18181B] mb-1">Paket BEM & Himpunan</h3>
+                  <p className="text-xs text-[#71717A] leading-relaxed mb-5">
+                    Solusi terpadu untuk organisasi kampus dengan agenda program kerja aktif berkala.
+                  </p>
+                  <div className="mb-6">
+                    <div className="flex items-baseline gap-1">
+                      <span className="text-3xl font-extrabold text-[#18181B]" style={{ fontFamily: "var(--font-heading), sans-serif" }}>
+                        Rp 49.000
+                      </span>
+                      <span className="text-xs text-[#71717A]">/ bulan</span>
+                    </div>
+                    <span className="text-[11px] text-[#71717A] block mt-0.5">Bebas berhenti kapan saja tanpa denda</span>
+                  </div>
+
+                  <div className="space-y-2.5 text-xs text-[#52525B] pt-4 border-t border-[#E4E4E7] mb-6">
+                    <div className="flex items-start gap-2">
+                      <Check className="size-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <span className="font-medium text-[#18181B]">Hingga 15 Acara Aktif Simultan</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Check className="size-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <span>Hingga 2.500 peserta per acara</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Check className="size-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <span>Tanpa watermark pada sertifikat</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Check className="size-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <span className="font-semibold text-emerald-700">Kustomisasi logo organisasi di portal</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Check className="size-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <span>Revisi nama mandiri di semua acara</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Check className="size-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <span>Ekspor massal ZIP tanpa antrean</span>
+                    </div>
+                    <div className="flex items-start gap-2">
+                      <Check className="size-4 text-emerald-600 shrink-0 mt-0.5" />
+                      <span>Dashboard multi-acara rapi</span>
+                    </div>
+                  </div>
+                </div>
+
+                <Link
+                  href="/dashboard/billing"
+                  className="w-full text-center py-2.5 px-4 rounded font-semibold text-xs border border-[#18181B] text-[#18181B] hover:bg-[#18181B] hover:text-white transition-colors"
+                >
+                  Pilih Paket Bulanan
+                </Link>
+              </div>
+            </div>
+
+            {/* Comparison Table */}
+            <div className="bg-[#FFFFFF] border border-[#E4E4E7] rounded-xl overflow-hidden max-w-5xl mx-auto shadow-xs">
+              <div className="p-4 sm:p-5 border-b border-[#E4E4E7] bg-[#FAFAFA] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-bold text-[#18181B]">Tabel Perbandingan Fasilitas & Kuota</h3>
+                  <p className="text-xs text-[#71717A]">Rincian lengkap perbedaan ketiga tingkatan paket SertiGen.</p>
+                </div>
+                <span className="text-[11px] text-[#71717A] bg-white border border-[#E4E4E7] px-2.5 py-1 rounded self-start sm:self-auto">
+                  DOKU Jokul Verified Payment
+                </span>
+              </div>
+
               <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse text-xs min-w-[700px]">
+                <table className="w-full text-left border-collapse text-xs min-w-[720px]">
                   <thead>
                     <tr className="border-b border-[#E4E4E7] bg-[#FAFAFA] text-xs font-semibold uppercase text-[#71717A]">
-                      <th className="p-3.5 font-semibold">Fitur & Kapasitas</th>
-                      <th className="p-3.5 font-semibold w-40">Mode Trial (Tamu)</th>
-                      <th className="p-3.5 font-semibold w-48 text-[#18181B] bg-black/5">Akun Cloud Gratis</th>
-                      <th className="p-3.5 font-semibold w-48 text-amber-900 bg-amber-500/10">
+                      <th className="p-3.5 font-semibold">Fitur & Fasilitas</th>
+                      <th className="p-3.5 font-semibold w-48 text-[#52525B]">Akun Komunitas</th>
+                      <th className="p-3.5 font-semibold w-56 text-[#18181B] bg-black/5">
                         <div className="flex items-center gap-1.5">
-                          <span>Paket Premium</span>
-                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-amber-600 text-white font-bold tracking-wider">
-                            COMING SOON
+                          <span>Event Pass</span>
+                          <span className="text-[9px] px-1.5 py-0.5 rounded bg-[#18181B] text-white font-bold">
+                            SEKALI BAYAR
                           </span>
                         </div>
                       </th>
+                      <th className="p-3.5 font-semibold w-56 text-[#18181B] bg-emerald-500/5">Paket BEM & Himpunan</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#E4E4E7]">
                     {[
                       {
-                        feature: "Biaya Layanan (Harga)",
-                        trial: "Rp 0 (Gratis)",
-                        cloud: "Rp 0",
-                        premium: "Segera Diumumkan",
+                        feature: "Biaya Layanan",
+                        komunitas: "Rp 0 (Gratis)",
+                        eventPass: "Rp 25.000 / acara",
+                        bem: "Rp 49.000 / bulan",
                       },
                       {
-                        feature: "Kapasitas Event Tersimpan",
-                        trial: "1 Sesi Sementara di Browser",
-                        cloud: "1 Event Aktif di Cloud (Bebas Ganti)",
-                        premium: "Multi-event simultan (rencana)",
+                        feature: "Mekanisme Tagihan",
+                        komunitas: "Tanpa tagihan selamanya",
+                        eventPass: "Sekali bayar (tanpa biaya berulang)",
+                        bem: "Bulanan fleksibel (bebas stop kapan saja)",
                       },
                       {
-                        feature: "Cara Mulai",
-                        trial: "Tanpa Daftar (Instan)",
-                        cloud: "Masuk dengan Google atau email",
-                        premium: "Akun Terverifikasi",
+                        feature: "Kapasitas Acara Aktif",
+                        komunitas: "1 Acara aktif tersimpan",
+                        eventPass: "1 Slot Acara Mandiri",
+                        bem: "Hingga 15 Acara Simultan",
                       },
                       {
-                        feature: "Watermark",
-                        trial: "Bebas watermark s.d. 50 sertifikat / sesi",
-                        cloud: "Tanpa watermark",
-                        premium: "Tanpa watermark",
+                        feature: "Batas Peserta per Acara",
+                        komunitas: "Maksimal 100 peserta",
+                        eventPass: "Hingga 1.000 peserta",
+                        bem: "Hingga 2.500 peserta",
                       },
                       {
-                        feature: "Penyimpanan Template & Aset",
-                        trial: "Sementara di Browser (IndexedDB)",
-                        cloud: "Cloud (template & data CSV, 1 event)",
-                        premium: "Cloud multi-event (rencana)",
+                        feature: "Watermark Sertifikat",
+                        komunitas: "Bebas Watermark",
+                        eventPass: "Bebas Watermark",
+                        bem: "Bebas Watermark",
                       },
                       {
-                        feature: "Portal Unduh Mandiri Peserta",
-                        trial: "Tidak Termasuk",
-                        cloud: "Tautan Publik per Acara",
-                        premium: "Tautan publik + kustom branding (rencana)",
+                        feature: "Portal Unduhan Mandiri Publik",
+                        komunitas: "Tersedia (Tautan publik)",
+                        eventPass: "Tersedia (Tautan publik)",
+                        bem: "Tersedia + Kustom Logo Organisasi",
                       },
                       {
-                        feature: "Analitik Unduhan Peserta",
-                        trial: "Tidak Termasuk",
-                        cloud: "Riwayat Status Dasar",
-                        premium: "Rekapitulasi & laporan unduh (rencana)",
+                        feature: "Pengajuan Revisi Nama Peserta",
+                        komunitas: "Tidak Termasuk",
+                        eventPass: "Tersedia (Peserta ajukan mandiri)",
+                        bem: "Tersedia (Peserta ajukan mandiri)",
+                      },
+                      {
+                        feature: "Ekspor Arsip ZIP Massal",
+                        komunitas: "Tersedia di browser",
+                        eventPass: "Tersedia berkecepatan penuh",
+                        bem: "Tersedia berkecepatan penuh",
+                      },
+                      {
+                        feature: "Mesin Render PDF",
+                        komunitas: "100% di browser pengguna",
+                        eventPass: "100% di browser pengguna",
+                        bem: "100% di browser pengguna",
+                      },
+                      {
+                        feature: "Metode Pembayaran",
+                        komunitas: "Tanpa pembayaran",
+                        eventPass: "QRIS, E-Wallet, & VA Bank",
+                        bem: "QRIS, E-Wallet, & VA Bank",
                       },
                     ].map((row, idx) => (
                       <tr key={idx} className="hover:bg-[#F9FAFB] transition-colors">
                         <td className="p-3.5 text-[#18181B] font-medium">{row.feature}</td>
-                        <td className="p-3.5 text-[#71717A]">{row.trial}</td>
-                        <td className="p-3.5 text-[#18181B] font-semibold bg-black/5">{row.cloud}</td>
-                        <td className="p-3.5 text-amber-900 font-semibold bg-amber-500/5">{row.premium}</td>
+                        <td className="p-3.5 text-[#52525B]">{row.komunitas}</td>
+                        <td className="p-3.5 text-[#18181B] font-semibold bg-black/5">{row.eventPass}</td>
+                        <td className="p-3.5 text-[#18181B] font-semibold bg-emerald-500/5">{row.bem}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
 
-              {/* Explicit Refund & Cancellation Terms */}
-              <div className="bg-[#FAFAFA] border-t border-[#E4E4E7] p-4 text-xs space-y-2 text-[#52525B]">
+              {/* Guarantees & Terms */}
+              <div className="bg-[#FAFAFA] border-t border-[#E4E4E7] p-5 text-xs space-y-2.5 text-[#52525B]">
                 <div className="flex items-start gap-2">
                   <Check className="size-4 text-emerald-600 shrink-0 mt-0.5" />
                   <p>
-                    <strong>Berhenti kapan saja:</strong> Tidak ada tagihan berulang. Anda dapat berhenti memakai layanan dan menghapus data event dari dashboard kapan saja, tanpa denda.
+                    <strong>Bebas berhenti kapan saja:</strong> Untuk Paket BEM & Himpunan, Anda bebas menghentikan langganan dari dashboard kapan saja tanpa ikatan kontrak jangka panjang atau denda tersembunyi.
                   </p>
                 </div>
                 <div className="flex items-start gap-2">
                   <Check className="size-4 text-emerald-600 shrink-0 mt-0.5" />
                   <p>
-                    <strong>Rencana Paket Premium (belum tersedia):</strong> Untuk institusi atau <em>event organizer</em> yang mengelola banyak acara sekaligus tanpa menghapus event sebelumnya, dengan kustomisasi branding. Harga dan fitur final belum ditetapkan.
+                    <strong>Privasi data & tanpa antrean server:</strong> Seluruh berkas PDF sertifikat diproses secara lokal di browser Anda dengan Rust WebAssembly, sehingga tidak ada berkas PDF yang disimpan atau dikirim ke server.
+                  </p>
+                </div>
+                <div className="flex items-start gap-2">
+                  <Check className="size-4 text-emerald-600 shrink-0 mt-0.5" />
+                  <p>
+                    <strong>Pembayaran instan & terpercaya:</strong> Transaksi diproses otomatis secara aman melalui payment gateway resmi DOKU Jokul dengan verifikasi instan.
                   </p>
                 </div>
               </div>
             </div>
-            <div className="max-w-4xl mx-auto mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border border-[#E4E4E7] bg-[#FFFFFF] rounded-lg p-4">
-              <p className="text-xs text-[#52525B] leading-relaxed">
-                <strong className="text-[#18181B]">Tertarik dengan Paket Premium?</strong> Kirim kebutuhan Anda (jenis lembaga dan perkiraan jumlah sertifikat per bulan). Kami kabari saat Premium siap.
-              </p>
-              <a
-                href={waitlistHref}
-                className="inline-flex items-center justify-center shrink-0 bg-[#18181B] text-white px-4 py-2 rounded text-xs font-semibold hover:bg-[#27272A] transition-colors"
-              >
-                Masuk Daftar Tunggu
-              </a>
+
+            {/* Quick Action Footer inside Pricing */}
+            <div className="max-w-5xl mx-auto mt-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border border-[#E4E4E7] bg-[#FAFAFA] rounded-xl p-5">
+              <div>
+                <p className="text-xs font-semibold text-[#18181B]">Siap menerbitkan sertifikat untuk kepanitiaan Anda?</p>
+                <p className="text-xs text-[#71717A] mt-0.5">Mulai gratis sekarang atau pilih paket di dashboard billing.</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <Link
+                  href="/register"
+                  className="inline-flex items-center justify-center bg-white border border-[#E4E4E7] text-[#18181B] px-4 py-2 rounded-lg text-xs font-semibold hover:bg-[#F4F4F5] transition-colors"
+                >
+                  Daftar Akun Gratis
+                </Link>
+                <Link
+                  href="/dashboard/billing"
+                  className="inline-flex items-center justify-center bg-[#18181B] text-white px-4 py-2 rounded-lg text-xs font-semibold hover:bg-[#27272A] transition-colors"
+                >
+                  Buka Billing
+                </Link>
+              </div>
             </div>
-            <p className="text-center text-[11px] text-[#A1A1AA] mt-2 sm:hidden">
+
+            <p className="text-center text-[11px] text-[#A1A1AA] mt-3 sm:hidden">
               ← Geser tabel ke samping untuk melihat detail paket →
             </p>
           </div>
