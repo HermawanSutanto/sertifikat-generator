@@ -12,6 +12,8 @@ import {
   allowedAttributeKeys,
   getParticipantDoc,
   verifyToken,
+  parseTokenId,
+  tokenVersion,
   rateLimit,
   clientIp,
   TOO_MANY,
