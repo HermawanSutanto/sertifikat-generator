@@ -34,18 +34,19 @@ export async function GET(request, { params }) {
 
     const sharing = sharingState(event);
 
-    if (token) {
-      if (!sharing.perPeserta) return json({ error: "invalid" }, 404);
-      const participantId = verifyToken(eventId, token, sharing.epoch);
-      if (!participantId) return json({ error: "invalid" }, 404);
-      const found = await getParticipantDoc(eventId, participantId);
-      if (!found) return json({ error: "invalid" }, 404);
-      return json({
-        mode: "peserta",
-        event: publicEvent(event),
-        participant: publicParticipant(found.id, found.data, allowedAttributeKeys(event)),
-      });
-    }
+if (token) {
+  if (!sharing.perPeserta) return json({ error: "invalid" }, 404);
+  const pid = parseTokenId(token);
+  const found = pid ? await getParticipantDoc(eventId, pid) : null;
+  if (!found || !verifyToken(eventId, token, sharing.epoch, tokenVersion(found.data))) {
+    return json({ error: "invalid" }, 404);
+  }
+  return json({
+    mode: "peserta",
+    event: publicEvent(event),
+    participant: publicParticipant(found.id, found.data, allowedAttributeKeys(event)),
+  });
+}
 
     if (sharing.cariMandiri) {
       return json({ mode: "cari", event: publicEvent(event) });

@@ -20,28 +20,47 @@ function getSecret() {
   return secret;
 }
 
-export function makeToken(eventId, participantId, epoch) {
+export function makeToken(eventId, participantId, epoch, tv = 0) {
+  const base = `${eventId}:${participantId}:${epoch}`;
   const sig = crypto
     .createHmac("sha256", getSecret())
-    .update(`${eventId}:${participantId}:${epoch}`)
+    .update(tv > 0 ? `${base}:${tv}` : base)
     .digest("base64url")
     .slice(0, 22);
   return `${participantId}.${sig}`;
 }
-
-// Mengembalikan participantId jika token sah, selain itu null.
-export function verifyToken(eventId, token, epoch) {
+export function parseTokenId(token) {
   if (typeof token !== "string" || token.length > 200) return null;
   const dot = token.lastIndexOf(".");
   if (dot < 1) return null;
-  const participantId = token.slice(0, dot);
-  if (!isValidId(participantId)) return null;
+  const id = token.slice(0, dot);
+  return isValidId(id) ? id : null;
+}
+export const tokenVersion = (data) =>
+  Number.isInteger(data?.tv) && data.tv > 0 ? data.tv : 0;
 
-  const expected = Buffer.from(makeToken(eventId, participantId, epoch));
+// Mengembalikan participantId jika token sah, selain itu null.
+export function verifyToken(eventId, token, epoch, tv = 0) {
+  const participantId = parseTokenId(token);
+  if (!participantId) return null;
+  const expected = Buffer.from(makeToken(eventId, participantId, epoch, tv));
   const received = Buffer.from(token);
   if (expected.length !== received.length) return null;
   return crypto.timingSafeEqual(expected, received) ? participantId : null;
 }
+// Mengembalikan participantId jika token sah, selain itu null.
+// export function verifyToken(eventId, token, epoch) {
+//   if (typeof token !== "string" || token.length > 200) return null;
+//   const dot = token.lastIndexOf(".");
+//   if (dot < 1) return null;
+//   const participantId = token.slice(0, dot);
+//   if (!isValidId(participantId)) return null;
+
+//   const expected = Buffer.from(makeToken(eventId, participantId, epoch));
+//   const received = Buffer.from(token);
+//   if (expected.length !== received.length) return null;
+//   return crypto.timingSafeEqual(expected, received) ? participantId : null;
+// }
 
 // ---------- Event & pengaturan berbagi ----------
 export async function loadEvent(eventId) {

@@ -11,6 +11,8 @@ import {
   sharingState,
   getParticipantDoc,
   verifyToken,
+  parseTokenId,
+  tokenVersion,
   isValidId,
   rateLimit,
   clientIp,
@@ -20,8 +22,6 @@ import {
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-// POST /api/public/event/[eventId]/revisi
-// body: { t, namaBaru }  (mode per peserta)  atau  { participantId, namaBaru }  (mode pencarian mandiri)
 export async function POST(request, { params }) {
   try {
     const { eventId } = await params;
@@ -44,20 +44,23 @@ export async function POST(request, { params }) {
     if (!event) return json({ error: "closed" }, 404);
     const sharing = sharingState(event);
 
-    let participantId = null;
+    let found = null;
     if (body?.t) {
       if (!sharing.perPeserta) return json({ error: "invalid" }, 404);
-      participantId = verifyToken(eventId, body.t, sharing.epoch);
+      const pid = parseTokenId(body.t);
+      const doc = pid ? await getParticipantDoc(eventId, pid) : null;
+      if (doc && verifyToken(eventId, body.t, sharing.epoch, tokenVersion(doc.data))) {
+        found = doc;
+      }
     } else if (isValidId(body?.participantId)) {
       if (!sharing.cariMandiri) return json({ error: "closed" }, 404);
-      participantId = body.participantId;
+      found = await getParticipantDoc(eventId, body.participantId);
     }
-    if (!participantId) return json({ error: "invalid" }, 404);
+    if (!found) return json({ error: "invalid" }, 404);
 
+    const participantId = found.id;
     if (!(await rateLimit(`rvp:${eventId}:${participantId}`, 3, 3600))) return TOO_MANY();
 
-    const found = await getParticipantDoc(eventId, participantId);
-    if (!found) return json({ error: "invalid" }, 404);
     if (String(found.data.nama || "") === namaBaru) {
       return json({ error: "Nama baru sama dengan nama saat ini." }, 400);
     }

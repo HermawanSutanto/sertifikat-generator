@@ -404,7 +404,30 @@ export default function EventDetailPage() {
       "Semua tautan lama dinonaktifkan. Unduh daftar tautan baru untuk dibagikan."
     );
   };
+const revokeParticipantLink = async (p) => {
+  if (!window.confirm(`Tautan lama ${p.nama} akan berhenti berfungsi dan tautan baru dibuat. Lanjutkan?`)) return;
+  try {
+    await updateDoc(doc(db, `events/${eventId}/peserta`, p.id), { tv: increment(1) });
+    setParticipants((prev) => prev.map((x) => (x.id === p.id ? { ...x, tv: (x.tv || 0) + 1 } : x)));
 
+    const idToken = await user.getIdToken();
+    const res = await fetch(`/api/events/${eventId}/links?id=${encodeURIComponent(p.id)}`, {
+      headers: { Authorization: `Bearer ${idToken}` },
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || "Gagal membuat tautan baru.");
+
+    const url = data.links[0].url;
+    try {
+      await navigator.clipboard.writeText(url);
+      notify(`Tautan lama ${p.nama} dicabut. Tautan baru disalin.`, "success");
+    } catch {
+      window.prompt("Tautan lama dicabut. Salin tautan baru:", url);
+    }
+  } catch (err) {
+    notify(err.message, "error");
+  }
+};
   const renderInterpolatedText = (cfg, row) => {
     if (cfg.is_custom_var) {
       const parts = (cfg.custom_var_values || "").split(",").map((s) => s.trim());
@@ -1475,6 +1498,17 @@ export default function EventDetailPage() {
                         >
                           Pratinjau PDF
                         </button>
+
+                        {sharing.perPeserta && (
+                          <button
+                            type="button"
+                            onClick={() => revokeParticipantLink(p)}
+                            className="px-2 py-1 text-[#6B7280] hover:text-[#111111] font-mono text-[11px] uppercase transition-colors"
+                            title="Cabut tautan lama peserta ini dan buat tautan baru"
+                          >
+                            Cabut Tautan
+                          </button>
+                        )}
                         <button
                           type="button"
                           onClick={() =>
