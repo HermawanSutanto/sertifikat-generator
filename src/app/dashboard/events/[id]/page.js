@@ -166,6 +166,11 @@ export default function EventDetailPage() {
   const [showRevisionsModal, setShowRevisionsModal] = useState(false);
   const [isProcessingRevision, setIsProcessingRevision] = useState(false);
 
+  // State Bagikan ke Peserta
+  const [showShareModal, setShowShareModal] = useState(false);
+  const [isSavingShare, setIsSavingShare] = useState(false);
+  const [isExportingLinks, setIsExportingLinks] = useState(false);
+
   // State Pemrosesan Render Wasm Sisi Klien
   const [isRendering, setIsRendering] = useState(false);
   const [renderProgress, setRenderProgress] = useState(null);
@@ -328,6 +333,77 @@ export default function EventDetailPage() {
       fetchEventAndParticipants();
     }
   }, [user, eventId, fetchEventAndParticipants]);
+
+  // ---- Bagikan ke peserta (akses publik dikendalikan lewat pengaturan di dokumen event) ----
+  const sharing = {
+    cariMandiri: eventData?.sharing?.cariMandiri === true,
+    perPeserta: eventData?.sharing?.perPeserta === true,
+    epoch: Number.isInteger(eventData?.sharing?.epoch) ? eventData.sharing.epoch : 1,
+  };
+
+  const publicShareUrl =
+    typeof window !== "undefined" ? `${window.location.origin}/sertifikat/${eventId}` : "";
+
+  const updateSharing = async (patch, successText) => {
+    const next = { ...sharing, ...patch };
+    setIsSavingShare(true);
+    try {
+      await updateDoc(doc(db, "events", eventId), { sharing: next });
+      setEventData((prev) => ({ ...prev, sharing: next }));
+      if (successText) notify(successText, "success");
+    } catch (err) {
+      notify("Gagal menyimpan pengaturan berbagi: " + err.message, "error");
+    } finally {
+      setIsSavingShare(false);
+    }
+  };
+
+  const copyShareUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(publicShareUrl);
+      notify("Tautan pencarian mandiri berhasil disalin.", "success");
+    } catch {
+      notify("Gagal menyalin. Salin manual dari kolom tautan.", "error");
+    }
+  };
+
+  const exportParticipantLinks = async () => {
+    setIsExportingLinks(true);
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch(`/api/events/${eventId}/links`, {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Gagal membuat daftar tautan.");
+
+      const csv =
+        "\uFEFF" +
+        Papa.unparse(data.links.map((l) => ({ Nama: l.nama, Email: l.email, Tautan: l.url })));
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `tautan-peserta-${eventId}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      notify(`Daftar ${data.links.length} tautan peserta berhasil diunduh.`, "success");
+    } catch (err) {
+      notify(err.message, "error");
+    } finally {
+      setIsExportingLinks(false);
+    }
+  };
+
+  const resetParticipantLinks = async () => {
+    if (!window.confirm("Semua tautan per peserta yang sudah dibagikan akan berhenti berfungsi. Lanjutkan?")) return;
+    await updateSharing(
+      { epoch: sharing.epoch + 1 },
+      "Semua tautan lama dinonaktifkan. Unduh daftar tautan baru untuk dibagikan."
+    );
+  };
 
   const renderInterpolatedText = (cfg, row) => {
     if (cfg.is_custom_var) {
@@ -1086,15 +1162,14 @@ export default function EventDetailPage() {
         <div className="flex items-center gap-3">
           <button
             type="button"
-            onClick={() => {
-              const shareUrl = `${window.location.origin}/sertifikat/${eventId}`;
-              navigator.clipboard.writeText(shareUrl);
-              notify("Tautan pratinjau peserta berhasil disalin ke clipboard.", "success");
-            }}
+            onClick={() => setShowShareModal(true)}
             className="px-3 py-1.5 border border-[#E5E7EB] hover:bg-[#F5F5F5] text-[#111111] text-xs font-mono uppercase rounded-[4px] transition-colors flex items-center gap-1.5"
-            title="Salin tautan publik agar peserta bisa melihat dan mengunduh sertifikatnya sendiri"
+            title="Atur cara peserta mengakses sertifikatnya"
           >
-            <span>Salin Link Peserta ↗</span>
+            <span>Bagikan ke Peserta</span>
+            {(sharing.cariMandiri || sharing.perPeserta) && (
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+            )}
           </button>
 
           <Link
@@ -1610,6 +1685,120 @@ export default function EventDetailPage() {
 
       {}
       {/* Modal Daftar Laporan Revisi Nama dari Peserta */}
+      {showShareModal && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
+          <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-md max-w-lg w-full p-6 space-y-5 max-h-[90vh] overflow-y-auto">
+            <div className="flex items-start justify-between border-b border-[#E5E7EB] pb-3">
+              <div>
+                <h3 className="text-sm font-medium text-[#111111]">Bagikan ke Peserta</h3>
+                <p className="text-xs text-[#6B7280] font-mono mt-0.5">
+                  Secara default peserta tidak bisa mengakses apa pun. Aktifkan opsi yang Anda perlukan.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowShareModal(false)}
+                className="text-xs font-mono text-[#6B7280] hover:text-[#111111]"
+              >
+                Tutup
+              </button>
+            </div>
+
+            {/* Opsi 1: pencarian mandiri */}
+            <div className="border border-[#E5E7EB] rounded-[4px] p-4 space-y-3">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={sharing.cariMandiri}
+                  disabled={isSavingShare}
+                  onChange={(e) =>
+                    updateSharing(
+                      { cariMandiri: e.target.checked },
+                      e.target.checked ? "Pencarian mandiri diaktifkan." : "Pencarian mandiri dinonaktifkan."
+                    )
+                  }
+                />
+                <span>
+                  <span className="block text-sm text-[#111111]">Pencarian mandiri (satu tautan untuk semua)</span>
+                  <span className="block text-xs text-[#6B7280] mt-0.5 leading-relaxed">
+                    Peserta mengetik nama mereka sendiri lalu mengunduh sertifikat. Hasil pencarian hanya menampilkan
+                    nama, tanpa email. <strong className="text-[#111111] font-medium">Siapa pun yang memegang tautan ini
+                    dapat mencari dan mengunduh sertifikat semua peserta.</strong>
+                  </span>
+                </span>
+              </label>
+              {sharing.cariMandiri && (
+                <div className="flex items-center gap-2">
+                  <input
+                    readOnly
+                    value={publicShareUrl}
+                    onFocus={(e) => e.target.select()}
+                    className="flex-1 text-xs font-mono border border-[#E5E7EB] rounded-[4px] px-2.5 py-2 bg-[#F5F5F5] text-[#111111]"
+                  />
+                  <button
+                    type="button"
+                    onClick={copyShareUrl}
+                    className="px-3 py-2 text-xs font-mono uppercase bg-[#111111] hover:bg-[#333333] text-white rounded-[4px]"
+                  >
+                    Salin
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Opsi 2: tautan per peserta */}
+            <div className="border border-[#E5E7EB] rounded-[4px] p-4 space-y-3">
+              <label className="flex items-start gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={sharing.perPeserta}
+                  disabled={isSavingShare}
+                  onChange={(e) =>
+                    updateSharing(
+                      { perPeserta: e.target.checked },
+                      e.target.checked ? "Tautan per peserta diaktifkan." : "Tautan per peserta dinonaktifkan."
+                    )
+                  }
+                />
+                <span>
+                  <span className="block text-sm text-[#111111]">Tautan per peserta</span>
+                  <span className="block text-xs text-[#6B7280] mt-0.5 leading-relaxed">
+                    Setiap peserta mendapat tautan unik yang hanya membuka sertifikatnya sendiri. Unduh daftar tautan
+                    (CSV) untuk dikirim lewat email atau WhatsApp. Tautan tidak bisa menampilkan sertifikat peserta lain.
+                  </span>
+                </span>
+              </label>
+              {sharing.perPeserta && (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={exportParticipantLinks}
+                    disabled={isExportingLinks || participants.length === 0}
+                    className="px-3 py-2 text-xs font-mono uppercase bg-[#111111] hover:bg-[#333333] text-white rounded-[4px] disabled:opacity-50"
+                  >
+                    {isExportingLinks ? "Menyiapkan..." : "Unduh Daftar Tautan (CSV)"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={resetParticipantLinks}
+                    disabled={isSavingShare}
+                    className="px-3 py-2 text-xs font-mono border border-[#E5E7EB] hover:bg-[#F5F5F5] text-[#6B7280] hover:text-[#111111] rounded-[4px] disabled:opacity-50"
+                  >
+                    Reset Semua Tautan
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <p className="text-[11px] text-[#6B7280] font-mono leading-relaxed">
+              Menonaktifkan opsi akan langsung menutup akses lewat tautan yang sudah dibagikan.
+            </p>
+          </div>
+        </div>
+      )}
+
       {showRevisionsModal && (
         <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4 backdrop-blur-xs">
           <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-md max-w-lg w-full p-6 space-y-4">

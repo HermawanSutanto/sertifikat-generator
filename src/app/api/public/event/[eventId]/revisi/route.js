@@ -1,0 +1,79 @@
+// File  : app/api/public/event/[eventId]/revisi/route.js
+// URL   : POST /api/public/event/{eventId}/revisi
+// Body  : { t, namaBaru }  atau  { participantId, namaBaru }
+// Akses : publik, mengikuti checkbox panitia; batas 10/jam per IP dan 3/jam per peserta
+
+import { FieldValue } from "firebase-admin/firestore";
+import { getAdminDb } from "@/lib/firebaseAdmin";
+import {
+  json,
+  loadEvent,
+  sharingState,
+  getParticipantDoc,
+  verifyToken,
+  isValidId,
+  rateLimit,
+  clientIp,
+  TOO_MANY,
+} from "@/lib/share";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+// POST /api/public/event/[eventId]/revisi
+// body: { t, namaBaru }  (mode per peserta)  atau  { participantId, namaBaru }  (mode pencarian mandiri)
+export async function POST(request, { params }) {
+  try {
+    const { eventId } = await params;
+    const ip = clientIp(request);
+    if (!(await rateLimit(`rv:${eventId}:${ip}`, 10, 3600))) return TOO_MANY();
+
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return json({ error: "Permintaan tidak valid." }, 400);
+    }
+
+    const namaBaru = String(body?.namaBaru || "").replace(/\s+/g, " ").trim();
+    if (namaBaru.length < 1 || namaBaru.length > 200) {
+      return json({ error: "Nama harus 1 sampai 200 karakter." }, 400);
+    }
+
+    const event = await loadEvent(eventId);
+    if (!event) return json({ error: "closed" }, 404);
+    const sharing = sharingState(event);
+
+    let participantId = null;
+    if (body?.t) {
+      if (!sharing.perPeserta) return json({ error: "invalid" }, 404);
+      participantId = verifyToken(eventId, body.t, sharing.epoch);
+    } else if (isValidId(body?.participantId)) {
+      if (!sharing.cariMandiri) return json({ error: "closed" }, 404);
+      participantId = body.participantId;
+    }
+    if (!participantId) return json({ error: "invalid" }, 404);
+
+    if (!(await rateLimit(`rvp:${eventId}:${participantId}`, 3, 3600))) return TOO_MANY();
+
+    const found = await getParticipantDoc(eventId, participantId);
+    if (!found) return json({ error: "invalid" }, 404);
+    if (String(found.data.nama || "") === namaBaru) {
+      return json({ error: "Nama baru sama dengan nama saat ini." }, 400);
+    }
+
+    await getAdminDb().collection(`events/${eventId}/revisi_nama`).add({
+      participantId,
+      namaLama: String(found.data.nama || ""),
+      email: String(found.data.email || ""),
+      namaBaru,
+      status: "pending",
+      dibuatPada: FieldValue.serverTimestamp(),
+    });
+
+    return json({ ok: true });
+  } catch (err) {
+    console.error("POST /api/public/event/revisi:", err);
+    return json({ error: "Terjadi kesalahan server." }, 500);
+  }
+}
