@@ -19,6 +19,7 @@ import {
   Pause,
   Printer,
   RefreshCw,
+  Download,
 } from "lucide-react";
 import AuthNav from "./AuthNav";
 
@@ -38,27 +39,32 @@ const faqs = [
   {
     id: "faq-pricing",
     q: "Berapa biaya penggunaannya dan apa beda tiap paket?",
-    a: "Mode Trial dapat digunakan langsung tanpa login (bebas watermark hingga 50 sertifikat per sesi). Akun Cloud Gratis memberikan 1 slot penyimpanan event aktif di cloud tanpa batas kuota peserta, tautan unduh mandiri, dan simpan template permanen. Paket Premium (Segera Hadir) disiapkan untuk multi-event simultan tanpa batas dan kustomisasi branding mandiri.",
+    a: "Mode Trial bisa dipakai langsung tanpa login, dan 50 sertifikat pertama per sesi bebas watermark. Akun Cloud Gratis (masuk dengan Google atau email terverifikasi) menyimpan 1 event aktif di cloud dan bebas watermark. Paket Premium masih rencana (Segera Hadir) untuk mengelola banyak event sekaligus; harga dan fitur finalnya belum ditetapkan.",
+  },
+  {
+    id: "faq-speed",
+    q: "Berapa lama membuat 1.000 sertifikat?",
+    a: "Dalam uji internal kami, 1.000 data (template PDF 2 halaman, 5 kolom) selesai dibuat dalam kurang dari 5 menit. Waktu sebenarnya bergantung pada perangkat dan ukuran template Anda.",
   },
   {
     id: "faq-cancellation",
-    q: "Bagaimana kebijakan pembatalan dan privasi data jika event dihapus?",
-    a: "SertiGen tidak memungut biaya langganan berulang otomatis. Anda dapat berhenti menggunakan layanan atau menghapus event kapan saja. Saat event dihapus dari dashboard, seluruh berkas template dan database peserta di penyimpanan cloud akan langsung dimusnahkan secara permanen.",
+    q: "Bagaimana pembatalan dan penghapusan data?",
+    a: "SertiGen tidak memungut biaya langganan berulang. Anda bisa berhenti kapan saja dan menghapus event dari dashboard; template dan data peserta event tersebut akan dihapus dari sistem aktif kami. Salinan di cadangan penyedia infrastruktur dapat bertahan sementara sebelum hilang lewat siklus normalnya.",
   },
   {
     id: "faq-integration",
-    q: "Apakah membutuhkan integrasi API atau plugin tambahan?",
-    a: "Tidak. SertiGen sengaja didesain mandiri di peramban klien tanpa ketergantungan API pihak ketiga. Anda cukup mengekspor data nama dari Microsoft Excel, Google Sheets, atau Notion ke format berkas CSV universal.",
+    q: "Apakah perlu integrasi API atau plugin tambahan?",
+    a: "Tidak perlu. SertiGen belum menyediakan API publik atau integrasi seperti Zapier dan Moodle. Cukup ekspor daftar nama dari Excel, Google Sheets, atau Notion ke format CSV, lalu unggah.",
   },
   {
     id: "faq-privacy",
-    q: "Apakah data nama peserta dikirim ke server luar?",
-    a: "Pada mode Trial dan Studio Mandiri, seluruh proses penggabungan teks ke PDF dikerjakan secara lokal di memori RAM komputer Anda melalui Rust WebAssembly. Tidak ada transmisi data nama ke server pihak ketiga mana pun.",
+    q: "Apakah data nama peserta dikirim ke server?",
+    a: "File PDF sertifikat selalu dibuat di browser Anda melalui Rust WebAssembly dan tidak dikirim atau disimpan di server kami. Di Mode Trial, tidak ada data yang dikirim ke server. Jika Anda memakai Akun Cloud, template dan data CSV peserta untuk event disimpan di cloud kami agar bisa dibuka lagi. Kami hanya menyimpannya untuk menjalankan layanan dan tidak menjualnya. Detailnya ada di Kebijakan Privasi.",
   },
   {
     id: "faq-typography",
-    q: "Bisakah mengatur posisi koordinat dan jenis font sendiri?",
-    a: "Bisa. Anda bebas menggeser kotak elemen secara visual, mengunci simetri dengan smart-snap, menggeser mikro per 1 titik (arrow keys), memilih koleksi font bawaan, atau mengunggah berkas font kustom (.ttf / .otf).",
+    q: "Bisakah mengatur posisi nama dan jenis font sendiri?",
+    a: "Bisa. Geser kotak nama secara visual, kunci rata tengah dengan smart-snap, geser per 1 titik dengan tombol panah, pilih font bawaan, atau unggah font kustom (.ttf / .otf). Nama yang terlalu panjang otomatis turun ke baris berikutnya di dalam kotak.",
   },
 ];
 
@@ -66,26 +72,26 @@ const technicalSpecs = [
   {
     label: "Mesin Render",
     value: "Rust WebAssembly",
-    desc: "Kompilasi lokal di browser, dokumen selesai tanpa antre di server",
+    desc: "Berjalan di browser Anda, jadi tidak ada antrean server",
   },
   {
     label: "Format Input",
     value: "PDF Vector + CSV Universal",
-    desc: "Kompatibel dengan ekspor Google Sheets, Excel, dan LibreOffice",
+    desc: "CSV hasil ekspor Google Sheets, Excel, atau LibreOffice",
   },
   {
     label: "Format Output",
     value: "PDF Siap Cetak (Arsip ZIP)",
-    desc: "Menghasilkan berkas PDF terpisah per nama dengan teks berbasis kurva",
+    desc: "Satu berkas PDF per nama, dikemas dalam ZIP",
   },
   {
     label: "Kebutuhan Perangkat",
     value: "RAM 4 GB+ (Disarankan 8 GB)",
-    desc: "Optimal pada Chrome, Edge, atau Brave untuk ekspor massal 1.000+ lembar",
+    desc: "Uji internal: 1.000 sertifikat (PDF 2 halaman, 5 kolom) selesai dalam kurang dari 5 menit",
   },
   {
     label: "Biaya & Komitmen",
-    value: "Rp 0 (Freemium Mandiri)",
+    value: "Gratis",
     desc: "Tanpa tagihan berulang, bebas hapus data dan akun kapan saja",
   },
 ];
@@ -170,11 +176,19 @@ const studioSteps = [
     align: "center",
     font: "Serif Formal",
     coord: "X: 421pt | Y: 288pt (Serif)",
-    guide: "Pilihan jenis huruf Serif langsung diterapkan ke kurva vektor kanvas via Rust WebAssembly.",
+    guide: "Pilihan jenis huruf Serif langsung diterapkan ke teks di kanvas.",
   },
 ];
 
 const STEP_DURATION_MS = 3500;
+
+// GANTI dengan email Anda untuk menerima pendaftaran daftar tunggu Premium.
+const WAITLIST_EMAIL = "ganti-email@contoh.com";
+const waitlistHref = `mailto:${WAITLIST_EMAIL}?subject=${encodeURIComponent(
+  "Daftar Tunggu Premium SertiGen"
+)}&body=${encodeURIComponent(
+  "Halo SertiGen,\n\nSaya tertarik dengan Paket Premium.\n\nNama / lembaga:\nJenis lembaga (sekolah, kampus, bootcamp, EO, dll):\nPerkiraan jumlah sertifikat per bulan:\nKebutuhan utama:\n"
+)}`;
 
 export default function LandingPage() {
   // Hero Live Interactive State
@@ -223,6 +237,20 @@ export default function LandingPage() {
     setTimeout(() => setCopiedNotice(false), 2000);
   };
 
+  const downloadSampleCsv = () => {
+    const rows = sampleNames.map((n) => `"${n.replace(/"/g, '""')}"`).join("\n");
+    const csv = "\uFEFFnama\n" + rows + "\n";
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "contoh-daftar-nama.csv";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  };
+
   const triggerSimulatedGeneration = () => {
     if (isGenerating) return;
     setIsGenerating(true);
@@ -268,10 +296,10 @@ export default function LandingPage() {
           price: "0",
           priceCurrency: "IDR",
           availability: "https://schema.org/InStock",
-          description: "Mode Trial bebas biaya dan Akun Cloud Gratis dengan kuota 1 event aktif tersimpan.",
+          description: "Mode Trial gratis dan Akun Cloud Gratis dengan 1 event aktif tersimpan.",
         },
         description:
-          "Generator sertifikat massal otomatis dari tabel CSV/Excel dan template PDF berbasis Rust WebAssembly.",
+          "Pembuat sertifikat massal dari daftar nama CSV dan template PDF. File PDF dibuat di browser pengguna dengan Rust WebAssembly.",
       },
       {
         "@type": "FAQPage",
@@ -302,15 +330,14 @@ export default function LandingPage() {
       <div className="border-b border-[#E4E4E7] bg-[#FFFFFF] text-[#71717A] text-xs py-2 px-4 sm:px-6">
         <div className="max-w-[1240px] mx-auto flex flex-col sm:flex-row justify-between items-center gap-1 sm:gap-4">
           <div className="flex items-center gap-2">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-            <span className="font-medium text-[#27272A]">Mesin Komputasi Lokal Aktif</span>
+            <span className="font-medium text-[#27272A]">PDF dibuat di perangkat Anda</span>
             <span className="text-[#D4D4D8] hidden sm:inline">•</span>
-            <span className="hidden sm:inline">Data peserta diproses langsung di memori perangkat</span>
+            <span className="hidden sm:inline">File sertifikat tidak dikirim atau disimpan di server</span>
           </div>
-          <div className="flex items-center gap-3 text-[#71717A]">
-            <span>Mendukung CSV & Excel</span>
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[#71717A]">
+            <span>Input CSV (ekspor Excel / Sheets)</span>
             <span className="text-[#D4D4D8]">/</span>
-            <span>Bebas Biaya Berulang</span>
+            <span>Tanpa kartu kredit</span>
           </div>
         </div>
       </div>
@@ -372,7 +399,7 @@ export default function LandingPage() {
               <a href="#fitur" onClick={() => setMobileMenuOpen(false)} className="p-2 rounded hover:bg-[#F4F4F5]">Presisi Kanvas</a>
               <a href="#perbandingan" onClick={() => setMobileMenuOpen(false)} className="p-2 rounded hover:bg-[#F4F4F5]">Paket & Biaya</a>
               <a href="#spesifikasi" onClick={() => setMobileMenuOpen(false)} className="p-2 rounded hover:bg-[#F4F4F5]">Spesifikasi</a>
-              <a href="#faq" onClick={() => setMobileMenuOpen(false)} className="p-2 rounded hover:bg-[#F4F4F5]">FAQ & Refund</a>
+              <a href="#faq" onClick={() => setMobileMenuOpen(false)} className="p-2 rounded hover:bg-[#F4F4F5]">FAQ</a>
             </div>
             <div className="pt-2 border-t border-[#E4E4E7]">
               <Link
@@ -396,7 +423,7 @@ export default function LandingPage() {
             <div className="lg:col-span-7 flex flex-col justify-center">
               <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded bg-[#F4F4F5] border border-[#E4E4E7] w-fit mb-5">
                 <span className="text-[11px] font-medium text-[#52525B]">
-                  Bukan Mail Merge yang bergeser. Bukan salin-tempel di Canva.
+                  Tanpa salin-tempel nama satu per satu.
                 </span>
               </div>
 
@@ -404,11 +431,11 @@ export default function LandingPage() {
                 className="text-3xl sm:text-4xl lg:text-[46px] font-bold leading-[1.15] tracking-tight text-[#18181B]"
                 style={{ fontFamily: "var(--font-heading), sans-serif" }}
               >
-                Cetak ratusan sertifikat PDF dari tabel Excel & CSV tanpa menyalin nama manual.
+                Ratusan sertifikat dari satu daftar nama. Gratis, tanpa salin-tempel.
               </h1>
 
               <p className="mt-4 text-sm sm:text-base text-[#71717A] leading-relaxed max-w-xl font-normal">
-                Unggah desain sertifikat dalam format PDF, masukkan file CSV daftar peserta, atur letak kotak nama dengan presisi magnetik, dan biarkan komputer Anda menyusun arsip ZIP siap cetak dalam hitungan detik.
+                Unggah template PDF dan daftar nama (CSV), atur posisi nama sekali, lalu unduh semua sertifikat dalam satu ZIP. Prosesnya berjalan di komputer Anda: 1.000 sertifikat selesai dalam beberapa menit (uji internal).
               </p>
 
               {/* Action Buttons */}
@@ -418,7 +445,7 @@ export default function LandingPage() {
                   className="inline-flex items-center justify-center gap-2 bg-[#18181B] text-white px-5 py-2.5 rounded text-xs font-semibold uppercase tracking-wider hover:bg-[#27272A] transition-colors"
                 >
                   <Zap className="size-3.5 text-amber-400" />
-                  Coba Trial Tanpa Login
+                  Buat Sertifikat Pertama, Gratis
                   <ArrowRight className="size-3.5" />
                 </Link>
 
@@ -426,32 +453,41 @@ export default function LandingPage() {
                   href="/register"
                   className="inline-flex items-center justify-center px-4 py-2.5 rounded border border-[#E4E4E7] bg-transparent text-[#18181B] text-xs font-semibold uppercase tracking-wider hover:bg-[#F4F4F5] transition-colors"
                 >
-                  Daftar Akun Cloud
+                  Daftar untuk Simpan Event
                 </Link>
               </div>
 
+              <button
+                type="button"
+                onClick={downloadSampleCsv}
+                className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-[#52525B] hover:text-[#18181B] w-fit"
+              >
+                <Download className="size-3.5" />
+                Belum punya data? Unduh contoh CSV untuk mencoba
+              </button>
+
               {/* Assurance Notes */}
               <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-[#71717A]">
-                <span>✓ Bebas watermark (s.d. 50 lembar pada trial)</span>
+                <span>✓ 50 sertifikat pertama bebas watermark</span>
                 <span className="text-[#D4D4D8] hidden sm:inline">•</span>
                 <span>✓ Tanpa kartu kredit</span>
                 <span className="text-[#D4D4D8] hidden sm:inline">•</span>
-                <span>✓ Kompilasi Rust WebAssembly lokal</span>
+                <span>✓ PDF dibuat di perangkat Anda</span>
               </div>
 
               {/* Functional Highlights */}
               <div className="mt-10 pt-6 border-t border-[#E4E4E7] grid grid-cols-3 gap-4">
                 <div>
-                  <div className="text-xs uppercase font-medium text-[#71717A]">Kurva Vektor</div>
-                  <div className="text-sm font-semibold text-[#18181B] mt-0.5">Teks Tajam Standar Cetak</div>
+                  <div className="text-xs uppercase font-medium text-[#71717A]">Hasil Cetak</div>
+                  <div className="text-sm font-semibold text-[#18181B] mt-0.5">Teks Tajam, Siap Cetak</div>
                 </div>
                 <div>
-                  <div className="text-xs uppercase font-medium text-[#71717A]">Privasi Berkas</div>
-                  <div className="text-sm font-semibold text-[#18181B] mt-0.5">Nol Transmisi Server</div>
+                  <div className="text-xs uppercase font-medium text-[#71717A]">Privasi PDF</div>
+                  <div className="text-sm font-semibold text-[#18181B] mt-0.5">Dibuat di Perangkat Anda</div>
                 </div>
                 <div>
-                  <div className="text-xs uppercase font-medium text-[#71717A]">Biaya Layanan</div>
-                  <div className="text-sm font-semibold text-emerald-700 mt-0.5">Rp 0 (Freemium Mandiri)</div>
+                  <div className="text-xs uppercase font-medium text-[#71717A]">Biaya</div>
+                  <div className="text-sm font-semibold text-emerald-700 mt-0.5">Gratis, Tanpa Kartu Kredit</div>
                 </div>
               </div>
             </div>
@@ -461,10 +497,10 @@ export default function LandingPage() {
               <div className="bg-[#FFFFFF] border border-[#E4E4E7] rounded-lg p-4 sm:p-5 shadow-sm">
                 <div className="flex justify-between items-center border-b border-[#E4E4E7] pb-2.5 mb-3 text-xs">
                   <span className="font-semibold uppercase tracking-wider text-[#71717A] text-[11px]">
-                    Simulasi Pratinjau Kanvas
+                    Demo Pratinjau (contoh, bukan file asli)
                   </span>
                   <span className="text-emerald-700 font-medium text-[11px] bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                    {isGenerating ? `Mencetak 0${currentPrintIndex}/05` : "Mode Interaktif"}
+                    {isGenerating ? `Membuat 0${currentPrintIndex}/05` : "Demo Interaktif"}
                   </span>
                 </div>
 
@@ -512,15 +548,15 @@ export default function LandingPage() {
                       </div>
                       <div className="relative z-10 text-center my-auto px-2">
                         <div className="text-[10px] uppercase tracking-wider text-[#6B7280] mb-0.5 font-medium">
-                          Sertifikat Kelulusan
+                          Contoh Sertifikat
                         </div>
                         <div className="text-sm sm:text-base font-bold text-[#18181B] truncate">
                           {sheet.name}
                         </div>
                       </div>
                       <div className="relative z-10 flex justify-between items-center text-[10px] text-[#71717A] pt-1 border-t border-[#E4E4E7]/80">
-                        <span>PDF Siap Cetak</span>
-                        <span>Vektor Lokal</span>
+                        <span>PDF siap cetak</span>
+                        <span>Dibuat di perangkat</span>
                       </div>
                     </div>
                   ))}
@@ -531,19 +567,19 @@ export default function LandingPage() {
                   {/* Header of Mockup Certificate */}
                   <div className="relative z-10 text-center pt-1">
                     <div className="text-[9px] uppercase tracking-widest text-[#71717A] font-semibold">
-                      LEMBAGA SERTIFIKASI & PELATIHAN
+                      NAMA LEMBAGA ANDA
                     </div>
                     <div
                       className="text-xs sm:text-sm font-semibold text-[#18181B] uppercase tracking-wider mt-0.5"
                       style={{ fontFamily: "var(--font-heading), sans-serif" }}
                     >
-                      Sertifikat Kelulusan Resmi
+                      Contoh Sertifikat
                     </div>
                   </div>
 
                   {/* Dynamic Name Area */}
                   <div className="relative z-10 my-auto text-center px-3 py-2">
-                    <div className="text-[10px] text-[#71717A] mb-1 font-medium">Diberikan secara sah kepada:</div>
+                    <div className="text-[10px] text-[#71717A] mb-1 font-medium">Diberikan kepada:</div>
                     <div
                       className={`break-words max-w-full font-bold transition-all duration-150 text-[#18181B] ${
                         fontStyle === "serif" ? "font-serif" : "font-sans"
@@ -556,7 +592,7 @@ export default function LandingPage() {
                       {activeName || "Nama Peserta Tertera"}
                     </div>
                     <p className="text-[10px] text-[#71717A] mt-1 leading-snug max-w-xs mx-auto">
-                      Telah memenuhi standar evaluasi materi dengan hasil kelulusan sangat memuaskan.
+                      Telah mengikuti kegiatan dengan baik.
                     </p>
                   </div>
 
@@ -566,7 +602,7 @@ export default function LandingPage() {
                       <span>No: REG-2026-081</span>
                     </div>
                     <div className="text-right">
-                      <span className="font-medium text-[#18181B]">Dokumen Terverifikasi</span>
+                      <span className="font-medium text-[#18181B]">Contoh Tanda Tangan</span>
                     </div>
                   </div>
 
@@ -655,7 +691,7 @@ export default function LandingPage() {
                       className="bg-[#18181B] text-white text-xs font-semibold uppercase px-3.5 py-1.5 rounded hover:bg-[#27272A] transition-colors flex items-center justify-center gap-1.5 disabled:opacity-40"
                     >
                       <Printer className="size-3" />
-                      Uji Cetak 5 Lembar
+                      Lihat 5 Contoh
                     </button>
                   </div>
                 </div>
@@ -669,13 +705,13 @@ export default function LandingPage() {
           <div className="max-w-[1240px] mx-auto">
             <div className="mb-10 text-center max-w-xl mx-auto">
               <span className="text-xs font-semibold uppercase tracking-wider text-[#71717A] block mb-1">
-                Alur Operasional
+                Cara Kerja
               </span>
               <h2
                 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#18181B]"
                 style={{ fontFamily: "var(--font-heading), sans-serif" }}
               >
-                Tiga tahap dari data tabel menjadi berkas siap cetak.
+                Tiga langkah dari daftar nama ke sertifikat siap cetak.
               </h2>
             </div>
 
@@ -699,7 +735,7 @@ export default function LandingPage() {
                   <span className="text-xs font-mono font-bold text-[#71717A] block mb-2">02 / MAPPING</span>
                   <h3 className="text-base font-semibold text-[#18181B] mb-1.5">Impor Tabel Data CSV</h3>
                   <p className="text-xs text-[#71717A] leading-relaxed">
-                    Unggah daftar nama penerima yang diekspor dari Excel atau Google Sheets. Kolom terdeteksi otomatis baris demi baris.
+                    Unggah daftar nama penerima yang diekspor dari Excel atau Google Sheets. Kolom terdeteksi otomatis dari baris header.
                   </p>
                 </div>
                 <div className="mt-5 pt-3 border-t border-[#E4E4E7] flex items-center gap-1.5 text-xs font-medium text-[#18181B]">
@@ -741,7 +777,7 @@ export default function LandingPage() {
                 </h2>
               </div>
               <p className="text-[#71717A] text-xs sm:text-sm max-w-md font-normal leading-relaxed">
-                Tidak perlu menebak koordinat. Manfaatkan garis bantu magnetik (<em>smart snap</em>) dan tombol panah keyboard (<em>nudge</em>) untuk hasil cetak yang simetris sempurna.
+                Tidak perlu menebak koordinat. Gunakan garis bantu magnetik (<em>smart snap</em>) dan tombol panah keyboard (<em>nudge</em>) agar posisi nama simetris. Nama yang terlalu panjang otomatis turun ke baris berikutnya di dalam kotak.
               </p>
             </div>
 
@@ -936,7 +972,7 @@ export default function LandingPage() {
                         className="text-[11px] sm:text-xs font-semibold text-[#18181B] uppercase tracking-wider mt-0.5"
                         style={{ fontFamily: "var(--font-heading), sans-serif" }}
                       >
-                        Sertifikat Kelulusan
+                        Contoh Sertifikat
                       </div>
                     </div>
 
@@ -1024,7 +1060,7 @@ export default function LandingPage() {
                     {/* Footer of Certificate */}
                     <div className="flex justify-between items-end pb-0.5 text-[8px] sm:text-[9px] text-[#71717A] border-t border-[#E4E4E7]/80 pt-1 z-10 font-medium">
                       <span>No: CERT-2026-001</span>
-                      <span>Tanda Tangan Tersemat</span>
+                      <span>Contoh Tanda Tangan</span>
                     </div>
                   </div>
 
@@ -1090,10 +1126,6 @@ export default function LandingPage() {
                     <h3 className="text-sm font-semibold text-[#18181B] mb-1.5">{uc.title}</h3>
                     <p className="text-xs text-[#71717A] leading-relaxed">{uc.desc}</p>
                   </div>
-                  <div className="mt-4 pt-3 border-t border-[#E4E4E7] flex items-center gap-1.5 text-xs font-medium text-[#18181B]">
-                    <Check className="size-3 text-emerald-600" />
-                    <span>Teruji Efisien</span>
-                  </div>
                 </div>
               ))}
             </div>
@@ -1111,10 +1143,10 @@ export default function LandingPage() {
                 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#18181B]"
                 style={{ fontFamily: "var(--font-heading), sans-serif" }}
               >
-                Struktur paket tanpa biaya tersembunyi.
+                Gratis. Ini batas dan rencananya.
               </h2>
               <p className="mt-2 text-xs sm:text-sm text-[#71717A]">
-                SertiGen beroperasi dengan model akses gratis mandiri. Gunakan mode uji coba instan atau akun cloud untuk penyimpanan acara Anda.
+                Saat ini semua fitur yang tersedia gratis. Pakai Mode Trial untuk langsung mencoba, atau Akun Cloud untuk menyimpan event Anda.
               </p>
             </div>
 
@@ -1141,44 +1173,44 @@ export default function LandingPage() {
                       {
                         feature: "Biaya Layanan (Harga)",
                         trial: "Rp 0 (Gratis)",
-                        cloud: "Rp 0 (Gratis Selamanya)",
+                        cloud: "Rp 0",
                         premium: "Segera Diumumkan",
                       },
                       {
                         feature: "Kapasitas Event Tersimpan",
                         trial: "1 Sesi Sementara di Browser",
                         cloud: "1 Event Aktif di Cloud (Bebas Ganti)",
-                        premium: "Multi-Event Simultan Tanpa Batas",
+                        premium: "Multi-event simultan (rencana)",
                       },
                       {
-                        feature: "Kewajiban Login",
+                        feature: "Cara Mulai",
                         trial: "Tanpa Daftar (Instan)",
-                        cloud: "Daftar Akun / Google",
+                        cloud: "Masuk dengan Google atau email",
                         premium: "Akun Terverifikasi",
                       },
                       {
-                        feature: "Batas Bebas Watermark",
-                        trial: "Hingga 50 Sertifikat / Sesi",
-                        cloud: "Tanpa Batas (Unlimited)",
-                        premium: "Tanpa Batas (Unlimited)",
+                        feature: "Watermark",
+                        trial: "Bebas watermark s.d. 50 sertifikat / sesi",
+                        cloud: "Tanpa watermark",
+                        premium: "Tanpa watermark",
                       },
                       {
                         feature: "Penyimpanan Template & Aset",
                         trial: "Sementara di Browser (IndexedDB)",
-                        cloud: "Cloud Storage (1 Event Aktif)",
-                        premium: "Cloud Multi-Event & Arsip Permanen",
+                        cloud: "Cloud (template & data CSV, 1 event)",
+                        premium: "Cloud multi-event (rencana)",
                       },
                       {
                         feature: "Portal Unduh Mandiri Peserta",
                         trial: "Tidak Termasuk",
                         cloud: "Tautan Publik per Acara",
-                        premium: "Tautan Publik + Kustom Branding Penuh",
+                        premium: "Tautan publik + kustom branding (rencana)",
                       },
                       {
                         feature: "Analitik Unduhan Peserta",
                         trial: "Tidak Termasuk",
                         cloud: "Riwayat Status Dasar",
-                        premium: "Rekapitulasi Lengkap & Laporan Unduh",
+                        premium: "Rekapitulasi & laporan unduh (rencana)",
                       },
                     ].map((row, idx) => (
                       <tr key={idx} className="hover:bg-[#F9FAFB] transition-colors">
@@ -1197,16 +1229,27 @@ export default function LandingPage() {
                 <div className="flex items-start gap-2">
                   <Check className="size-4 text-emerald-600 shrink-0 mt-0.5" />
                   <p>
-                    <strong>Kebijakan Pembatalan & Pengembalian Dana:</strong> SertiGen beroperasi tanpa tagihan berulang (<em>no recurring subscription fees</em>). Anda dapat berhenti menggunakan layanan dan menghapus data acara sewaktu-waktu dari dashboard tanpa denda maupun penalti finansial.
+                    <strong>Berhenti kapan saja:</strong> Tidak ada tagihan berulang. Anda dapat berhenti memakai layanan dan menghapus data event dari dashboard kapan saja, tanpa denda.
                   </p>
                 </div>
                 <div className="flex items-start gap-2">
                   <Check className="size-4 text-emerald-600 shrink-0 mt-0.5" />
                   <p>
-                    <strong>Roadmap Paket Premium (Segera Hadir):</strong> Dikhususkan bagi institusi atau <em>event organizer</em> yang memerlukan pengelolaan banyak acara sekaligus secara simultan tanpa harus menghapus event sebelumnya, serta membutuhkan kustomisasi branding eksklusif pada portal peserta.
+                    <strong>Rencana Paket Premium (belum tersedia):</strong> Untuk institusi atau <em>event organizer</em> yang mengelola banyak acara sekaligus tanpa menghapus event sebelumnya, dengan kustomisasi branding. Harga dan fitur final belum ditetapkan.
                   </p>
                 </div>
               </div>
+            </div>
+            <div className="max-w-4xl mx-auto mt-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border border-[#E4E4E7] bg-[#FFFFFF] rounded-lg p-4">
+              <p className="text-xs text-[#52525B] leading-relaxed">
+                <strong className="text-[#18181B]">Tertarik dengan Paket Premium?</strong> Kirim kebutuhan Anda (jenis lembaga dan perkiraan jumlah sertifikat per bulan). Kami kabari saat Premium siap.
+              </p>
+              <a
+                href={waitlistHref}
+                className="inline-flex items-center justify-center shrink-0 bg-[#18181B] text-white px-4 py-2 rounded text-xs font-semibold hover:bg-[#27272A] transition-colors"
+              >
+                Masuk Daftar Tunggu
+              </a>
             </div>
             <p className="text-center text-[11px] text-[#A1A1AA] mt-2 sm:hidden">
               ← Geser tabel ke samping untuk melihat detail paket →
@@ -1220,17 +1263,17 @@ export default function LandingPage() {
             <div className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 gap-4">
               <div>
                 <span className="text-xs font-semibold uppercase tracking-wider text-[#71717A] block mb-1">
-                  Efisiensi Memori
+                  Ukuran File
                 </span>
                 <h2
                   className="text-2xl sm:text-3xl font-bold tracking-tight text-[#18181B]"
                   style={{ fontFamily: "var(--font-heading), sans-serif" }}
                 >
-                  Arsip ZIP tetap ringan untuk ribuan dokumen.
+                  Jaga ukuran ZIP tetap ringan.
                 </h2>
               </div>
               <p className="text-[#71717A] text-xs sm:text-sm max-w-md font-normal leading-relaxed">
-                Template grafis berukuran besar membuat file unduhan bengkak jika dikalikan ratusan peserta. Atur kualitas kompresi latar dokumen secara mandiri sebelum diekspor.
+                Template bergambar besar membuat ZIP membengkak saat dikalikan ratusan peserta. Geser pengaturan di bawah untuk melihat perkiraan efeknya. Angka di sini hanya ilustrasi, bukan hasil dari file Anda.
               </p>
             </div>
 
@@ -1270,9 +1313,9 @@ export default function LandingPage() {
                   </div>
 
                   <div className="p-3 bg-[#FAFAFA] rounded border border-[#E4E4E7] text-xs">
-                    <span className="text-[#71717A] block text-[10px] uppercase font-semibold mb-0.5">Simulasi Ukuran Berkas:</span>
+                    <span className="text-[#71717A] block text-[10px] uppercase font-semibold mb-0.5">Ilustrasi Ukuran Berkas:</span>
                     <span className="text-[#18181B]">
-                      Ukuran rata-rata dokumen menyusut dari <strong>{baseSizeMB} MB</strong> menjadi <strong>{optimizedSizeMB} MB</strong>.
+                      Contoh ilustrasi: ukuran dokumen menyusut dari <strong>{baseSizeMB} MB</strong> menjadi <strong>{optimizedSizeMB} MB</strong>.
                     </span>
                   </div>
                 </div>
@@ -1297,7 +1340,7 @@ export default function LandingPage() {
                       {optimizedSizeMB} MB
                     </div>
                     <span className="text-[11px] text-[#71717A] mt-2 pt-1 border-t border-[#E4E4E7]">
-                      Penghematan: <strong className="text-[#18181B]">{savingsPercent}%</strong>
+                      Perkiraan hemat: <strong className="text-[#18181B]">{savingsPercent}%</strong>
                     </span>
                   </div>
                 </div>
@@ -1311,7 +1354,7 @@ export default function LandingPage() {
           <div className="max-w-[1240px] mx-auto">
             <div className="mb-8">
               <span className="text-xs font-semibold uppercase tracking-wider text-[#71717A] block mb-1">
-                Kesesuaian Sistem
+                Syarat Perangkat
               </span>
               <h2
                 className="text-2xl sm:text-3xl font-bold tracking-tight text-[#18181B]"
@@ -1399,7 +1442,7 @@ export default function LandingPage() {
               SertiGen
             </span>
             <p className="text-xs text-[#71717A]">
-              Platform Pembuat Sertifikat Massal Otomatis Berbasis Rust WebAssembly.
+              Pembuat sertifikat massal dari daftar nama CSV dan template PDF.
             </p>
           </div>
 
@@ -1408,19 +1451,21 @@ export default function LandingPage() {
             <a href="#simulator" className="hover:text-[#18181B]">Simulator</a>
             <a href="#fitur" className="hover:text-[#18181B]">Presisi Kanvas</a>
             <a href="#perbandingan" className="hover:text-[#18181B]">Paket & Biaya</a>
-            <a href="#faq" className="hover:text-[#18181B]">FAQ & Refund</a>
+            <a href="#faq" className="hover:text-[#18181B]">FAQ</a>
             <a href="/llms.txt" target="_blank" className="hover:text-[#18181B]">llms.txt</a>
           </div>
         </div>
 
         <div className="max-w-[1240px] mx-auto flex flex-col sm:flex-row justify-between items-center gap-3 pt-6 text-xs text-center sm:text-left">
           <span>© {new Date().getFullYear()} SertiGen. Seluruh hak cipta dilindungi.</span>
-          <div className="flex items-center gap-3 text-[#71717A]">
-            <span>Komputasi Lokal di Browser</span>
+          <div className="flex flex-wrap items-center justify-center gap-x-3 gap-y-1 text-[#71717A]">
+            <span>PDF dibuat di perangkat Anda</span>
             <span className="text-[#D4D4D8]">•</span>
-            <span>Bebas Tagihan Berulang</span>
+            <span>Tanpa tagihan berulang</span>
             <span className="text-[#D4D4D8]">•</span>
-            <span>Kebijakan Privasi</span>
+            <Link href="/privacy" className="hover:text-[#18181B]">Kebijakan Privasi</Link>
+            <span className="text-[#D4D4D8]">•</span>
+            <Link href="/terms" className="hover:text-[#18181B]">Ketentuan Layanan</Link>
           </div>
         </div>
       </footer>
