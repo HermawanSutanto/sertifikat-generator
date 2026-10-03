@@ -52,9 +52,6 @@ export async function POST(request, { params }) {
       if (doc && verifyToken(eventId, body.t, sharing.epoch, tokenVersion(doc.data))) {
         found = doc;
       }
-    } else if (isValidId(body?.participantId)) {
-      if (!sharing.cariMandiri) return json({ error: "closed" }, 404);
-      found = await getParticipantDoc(eventId, body.participantId);
     }
     if (!found) return json({ error: "invalid" }, 404);
 

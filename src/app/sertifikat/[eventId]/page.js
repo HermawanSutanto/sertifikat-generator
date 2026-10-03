@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, Suspense } from "react";
 import Link from "next/link";
 import { useParams, useSearchParams } from "next/navigation";
 import { Inter, JetBrains_Mono } from "next/font/google";
@@ -12,15 +12,15 @@ const sansFont = Inter({
   variable: "--font-sans",
 });
 
-const monoFont =  Inter({
+const monoFont = JetBrains_Mono({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   variable: "--font-mono",
 });
 
-const IconSearch = (props) => (
+const IconShield = (props) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285z" />
   </svg>
 );
 
@@ -87,7 +87,7 @@ const extractPdfFromZip = (zipBytes) => {
   return u8;
 };
 
-export default function ParticipantCertificateViewer() {
+function ParticipantCertificateViewerContent() {
   const params = useParams();
   const searchParams = useSearchParams();
 
@@ -96,14 +96,11 @@ export default function ParticipantCertificateViewer() {
   // Token tautan per peserta (?t=...). Tanpa token = mode pencarian mandiri (jika diaktifkan panitia).
   const accessToken = searchParams?.get("t");
 
-  const [mode, setMode] = useState(null); // "cari" | "peserta"
+  const [mode, setMode] = useState(null); // "peserta"
   const [eventData, setEventData] = useState(null);
-  const [searchResults, setSearchResults] = useState([]);
   const [selectedParticipant, setSelectedParticipant] = useState(null);
 
-  const [searchKeyword, setSearchKeyword] = useState("");
   const [isLoadingEvent, setIsLoadingEvent] = useState(true);
-  const [isSearching, setIsSearching] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [notification, setNotification] = useState({ show: false, text: "", type: "info" });
 
@@ -114,6 +111,7 @@ export default function ParticipantCertificateViewer() {
   const [showReportModal, setShowReportModal] = useState(false);
   const [reportNote, setReportNote] = useState("");
   const [reportSent, setReportSent] = useState(false);
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false);
 
   const canvasRef = useRef(null);
   const templateCacheRef = useRef({ url: null, buffer: null });
@@ -133,13 +131,19 @@ export default function ParticipantCertificateViewer() {
       return;
     }
 
+    // Tanpa token: jangan panggil server sama sekali untuk menghemat kuota Firebase
+    if (!accessToken) {
+      setIsLoadingEvent(false);
+      return;
+    }
+
     let isMounted = true;
     const loadEvent = async () => {
       setIsLoadingEvent(true);
       setErrorMessage("");
 
       try {
-        const qs = accessToken ? `?t=${encodeURIComponent(accessToken)}` : "";
+        const qs = `?t=${encodeURIComponent(accessToken)}`;
         const res = await fetch(`/api/public/event/${encodeURIComponent(eventId)}${qs}`, {
           cache: "no-store",
         });
@@ -150,9 +154,7 @@ export default function ParticipantCertificateViewer() {
             setErrorMessage(
               res.status === 429
                 ? "Terlalu banyak permintaan. Coba lagi sebentar lagi."
-                : accessToken
-                ? "Tautan tidak valid atau sudah dinonaktifkan oleh panitia."
-                : "Acara tidak tersedia, atau panitia belum membuka akses pencarian sertifikat."
+                : "Tautan sertifikat tidak valid atau sudah kedaluwarsa/dinonaktifkan oleh panitia."
             );
           }
           return;
@@ -160,8 +162,8 @@ export default function ParticipantCertificateViewer() {
 
         if (!isMounted) return;
         setEventData(data.event);
-        setMode(data.mode);
-        if (data.mode === "peserta") setSelectedParticipant(data.participant);
+        setMode("peserta");
+        setSelectedParticipant(data.participant);
       } catch (err) {
         console.error("Gagal memuat event:", err);
         if (isMounted) setErrorMessage("Kendala saat mengambil data acara. Periksa koneksi internet Anda.");
@@ -175,56 +177,6 @@ export default function ParticipantCertificateViewer() {
       isMounted = false;
     };
   }, [eventId, accessToken]);
-
-  useEffect(() => {
-    const q = searchKeyword.trim();
-    if (mode !== "cari" || q.length < 3) {
-      setSearchResults([]);
-      setIsSearching(false);
-      return;
-    }
-
-    let cancelled = false;
-    setIsSearching(true);
-    const timer = setTimeout(async () => {
-      try {
-        const res = await fetch(
-          `/api/public/event/${encodeURIComponent(eventId)}/search?q=${encodeURIComponent(q)}`,
-          { cache: "no-store" }
-        );
-        if (res.status === 429 && !cancelled) {
-          notify("Terlalu banyak pencarian. Tunggu sebentar lalu coba lagi.", "error");
-        }
-        const data = await res.json().catch(() => ({}));
-        if (!cancelled) setSearchResults(res.ok ? data.results || [] : []);
-      } catch {
-        if (!cancelled) setSearchResults([]);
-      } finally {
-        if (!cancelled) setIsSearching(false);
-      }
-    }, 350);
-
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [searchKeyword, mode, eventId]);
-
-  const selectSearchResult = async (peserta) => {
-    setSearchKeyword("");
-    setSearchResults([]);
-    try {
-      const res = await fetch(
-        `/api/public/event/${encodeURIComponent(eventId)}/peserta?id=${encodeURIComponent(peserta.id)}`,
-        { cache: "no-store" }
-      );
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data.error || "Gagal memuat sertifikat.");
-      setSelectedParticipant(data.participant);
-    } catch (err) {
-      notify(err.message, "error");
-    }
-  };
 
   const renderInterpolatedText = (cfg, participant) => {
     if (cfg.is_custom_var) {
@@ -472,8 +424,9 @@ export default function ParticipantCertificateViewer() {
 
   const handleSendReport = async (e) => {
     e.preventDefault();
-    if (!reportNote.trim() || !selectedParticipant || !eventId) return;
+    if (!reportNote.trim() || !selectedParticipant || !eventId || isSubmittingReport) return;
 
+    setIsSubmittingReport(true);
     try {
       const res = await fetch(`/api/public/event/${encodeURIComponent(eventId)}/revisi`, {
         method: "POST",
@@ -497,6 +450,8 @@ export default function ParticipantCertificateViewer() {
     } catch (err) {
       console.error("Gagal mengirim laporan perbaikan:", err);
       notify("Gagal mengirim laporan: " + err.message, "error");
+    } finally {
+      setIsSubmittingReport(false);
     }
   };
 
@@ -552,67 +507,38 @@ export default function ParticipantCertificateViewer() {
             </span>
 
           </div>
-
-          <div>
+            <div>
             <h1 className="text-2xl sm:text-3xl font-light tracking-[-0.5px] text-[#111111]">
               {isLoadingEvent ? "Memuat informasi acara..." : eventData?.namaEvent || "Sertifikat Pelatihan"}
             </h1>
             <p className="text-xs text-[#6B7280] mt-1.5 font-light leading-relaxed">
-              {mode === "peserta"
-                ? "Berikut sertifikat Anda. Periksa ejaan nama, lalu unduh berkas PDF siap cetak."
-                : "Cari nama Anda pada formulir di bawah ini untuk melihat pratinjau sertifikat dan mengunduh berkas PDF siap cetak."}
+              {selectedParticipant
+                ? `Sertifikat atas nama ${selectedParticipant.nama}. Periksa ejaan nama, lalu unduh berkas PDF siap cetak.`
+                : "Portal resmi penerbitan dan pengunduhan dokumen sertifikat digital."}
             </p>
           </div>
-
-          {/* Kotak Pencarian Nama Peserta (hanya mode pencarian mandiri) */}
-          {mode === "cari" && (
-            <div className="pt-2 relative">
-              <label className="block text-[11px] font-mono uppercase text-[#6B7280] mb-1.5">
-                Cari Nama Lengkap Peserta:
-              </label>
-              <div className="relative">
-                <IconSearch className="w-4 h-4 absolute left-3.5 top-1/2 -translate-y-1/2 text-[#6B7280]" />
-                <input
-                  type="text"
-                  value={searchKeyword}
-                  onChange={(e) => setSearchKeyword(e.target.value)}
-                  placeholder="Ketik minimal 3 huruf nama Anda..."
-                  className="w-full pl-10 pr-4 py-2.5 text-xs font-mono border border-[#E5E7EB] rounded-[4px] outline-none focus:border-[#111111] transition-colors"
-                />
-              </div>
-
-              {/* Menu Hasil Dropdown Pencarian */}
-              {searchKeyword.trim().length >= 3 && (
-                <div className="absolute left-0 right-0 top-full mt-1.5 bg-[#FFFFFF] border border-[#E5E7EB] rounded-[4px] shadow-lg z-50 overflow-hidden divide-y divide-[#E5E7EB]">
-                  {isSearching ? (
-                    <div className="p-3 text-xs font-mono text-[#6B7280] text-center">Mencari...</div>
-                  ) : searchResults.length === 0 ? (
-                    <div className="p-3 text-xs font-mono text-[#6B7280] text-center">
-                      Tidak ditemukan peserta dengan kata kunci "{searchKeyword.trim()}".
-                    </div>
-                  ) : (
-                    searchResults.map((peserta) => (
-                      <button
-                        key={peserta.id}
-                        type="button"
-                        onClick={() => selectSearchResult(peserta)}
-                        className="w-full p-3 text-left hover:bg-[#F5F5F5] transition-colors flex items-center justify-between text-xs"
-                      >
-                        <span className="font-normal text-[#111111]">{peserta.nama}</span>
-                        <span className="text-[10px] font-mono uppercase text-[#111111] border border-[#E5E7EB] bg-white px-2 py-0.5 rounded-[2px]">
-                          Lihat Pratinjau
-                        </span>
-                      </button>
-                    ))
-                  )}
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
         {/* Panel Pratinjau Sertifikat Utama */}
-        {errorMessage ? (
+        {!accessToken ? (
+          <div className="border border-[#E5E7EB] rounded-md p-10 text-center space-y-4 bg-[#FFFFFF] max-w-lg mx-auto">
+            <div className="w-12 h-12 rounded-full bg-[#F5F5F5] border border-[#E5E7EB] flex items-center justify-center mx-auto text-[#111111]">
+              <IconShield className="w-6 h-6 text-[#111111]" />
+            </div>
+            <div>
+              <h2 className="text-base font-medium text-[#111111]">Tautan Khusus Peserta Diperlukan</h2>
+              <p className="text-xs font-mono text-[#6B7280] mt-1.5 leading-relaxed">
+                Fitur pencarian publik mandiri telah dinonaktifkan demi efisiensi kuota sistem dan perlindungan privasi data peserta.
+              </p>
+            </div>
+            <div className="p-3.5 bg-[#F9FAFB] border border-[#E5E7EB] rounded-[4px] text-xs font-mono text-[#6B7280] text-left">
+              <span className="text-[#111111] font-medium block mb-1">Cara Mengakses Sertifikat:</span>
+              <p className="text-[11px] leading-relaxed">
+                Silakan buka tautan sertifikat resmi yang telah dikirimkan oleh panitia penyelenggara melalui email atau pesan WhatsApp Anda.
+              </p>
+            </div>
+          </div>
+        ) : errorMessage ? (
           <div className="border border-[#E5E7EB] rounded-md p-12 text-center space-y-3 bg-[#FFFFFF]">
             <IconAlertCircle className="w-8 h-8 text-[#D92D20] mx-auto" />
             <h2 className="text-sm font-medium text-[#111111]">Pemberitahuan</h2>
@@ -682,16 +608,7 @@ export default function ParticipantCertificateViewer() {
               </div>
             </div>
           </div>
-        ) : (
-          <div className="border border-dashed border-[#E5E7EB] rounded-md p-16 text-center space-y-2 bg-[#F5F5F5]/40">
-            <p className="text-xs font-mono text-[#6B7280]">
-              Belum ada peserta yang dipilih.
-            </p>
-            <p className="text-xs text-[#111111]">
-              Gunakan kotak pencarian di atas untuk menemukan sertifikat Anda.
-            </p>
-          </div>
-        )}
+        ) : null}
       </main>
 
       {/* Modal Laporkan Kesalahan Nama */}
@@ -736,9 +653,17 @@ export default function ParticipantCertificateViewer() {
                   </button>
                   <button
                     type="submit"
-                    className="px-4 py-1.5 text-xs font-mono uppercase bg-[#111111] hover:bg-[#333333] text-white rounded-[4px]"
+                    disabled={isSubmittingReport || !reportNote.trim()}
+                    className="px-4 py-1.5 text-xs font-mono uppercase bg-[#111111] hover:bg-[#333333] text-white rounded-[4px] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
                   >
-                    Kirim Perbaikan
+                    {isSubmittingReport ? (
+                      <>
+                        <Spinner className="w-3.5 h-3.5 text-white" />
+                        <span>Mengirimkan...</span>
+                      </>
+                    ) : (
+                      <span>Kirim Perbaikan</span>
+                    )}
                   </button>
                 </div>
               </form>
@@ -747,5 +672,22 @@ export default function ParticipantCertificateViewer() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function ParticipantCertificateViewer() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-screen w-full items-center justify-center bg-[#F9F9F9]">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#111111] border-t-transparent" />
+            <p className="text-sm font-mono text-[#666666]">Memuat sertifikat...</p>
+          </div>
+        </div>
+      }
+    >
+      <ParticipantCertificateViewerContent />
+    </Suspense>
   );
 }

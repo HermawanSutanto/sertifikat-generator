@@ -89,6 +89,7 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const router = useRouter();
 
   const ensureUserAndOrgExist = async (firebaseUser) => {
@@ -123,6 +124,13 @@ export default function LoginPage() {
       diperbaruiPada: serverTimestamp(),
     });
 
+    const adminEmailsEnv = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "")
+      .toLowerCase()
+      .split(",")
+      .map((e) => e.trim())
+      .filter(Boolean);
+    const isAutoAdmin = firebaseUser.email && adminEmailsEnv.includes(firebaseUser.email.toLowerCase());
+
     await setDoc(userDocRef, {
       uid: firebaseUser.uid,
       email: firebaseUser.email,
@@ -130,6 +138,9 @@ export default function LoginPage() {
       nomorWhatsapp: "",
       jabatan: "Penyelenggara Mandiri",
       accountType: "personal",
+      role: isAutoAdmin ? "admin" : "user",
+      subscription: isAutoAdmin ? "premium" : "free",
+      maxActiveEvents: isAutoAdmin ? 50 : 1,
       activeOrgId: newOrgRef.id,
       organizations: [
         {
@@ -177,7 +188,7 @@ export default function LoginPage() {
 
   const handleGoogleLogin = async () => {
     setError("");
-    setIsLoading(true);
+    setIsGoogleLoading(true);
 
     try {
       const provider = new GoogleAuthProvider();
@@ -191,7 +202,7 @@ export default function LoginPage() {
         setError("Gagal masuk via Google: " + err.message);
       }
     } finally {
-      setIsLoading(false);
+      setIsGoogleLoading(false);
     }
   };
 
@@ -216,11 +227,20 @@ export default function LoginPage() {
         <button
           type="button"
           onClick={handleGoogleLogin}
-          disabled={isLoading}
+          disabled={isLoading || isGoogleLoading}
           className="w-full py-2.5 px-4 text-xs font-semibold uppercase tracking-wider rounded-md border border-[#E5E7EB] bg-[#FFFFFF] text-[#111111] hover:bg-[#F9FAFB] transition-colors flex items-center justify-center gap-2.5 disabled:opacity-50"
         >
-          <IconGoogle />
-          <span>Lanjut dengan Google</span>
+          {isGoogleLoading ? (
+            <>
+              <div className="w-3.5 h-3.5 border-2 border-[#111111] border-t-transparent rounded-full animate-spin" />
+              <span>Menghubungkan ke Google...</span>
+            </>
+          ) : (
+            <>
+              <IconGoogle />
+              <span>Lanjut dengan Google</span>
+            </>
+          )}
         </button>
 
         <div className="relative flex items-center">

@@ -50,10 +50,14 @@ if (token) {
   });
 }
 
-    if (sharing.cariMandiri) {
-      return json({ mode: "cari", event: publicEvent(event) });
-    }
-    return json({ error: "closed" }, 404);
+    // Tanpa token: pencarian mandiri dinonaktifkan demi menghemat kuota Firebase
+    return json(
+      {
+        error: "token_required",
+        message: "Fitur pencarian mandiri dinonaktifkan untuk menghemat kuota. Silakan buka tautan sertifikat resmi yang dibagikan panitia.",
+      },
+      403
+    );
   } catch (err) {
     console.error("GET /api/public/event:", err);
     return json({ error: "Terjadi kesalahan server." }, 500);

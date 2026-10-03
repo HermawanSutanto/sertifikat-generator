@@ -16,7 +16,7 @@ const bodyFont = Inter({
   variable: "--font-body",
 });
 
-const monoFont =  Inter({
+const monoFont = JetBrains_Mono({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   variable: "--font-mono",
@@ -24,7 +24,7 @@ const monoFont =  Inter({
 
 export const metadata = {
   metadataBase: new URL("https://cert.krovida.my.id"),
-  title: "SertiGen — Generator Sertifikat Massal Otomatis dari Excel & CSV",
+  title: "SertiGen - Generator Sertifikat Massal Otomatis dari Excel & CSV",
   description:
     "Cetak ratusan hingga ribuan sertifikat PDF berkualitas tinggi dalam hitungan detik. Cukup unggah template PDF dan daftar nama peserta dari CSV/Excel. Cepat, presisi, dan diproses langsung di browser.",
   keywords: [
@@ -48,7 +48,7 @@ export const metadata = {
     apple: "/favicon.png",
   },
   openGraph: {
-    title: "SertiGen — Generator Sertifikat Massal Otomatis dari Excel & CSV",
+    title: "SertiGen - Generator Sertifikat Massal Otomatis dari Excel & CSV",
     description:
       "Tinggalkan edit sertifikat manual satu per satu. Pasang template PDF, masukkan CSV peserta, dan unduh berkas PDF siap cetak beresolusi tinggi langsung dari browser.",
     url: "https://cert.krovida.my.id",
@@ -59,7 +59,7 @@ export const metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "SertiGen — Generator Sertifikat Massal Otomatis",
+    title: "SertiGen - Generator Sertifikat Massal Otomatis",
     description:
       "Otomatisasi pembuatan sertifikat massal bertenaga Rust WebAssembly. Cepat, aman, dan tanpa instalasi aplikasi berat.",
     // Property 'images' otomatis disisipkan Next.js lewat twitter-image.png

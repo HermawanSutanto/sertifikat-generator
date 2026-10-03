@@ -4,12 +4,12 @@
    klasik (#0000EE) sebagai satu-satunya warna aksen. Sinkron dengan tema
    yang dipakai di landing page (page.js) dan dashboard (dashboard/page.js). */
 :root {
-  --background: #EBE9E4; /* Krem terang — background utama */
-  --foreground: #111111; /* Hitam pekat — teks utama */
-  --primary: #111111; /* Hitam — tombol & aksi utama */
-  --primary-hover: #0000EE; /* Biru — hover tombol utama & state aktif */
-  --secondary: #555555; /* Abu-abu — teks sekunder */
-  --accent: #0000EE; /* Biru — aksen, tautan, fokus */
+  --background: #EBE9E4; /* Krem terang: background utama */
+  --foreground: #111111; /* Hitam pekat: teks utama */
+  --primary: #111111; /* Hitam: tombol & aksi utama */
+  --primary-hover: #0000EE; /* Biru: hover tombol utama & state aktif */
+  --secondary: #555555; /* Abu-abu: teks sekunder */
+  --accent: #0000EE; /* Biru: aksen, tautan, fokus */
   --surface: #FFFFFF; /* Kartu / permukaan di atas background krem */
 }
 @keyframes marquee {

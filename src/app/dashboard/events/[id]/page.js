@@ -1,12 +1,15 @@
 "use client";
 
-import { useEffect, useState, useRef, useCallback, useMemo } from "react";
+import { useEffect, useState, useRef, useCallback, useMemo, Suspense } from "react";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import Papa from "papaparse";
 import { PDFDocument } from "pdf-lib";
 import { useAuth } from "@/context/AuthContext";
+import Toast from "@/components/Toast";
 import { db } from "@/lib/firebase";
+import { parseParticipantSpreadsheet } from "@/lib/spreadsheetParser";
+import { FILE_LIMITS } from "@/lib/fileValidators";
 import {
   doc,
   getDoc,
@@ -119,7 +122,7 @@ const IconAlertTriangle = (props) => (
   </svg>
 );
 
-export default function EventDetailPage() {
+function EventDetailPageContent() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const params = useParams();
@@ -178,6 +181,13 @@ export default function EventDetailPage() {
   // State Status Loading & Error Khusus Thumbnail Pratinjau
   const [isThumbnailLoading, setIsThumbnailLoading] = useState(false);
   const [thumbnailError, setThumbnailError] = useState("");
+
+  // State Loading Aksi Tambahan
+  const [isImportingCsv, setIsImportingCsv] = useState(false);
+  const [importProgress, setImportProgress] = useState("");
+  const [renderingParticipantId, setRenderingParticipantId] = useState(null);
+  const [isPreviewingSample, setIsPreviewingSample] = useState(false);
+  const [processingRevId, setProcessingRevId] = useState(null);
 
   const csvInputRef = useRef(null);
   const previewCanvasRef = useRef(null);
@@ -334,9 +344,9 @@ export default function EventDetailPage() {
     }
   }, [user, eventId, fetchEventAndParticipants]);
 
-  // ---- Bagikan ke peserta (akses publik dikendalikan lewat pengaturan di dokumen event) ----
+  // ---- Bagikan ke peserta (akses publik via tautan per peserta aman & hemat kuota) ----
   const sharing = {
-    cariMandiri: eventData?.sharing?.cariMandiri === true,
+    cariMandiri: false, // Dinonaktifkan untuk menghemat kuota Firestore
     perPeserta: eventData?.sharing?.perPeserta === true,
     epoch: Number.isInteger(eventData?.sharing?.epoch) ? eventData.sharing.epoch : 1,
   };
@@ -587,91 +597,90 @@ const revokeParticipantLink = async (p) => {
     };
   }, [isLoading, eventData?.storageRefs?.templatePdf?.url, eventData?.configs, sampleParticipantName]);
 
-  const handleImportCsv = (e) => {
+  const handleImportCsv = async (e) => {
     const file = e.target.files?.[0];
     if (!file || !eventId) return;
 
-    notify("Membaca berkas CSV...", "info");
+    setIsImportingCsv(true);
+    setImportProgress("Membaca data...");
+    notify("Membaca berkas data peserta...", "info");
 
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: async (results) => {
-        const rows = results.data;
-        if (!rows || rows.length === 0) {
-          notify("Berkas CSV tidak memuat data yang valid.", "error");
-          return;
-        }
+    try {
+      const { headers, rows } = await parseParticipantSpreadsheet(file, (msg) => {
+        setImportProgress(msg);
+      });
 
-        try {
-          notify(`Menyimpan ${rows.length} peserta ke database...`, "info");
-          const colRef = collection(db, `events/${eventId}/peserta`);
-          const currentCount = participants.length;
+      if (!rows || rows.length === 0) {
+        notify("Berkas spreadsheet tidak memuat baris data yang valid.", "error");
+        return;
+      }
 
-          // Deteksi dinamis kolom pertama dan kolom email
-          const fields = results.meta?.fields || (rows[0] ? Object.keys(rows[0]) : []);
-          const firstCol = fields[0] || "Nama";
-          const emailCol = fields.find((f) => /email|e-mail|surel|mail/i.test(f)) || "Email";
+      setImportProgress(`Menyimpan ${rows.length} peserta...`);
+      notify(`Menyimpan ${rows.length} peserta ke database...`, "info");
+      const colRef = collection(db, `events/${eventId}/peserta`);
+      const currentCount = participants.length;
 
-          const newParticipantsList = [];
+      // Deteksi dinamis kolom nama dan email
+      const firstCol = headers[0] || "Nama";
+      const emailCol = headers.find((f) => /email|e-mail|surel|mail/i.test(f)) || "Email";
 
-          for (let i = 0; i < rows.length; i += 400) {
-            const batch = writeBatch(db);
-            const chunk = rows.slice(i, i + 400);
+      const newParticipantsList = [];
 
-            chunk.forEach((row, chunkIdx) => {
-              const globalIdx = currentCount + i + chunkIdx + 1;
-              const newDocRef = doc(colRef);
+      for (let i = 0; i < rows.length; i += 400) {
+        setImportProgress(`Menyimpan batch ${Math.floor(i / 400) + 1} dari ${Math.ceil(rows.length / 400)}...`);
+        const batch = writeBatch(db);
+        const chunk = rows.slice(i, i + 400);
 
-              const rawName = row[firstCol] || row.Nama || row.nama || row.NAME || `Peserta ${globalIdx}`;
-              const rawEmail = row[emailCol] || row.Email || row.email || "";
+        chunk.forEach((row, chunkIdx) => {
+          const globalIdx = currentCount + i + chunkIdx + 1;
+          const newDocRef = doc(colRef);
 
-              const participantItem = {
-                id: newDocRef.id,
-                nomorUrut: globalIdx,
-                nama: String(rawName).trim(),
-                email: String(rawEmail).trim(),
-                attributes: row,
-                diunduh: false,
-                dibuatPada: new Date(),
-              };
+          const rawName = row[firstCol] || row.Nama || row.nama || row.NAME || `Peserta ${globalIdx}`;
+          const rawEmail = row[emailCol] || row.Email || row.email || "";
 
-              batch.set(newDocRef, {
-                ...participantItem,
-                dibuatPada: serverTimestamp(),
-              });
+          const participantItem = {
+            id: newDocRef.id,
+            nomorUrut: globalIdx,
+            nama: String(rawName).trim(),
+            email: String(rawEmail).trim(),
+            attributes: row,
+            diunduh: false,
+            dibuatPada: new Date(),
+          };
 
-              newParticipantsList.push(participantItem);
-            });
-
-            await batch.commit();
-          }
-
-          // Sinkronisasi totalPeserta ke dokumen induk
-          await updateDoc(doc(db, "events", eventId), {
-            totalPeserta: currentCount + rows.length,
-            diperbaruiPada: serverTimestamp(),
+          batch.set(newDocRef, {
+            ...participantItem,
+            dibuatPada: serverTimestamp(),
           });
 
-          // Optimistic UI Update: perbarui state lokal secara langsung tanpa re-read ribuan dokumen dari Firestore
-          setParticipants((prev) => [...prev, ...newParticipantsList]);
-          setEventData((prev) => ({
-            ...prev,
-            totalPeserta: (prev?.totalPeserta || 0) + rows.length,
-          }));
+          newParticipantsList.push(participantItem);
+        });
 
-          notify(`Berhasil mengimpor ${rows.length} peserta baru.`, "success");
-        } catch (err) {
-          console.error("Gagal impor CSV:", err);
-          notify("Gagal mengimpor data peserta: " + err.message, "error");
-        }
-      },
-      error: (err) => {
-        notify("Gagal membaca CSV: " + err.message, "error");
-      },
-    });
+        await batch.commit();
+      }
 
-    e.target.value = "";
+      // Sinkronisasi totalPeserta ke dokumen induk
+      await updateDoc(doc(db, "events", eventId), {
+        totalPeserta: currentCount + rows.length,
+        diperbaruiPada: serverTimestamp(),
+      });
+
+      // Optimistic UI Update: perbarui state lokal secara langsung tanpa re-read dari Firestore
+      setParticipants((prev) => [...prev, ...newParticipantsList]);
+      setEventData((prev) => ({
+        ...prev,
+        totalPeserta: (prev?.totalPeserta || 0) + rows.length,
+      }));
+
+      notify(`Berhasil mengimpor ${rows.length} peserta baru.`, "success");
+    } catch (err) {
+      console.error("Gagal impor data peserta:", err);
+      notify("Gagal mengimpor data peserta: " + err.message, "error");
+    } finally {
+      setIsImportingCsv(false);
+      setImportProgress("");
+      e.target.value = "";
+    }
   };
 
   const handleAddManualParticipant = async (e) => {
@@ -835,6 +844,7 @@ const revokeParticipantLink = async (p) => {
   // Menyetujui dan langsung menerapkan nama baru peserta ke database
   const handleApproveRevision = async (rev) => {
     setIsProcessingRevision(true);
+    setProcessingRevId(rev.id);
     try {
       // 1. Update nama pada dokumen peserta
       const pesertaRef = doc(db, `events/${eventId}/peserta`, rev.participantId);
@@ -862,17 +872,21 @@ const revokeParticipantLink = async (p) => {
       notify("Gagal memperbarui nama: " + err.message, "error");
     } finally {
       setIsProcessingRevision(false);
+      setProcessingRevId(null);
     }
   };
 
   // Menolak laporan perbaikan nama
   const handleRejectRevision = async (revId) => {
+    setProcessingRevId(revId);
     try {
       await deleteDoc(doc(db, `events/${eventId}/revisi_nama`, revId));
       setRevisions((prev) => prev.filter((r) => r.id !== revId));
       notify("Laporan perbaikan telah diabaikan.", "info");
     } catch (err) {
       notify("Gagal menolak revisi: " + err.message, "error");
+    } finally {
+      setProcessingRevId(null);
     }
   };
 
@@ -990,6 +1004,7 @@ const revokeParticipantLink = async (p) => {
       return;
     }
 
+    setRenderingParticipantId(peserta.id);
     try {
       notify(`Merender pratinjau PDF ${peserta.nama}...`, "info");
 
@@ -1023,19 +1038,26 @@ const revokeParticipantLink = async (p) => {
     } catch (err) {
       console.error("Gagal render sertifikat satuan:", err);
       notify("Gagal membuka pratinjau PDF: " + err.message, "error");
+    } finally {
+      setRenderingParticipantId(null);
     }
   };
 
   const handlePreviewSample = async () => {
-    const sampleRow = participants[0] || {
-      nama: sampleParticipantName,
-      email: "peserta@example.com",
-      attributes: {
-        Nama: sampleParticipantName,
-        Email: "peserta@example.com",
-      },
-    };
-    await handleDownloadSingle(sampleRow);
+    setIsPreviewingSample(true);
+    try {
+      const sampleRow = participants[0] || {
+        nama: sampleParticipantName,
+        email: "peserta@example.com",
+        attributes: {
+          Nama: sampleParticipantName,
+          Email: "peserta@example.com",
+        },
+      };
+      await handleDownloadSingle(sampleRow);
+    } finally {
+      setIsPreviewingSample(false);
+    }
   };
 
   const handleDownloadSelectedBatch = async () => {
@@ -1148,28 +1170,79 @@ const revokeParticipantLink = async (p) => {
 
   if (loading || isLoading || !user) {
     return (
-      <div className="min-h-screen bg-[#FFFFFF] flex flex-col items-center justify-center font-mono text-xs text-[#6B7280] space-y-3">
-        <div className="w-5 h-5 border-2 border-[#111111] border-t-transparent rounded-full animate-spin" />
-        <p>Memuat data acara dan daftar peserta...</p>
+      <div className="min-h-screen bg-[#FFFFFF] text-[#111111] font-sans antialiased pb-20 animate-pulse">
+        <header className="sticky top-0 z-30 bg-[#FFFFFF] border-b border-[#E5E7EB] px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-4 w-16 bg-[#F0F2F5] rounded" />
+            <span className="text-[#E5E7EB]">/</span>
+            <div className="h-3 w-12 bg-[#F0F2F5] rounded" />
+            <span className="text-[#E5E7EB]">/</span>
+            <div className="h-3.5 w-36 bg-[#F0F2F5] rounded" />
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-32 bg-[#F0F2F5] rounded-[4px]" />
+            <div className="h-8 w-36 bg-[#F0F2F5] rounded-[4px]" />
+          </div>
+        </header>
+
+        <main className="max-w-[1200px] mx-auto px-6 pt-10 space-y-10">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="md:col-span-2 bg-[#FFFFFF] border border-[#E5E7EB] rounded-md p-6 space-y-6">
+              <div className="space-y-3">
+                <div className="h-4 w-28 bg-[#F0F2F5] rounded" />
+                <div className="h-8 w-2/3 bg-[#F0F2F5] rounded" />
+                <div className="h-4 w-1/3 bg-[#F0F2F5] rounded" />
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pt-4 border-t border-[#F0F2F5]">
+                {[1, 2, 3, 4].map((i) => (
+                  <div key={i} className="space-y-1.5">
+                    <div className="h-3 w-16 bg-[#F0F2F5] rounded" />
+                    <div className="h-4 w-20 bg-[#F0F2F5] rounded" />
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-md p-6 space-y-4 flex flex-col items-center justify-center min-h-[220px]">
+              <div className="w-full h-36 bg-[#F0F2F5] rounded" />
+              <div className="h-3 w-28 bg-[#F0F2F5] rounded" />
+            </div>
+          </div>
+
+          <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-md overflow-hidden">
+            <div className="p-4 border-b border-[#E5E7EB] flex flex-col sm:flex-row justify-between items-center gap-4">
+              <div className="h-8 w-64 bg-[#F0F2F5] rounded-[4px]" />
+              <div className="flex gap-2">
+                <div className="h-8 w-28 bg-[#F0F2F5] rounded-[4px]" />
+                <div className="h-8 w-28 bg-[#F0F2F5] rounded-[4px]" />
+              </div>
+            </div>
+            <div className="divide-y divide-[#F0F2F5] p-2">
+              {[1, 2, 3, 4, 5].map((row) => (
+                <div key={row} className="py-3 px-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-4 h-4 bg-[#F0F2F5] rounded" />
+                    <div className="w-6 h-4 bg-[#F0F2F5] rounded" />
+                    <div className="w-44 h-4 bg-[#F0F2F5] rounded" />
+                  </div>
+                  <div className="w-32 h-4 bg-[#F0F2F5] rounded hidden sm:block" />
+                  <div className="w-20 h-6 bg-[#F0F2F5] rounded" />
+                </div>
+              ))}
+            </div>
+          </div>
+        </main>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-[#FFFFFF] text-[#111111] font-sans antialiased pb-20">
-      {statusMessage.text && (
-        <div
-          className={`fixed top-4 right-4 z-50 px-4 py-2.5 rounded-[4px] border text-xs font-mono transition-all duration-150 ${
-            statusMessage.type === "error"
-              ? "bg-[#FFFFFF] text-[#D92D20] border-[#D92D20]"
-              : statusMessage.type === "success"
-              ? "bg-[#111111] text-[#FFFFFF] border-[#111111]"
-              : "bg-[#FFFFFF] text-[#111111] border-[#E5E7EB]"
-          }`}
-        >
-          {statusMessage.text}
-        </div>
-      )}
+      <Toast
+        message={statusMessage.text}
+        type={statusMessage.type}
+        onClose={() => setStatusMessage({ text: "", type: "" })}
+      />
 
       {/* Header Navigasi */}
       <header className="sticky top-0 z-30 bg-[#FFFFFF]/90 border-b border-[#E5E7EB] backdrop-blur-md px-6 h-16 flex items-center justify-between">
@@ -1192,10 +1265,10 @@ const revokeParticipantLink = async (p) => {
             type="button"
             onClick={() => setShowShareModal(true)}
             className="px-3 py-1.5 border border-[#E5E7EB] hover:bg-[#F5F5F5] text-[#111111] text-xs font-mono uppercase rounded-[4px] transition-colors flex items-center gap-1.5"
-            title="Atur cara peserta mengakses sertifikatnya"
+            title="Atur pembagian tautan sertifikat per peserta"
           >
             <span>Bagikan ke Peserta</span>
-            {(sharing.cariMandiri || sharing.perPeserta) && (
+            {sharing.perPeserta && (
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
             )}
           </button>
@@ -1252,16 +1325,26 @@ const revokeParticipantLink = async (p) => {
               <input
                 type="file"
                 ref={csvInputRef}
-                accept=".csv"
+                accept={FILE_LIMITS.PARTICIPANT_DATA.acceptAttribute}
+                disabled={isImportingCsv}
                 onChange={handleImportCsv}
                 className="hidden"
               />
               <button
                 type="button"
                 onClick={() => csvInputRef.current?.click()}
-                className="px-3.5 py-2 text-xs font-mono uppercase bg-[#111111] hover:bg-[#333333] text-white rounded-[4px] transition-colors flex items-center gap-1.5"
+                disabled={isImportingCsv}
+                className="px-3.5 py-2 text-xs font-mono uppercase bg-[#111111] hover:bg-[#333333] text-white rounded-[4px] transition-colors flex items-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                title="Mendukung berkas CSV, Excel .xlsx, dan .xls (maks 10MB)"
               >
-                <span>Impor CSV Peserta</span>
+                {isImportingCsv ? (
+                  <>
+                    <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    <span>{importProgress || "Mengimpor Data..."}</span>
+                  </>
+                ) : (
+                  <span>Impor Data Peserta</span>
+                )}
               </button>
 
               <button
@@ -1323,10 +1406,18 @@ const revokeParticipantLink = async (p) => {
                 <button
                   type="button"
                   onClick={handlePreviewSample}
-                  className="hover:text-[#111111] transition-colors underline flex items-center gap-1 cursor-pointer"
+                  disabled={isPreviewingSample}
+                  className="hover:text-[#111111] transition-colors underline flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                   title="Buka pratinjau dokumen PDF di tab baru"
                 >
-                  <span>Buka PDF ↗</span>
+                  {isPreviewingSample ? (
+                    <>
+                      <div className="w-2.5 h-2.5 border border-[#111111] border-t-transparent rounded-full animate-spin" />
+                      <span>Merender...</span>
+                    </>
+                  ) : (
+                    <span>Buka PDF ↗</span>
+                  )}
                 </button>
               )}
             </div>
@@ -1498,10 +1589,18 @@ const revokeParticipantLink = async (p) => {
                         <button
                           type="button"
                           onClick={() => handleDownloadSingle(p)}
-                          className="px-2.5 py-1 bg-[#FFFFFF] border border-[#E5E7EB] hover:border-[#111111] text-[#111111] rounded-[3px] font-mono text-[11px] uppercase transition-colors"
+                          disabled={renderingParticipantId !== null}
+                          className="px-2.5 py-1 bg-[#FFFFFF] border border-[#E5E7EB] hover:border-[#111111] text-[#111111] rounded-[3px] font-mono text-[11px] uppercase transition-colors disabled:opacity-50 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
                           title="Buka PDF peserta di tab baru"
                         >
-                          Pratinjau PDF
+                          {renderingParticipantId === p.id ? (
+                            <>
+                              <div className="w-2.5 h-2.5 border border-[#111111] border-t-transparent rounded-full animate-spin" />
+                              <span>Merender...</span>
+                            </>
+                          ) : (
+                            <span>Pratinjau PDF</span>
+                          )}
                         </button>
 
                        {sharing.perPeserta && (
@@ -1744,47 +1843,13 @@ const revokeParticipantLink = async (p) => {
               </button>
             </div>
 
-            {/* Opsi 1: pencarian mandiri */}
-            <div className="border border-[#E5E7EB] rounded-[4px] p-4 space-y-3">
-              <label className="flex items-start gap-3 cursor-pointer">
-                <input
-                  type="checkbox"
-                  className="mt-0.5"
-                  checked={sharing.cariMandiri}
-                  disabled={isSavingShare}
-                  onChange={(e) =>
-                    updateSharing(
-                      { cariMandiri: e.target.checked },
-                      e.target.checked ? "Pencarian mandiri diaktifkan." : "Pencarian mandiri dinonaktifkan."
-                    )
-                  }
-                />
-                <span>
-                  <span className="block text-sm text-[#111111]">Pencarian mandiri (satu tautan untuk semua)</span>
-                  <span className="block text-xs text-[#6B7280] mt-0.5 leading-relaxed">
-                    Peserta mengetik nama mereka sendiri lalu mengunduh sertifikat. Hasil pencarian hanya menampilkan
-                    nama, tanpa email. <strong className="text-[#111111] font-medium">Siapa pun yang memegang tautan ini
-                    dapat mencari dan mengunduh sertifikat semua peserta.</strong>
-                  </span>
-                </span>
-              </label>
-              {sharing.cariMandiri && (
-                <div className="flex items-center gap-2">
-                  <input
-                    readOnly
-                    value={publicShareUrl}
-                    onFocus={(e) => e.target.select()}
-                    className="flex-1 text-xs font-mono border border-[#E5E7EB] rounded-[4px] px-2.5 py-2 bg-[#F5F5F5] text-[#111111]"
-                  />
-                  <button
-                    type="button"
-                    onClick={copyShareUrl}
-                    className="px-3 py-2 text-xs font-mono uppercase bg-[#111111] hover:bg-[#333333] text-white rounded-[4px]"
-                  >
-                    Salin
-                  </button>
-                </div>
-              )}
+            {/* Pemberitahuan Efisiensi Kuota */}
+            <div className="bg-[#F5F5F5] border border-[#E5E7EB] rounded-[4px] p-3 text-xs font-mono text-[#6B7280]">
+              <span className="text-[#111111] font-medium block">Pencarian Mandiri Dinonaktifkan</span>
+              <p className="mt-0.5 text-[11px] leading-relaxed">
+                Fitur pencarian publik dinonaktifkan demi efisiensi kuota Firebase dan keamanan privasi peserta.
+                Distribusi sertifikat dilakukan secara aman melalui tautan unik per peserta di bawah ini.
+              </p>
             </div>
 
             {/* Opsi 2: tautan per peserta */}
@@ -1886,19 +1951,26 @@ const revokeParticipantLink = async (p) => {
                     <div className="flex items-center gap-2 shrink-0">
                       <button
                         type="button"
-                        disabled={isProcessingRevision}
+                        disabled={isProcessingRevision || processingRevId === rev.id}
                         onClick={() => handleRejectRevision(rev.id)}
-                        className="px-2.5 py-1 text-[11px] font-mono rounded-[3px] border border-[#E5E7EB] text-[#6B7280] hover:text-red-600 hover:bg-[#F5F5F5] transition-colors"
+                        className="px-2.5 py-1 text-[11px] font-mono rounded-[3px] border border-[#E5E7EB] text-[#6B7280] hover:text-red-600 hover:bg-[#F5F5F5] transition-colors disabled:opacity-40"
                       >
-                        Abaikan
+                        {processingRevId === rev.id && !isProcessingRevision ? "Mengabaikan..." : "Abaikan"}
                       </button>
                       <button
                         type="button"
-                        disabled={isProcessingRevision}
+                        disabled={isProcessingRevision || processingRevId === rev.id}
                         onClick={() => handleApproveRevision(rev)}
-                        className="px-3 py-1 text-[11px] font-mono uppercase bg-[#111111] hover:bg-[#333333] text-white rounded-[3px] transition-colors disabled:opacity-40"
+                        className="px-3 py-1 text-[11px] font-mono uppercase bg-[#111111] hover:bg-[#333333] text-white rounded-[3px] transition-colors disabled:opacity-40 flex items-center gap-1"
                       >
-                        Terapkan
+                        {processingRevId === rev.id && isProcessingRevision ? (
+                          <>
+                            <div className="w-2.5 h-2.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                            <span>Menerapkan...</span>
+                          </>
+                        ) : (
+                          <span>Terapkan</span>
+                        )}
                       </button>
                     </div>
                   </div>
@@ -1919,5 +1991,22 @@ const revokeParticipantLink = async (p) => {
         </div>
       )}
     </div>
+  );
+}
+
+export default function EventDetailPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-screen w-full items-center justify-center bg-[#F9F9F9]">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#111111] border-t-transparent" />
+            <p className="text-sm font-mono text-[#666666]">Memuat detail acara...</p>
+          </div>
+        </div>
+      }
+    >
+      <EventDetailPageContent />
+    </Suspense>
   );
 }

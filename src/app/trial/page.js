@@ -6,6 +6,9 @@ import { useRouter } from "next/navigation";
 import Papa from "papaparse";
 import { Rnd } from "react-rnd";
 import { PDFDocument } from "pdf-lib";
+import { ensurePdfTemplate, normalizeImageToPng } from "@/lib/templateConverter";
+import { FILE_LIMITS, validateUploadFile } from "@/lib/fileValidators";
+import { parseParticipantSpreadsheet } from "@/lib/spreadsheetParser";
 
 const BUILT_IN_TEMPLATES = [
   {
@@ -443,6 +446,8 @@ export default function StudioDemoPage() {
 
   // Status Rendering & Notifikasi
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
+  const [isLoadingSampleData, setIsLoadingSampleData] = useState(false);
   const [progress, setProgress] = useState(null);
   const [notification, setNotification] = useState({ show: false, message: "", type: "success" });
   const [validationWarnings, setValidationWarnings] = useState([]);
@@ -767,8 +772,41 @@ export default function StudioDemoPage() {
   const handleTemplateChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    const validation = validateUploadFile(file, FILE_LIMITS.TEMPLATE);
+    if (!validation.valid) {
+      setNotification({ show: true, message: validation.error, type: "error" });
+      e.target.value = "";
+      return;
+    }
+
     setSelectedBuiltInTemplateId("");
-    await processAndSetPdfTemplate(file);
+    try {
+      const isImage = file.type.startsWith("image/") || /\.(png|jpe?g|webp|svg)$/i.test(file.name);
+      if (isImage) {
+        setNotification({
+          show: true,
+          message: "Mengonversi gambar template ke format PDF beresolusi tinggi...",
+          type: "info",
+        });
+      }
+      const pdfFile = await ensurePdfTemplate(file);
+      await processAndSetPdfTemplate(pdfFile);
+      if (isImage) {
+        setNotification({
+          show: true,
+          message: `Gambar template "${file.name}" berhasil dikonversi dan diterapkan.`,
+          type: "success",
+        });
+      }
+    } catch (err) {
+      console.error("Gagal memproses template:", err);
+      setNotification({
+        show: true,
+        message: `Gagal memproses template: ${err.message}`,
+        type: "error",
+      });
+    }
   };
 
   const handleSelectBuiltInTemplate = async (templateId) => {
@@ -826,128 +864,134 @@ export default function StudioDemoPage() {
     }
   };
 
-  const handleCsvChange = (e) => {
+  const handleCsvChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setCsvFile(file);
 
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      transformHeader: (header) => header.replace(/^\uFEFF/, "").trim(),
-      complete: (results) => {
-        const rows = results.data;
-        setCsvRows(rows);
-        setSliceStart(1);
-        setSliceEnd(rows.length);
+    try {
+      const { headers: fields, rows } = await parseParticipantSpreadsheet(file);
+      setCsvFile(file);
+      setCsvRows(rows);
+      setSliceStart(1);
+      setSliceEnd(rows.length);
 
-        if (results.meta && results.meta.fields) {
-          const fields = results.meta.fields.filter(Boolean);
-          setCsvHeaders(fields);
+      if (fields && fields.length > 0) {
+        setCsvHeaders(fields);
+        setFilenamePattern(`sertifikat_{${fields[0]}}_{index}`);
 
-          if (fields.length > 0) {
-            setFilenamePattern(`sertifikat_{${fields[0]}}_{index}`);
+        const scannedLongest = scanLongestRowSample(rows, fields);
+        setLongestRowSample(scannedLongest);
+
+        if (configs.length === 0) {
+          const initialConfigs = fields.map((header, idx) => ({
+            column_name: header,
+            static_text: "",
+            x: (pdfPreviewSize.width - 400) / 2,
+            y: 150 + idx * 60,
+            font_size: 28,
+            line_height: 1.2,
+            letter_spacing: 0,
+            max_width: 400,
+            align: "center",
+            enabled: true,
+            page_number: 1,
+          }));
+          setConfigs(initialConfigs);
+          setActiveColumn(fields[0]);
+        } else {
+          const firstCsvField = fields[0];
+          const updatedConfigs = [...configs];
+          let nameMapped = false;
+
+          for (let i = 0; i < updatedConfigs.length; i++) {
+            if (
+              updatedConfigs[i].type !== "image" &&
+              !updatedConfigs[i].static_text &&
+              /nama|name|peserta/i.test(updatedConfigs[i].column_name)
+            ) {
+              updatedConfigs[i].column_name = firstCsvField;
+              nameMapped = true;
+              break;
+            }
           }
 
-          const scannedLongest = scanLongestRowSample(rows, fields);
-          setLongestRowSample(scannedLongest);
-
-          if (configs.length === 0) {
-            const initialConfigs = fields.map((header, idx) => ({
-              column_name: header,
-              static_text: "",
-              x: (pdfPreviewSize.width - 400) / 2,
-              y: 150 + idx * 60,
-              font_size: 28,
-              line_height: 1.2,
-              letter_spacing: 0,
-              max_width: 400,
-              align: "center",
-              enabled: true,
-              page_number: 1,
-            }));
-            setConfigs(initialConfigs);
-            if (fields.length > 0) setActiveColumn(fields[0]);
-          } else {
-            // Jika configs sudah ada dari template bawaan, adaptasi elemen pertama dan daftarkan kolom baru
-            const firstCsvField = fields[0];
-            const updatedConfigs = [...configs];
-            let nameMapped = false;
-
-            for (let i = 0; i < updatedConfigs.length; i++) {
-              if (
-                updatedConfigs[i].type !== "image" &&
-                !updatedConfigs[i].static_text &&
-                /nama|name|peserta/i.test(updatedConfigs[i].column_name)
-              ) {
-                updatedConfigs[i].column_name = firstCsvField;
-                nameMapped = true;
-                break;
-              }
-            }
-
-            if (!nameMapped && updatedConfigs.length > 0 && updatedConfigs[0].type !== "image") {
-              updatedConfigs[0].column_name = firstCsvField;
-            }
-
-            const existingColumns = new Set(updatedConfigs.map((c) => c.column_name));
-            fields.forEach((field, fIdx) => {
-              if (!existingColumns.has(field)) {
-                updatedConfigs.push({
-                  column_name: field,
-                  static_text: "",
-                  x: (pdfPreviewSize.width - 350) / 2,
-                  y: 180 + fIdx * 45,
-                  font_size: 22,
-                  line_height: 1.2,
-                  letter_spacing: 0,
-                  max_width: 350,
-                  align: "center",
-                  enabled: true,
-                  page_number: 1,
-                });
-                existingColumns.add(field);
-              }
-            });
-
-            setConfigs(updatedConfigs);
-            setActiveColumn(firstCsvField);
+          if (!nameMapped && updatedConfigs.length > 0 && updatedConfigs[0].type !== "image") {
+            updatedConfigs[0].column_name = firstCsvField;
           }
+
+          const existingColumns = new Set(updatedConfigs.map((c) => c.column_name));
+          fields.forEach((field, fIdx) => {
+            if (!existingColumns.has(field)) {
+              updatedConfigs.push({
+                column_name: field,
+                static_text: "",
+                x: (pdfPreviewSize.width - 350) / 2,
+                y: 180 + fIdx * 45,
+                font_size: 22,
+                line_height: 1.2,
+                letter_spacing: 0,
+                max_width: 350,
+                align: "center",
+                enabled: true,
+                page_number: 1,
+              });
+              existingColumns.add(field);
+            }
+          });
+
+          setConfigs(updatedConfigs);
+          setActiveColumn(firstCsvField);
         }
-      },
-      error: (err) => {
-        setNotification({ show: true, message: `Gagal membaca CSV: ${err.message}`, type: "error" });
-      },
-    });
+      }
+
+      setNotification({
+        show: true,
+        message: `Berhasil memuat ${rows.length} peserta dari berkas "${file.name}".`,
+        type: "success",
+      });
+    } catch (err) {
+      console.error("Gagal membaca berkas peserta:", err);
+      setNotification({
+        show: true,
+        message: `Gagal membaca berkas: ${err.message}`,
+        type: "error",
+      });
+      e.target.value = "";
+    }
   };
 
   // Muat data sampel instan untuk pengunjung agar langsung bisa coba kanvas tanpa file
   const handleLoadSampleData = async () => {
-    const sampleRows = [
-      { "Nama Peserta": "Budi Santoso, S.Kom.", "Predikat": "Peserta Terbaik", "Nomor Registrasi": "REG/2026/001" },
-      { "Nama Peserta": "Siti Nurhaliza, M.Pd.", "Predikat": "Sangat Memuaskan", "Nomor Registrasi": "REG/2026/002" },
-      { "Nama Peserta": "Andi Pratama, B.Eng.", "Predikat": "Lulus dengan Pujian", "Nomor Registrasi": "REG/2026/003" },
-      { "Nama Peserta": "Dewi Lestari, S.Si.", "Predikat": "Peserta Teraktif", "Nomor Registrasi": "REG/2026/004" },
-      { "Nama Peserta": "Eko Prasetyo, M.T.", "Predikat": "Sangat Memuaskan", "Nomor Registrasi": "REG/2026/005" },
-    ];
+    setIsLoadingSampleData(true);
+    try {
+      const sampleRows = [
+        { "Nama Peserta": "Budi Santoso, S.Kom.", "Predikat": "Peserta Terbaik", "Nomor Registrasi": "REG/2026/001" },
+        { "Nama Peserta": "Siti Nurhaliza, M.Pd.", "Predikat": "Sangat Memuaskan", "Nomor Registrasi": "REG/2026/002" },
+        { "Nama Peserta": "Andi Pratama, B.Eng.", "Predikat": "Lulus dengan Pujian", "Nomor Registrasi": "REG/2026/003" },
+        { "Nama Peserta": "Dewi Lestari, S.Si.", "Predikat": "Peserta Teraktif", "Nomor Registrasi": "REG/2026/004" },
+        { "Nama Peserta": "Eko Prasetyo, M.T.", "Predikat": "Sangat Memuaskan", "Nomor Registrasi": "REG/2026/005" },
+      ];
 
-    setCsvRows(sampleRows);
-    const fields = Object.keys(sampleRows[0]);
-    setCsvHeaders(fields);
-    setSliceStart(1);
-    setSliceEnd(sampleRows.length);
-    setFilenamePattern("sertifikat_{Nama Peserta}_{index}");
-    setLongestRowSample(scanLongestRowSample(sampleRows, fields));
+      setCsvRows(sampleRows);
+      const fields = Object.keys(sampleRows[0]);
+      setCsvHeaders(fields);
+      setSliceStart(1);
+      setSliceEnd(sampleRows.length);
+      setFilenamePattern("sertifikat_{Nama Peserta}_{index}");
+      setLongestRowSample(scanLongestRowSample(sampleRows, fields));
 
-    if (!templateFile) {
-      await handleSelectBuiltInTemplate("template1");
+      if (!templateFile) {
+        await handleSelectBuiltInTemplate("template1");
+      }
+
+      setNotification({
+        show: true,
+        message: "Data sampel 5 peserta berhasil dimuat ke kanvas.",
+        type: "success",
+      });
+    } finally {
+      setIsLoadingSampleData(false);
     }
-
-    setNotification({
-      show: true,
-      message: "Data sampel 5 peserta berhasil dimuat ke kanvas.",
-      type: "success",
-    });
   };
 
   const renderPdfPage = async (pdf, pageNum) => {
@@ -1054,40 +1098,57 @@ export default function StudioDemoPage() {
     setActiveColumn(staticId);
   };
 
-  const handleAddImageElement = (e) => {
+  const handleAddImageElement = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const dataUrl = evt.target.result;
-      const img = new Image();
-      img.onload = () => {
-        const aspect = img.width / img.height || 1;
-        const initialWidth = Math.min(180, pdfPreviewSize.width * 0.4);
-        const initialHeight = initialWidth / aspect;
+    const validation = validateUploadFile(file, FILE_LIMITS.IMAGE_ELEMENT);
+    if (!validation.valid) {
+      setNotification({ show: true, message: validation.error, type: "error" });
+      e.target.value = "";
+      return;
+    }
 
-        const imgId = `image_${Date.now()}`;
-        const newConfig = {
-          type: "image",
-          column_name: imgId,
-          image_name: file.name,
-          data_url: dataUrl,
-          mime_type: file.type || "image/png",
-          x: (pdfPreviewSize.width - initialWidth) / 2,
-          y: 150,
-          max_width: Math.round(initialWidth),
-          height: Math.round(initialHeight),
-          enabled: true,
-          page_number: currentPage,
+    try {
+      const normalizedFile = await normalizeImageToPng(file);
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const dataUrl = evt.target.result;
+        const img = new Image();
+        img.onload = () => {
+          const aspect = img.width / img.height || 1;
+          const initialWidth = Math.min(180, pdfPreviewSize.width * 0.4);
+          const initialHeight = initialWidth / aspect;
+
+          const imgId = `image_${Date.now()}`;
+          const newConfig = {
+            type: "image",
+            column_name: imgId,
+            image_name: normalizedFile.name,
+            data_url: dataUrl,
+            mime_type: "image/png",
+            x: (pdfPreviewSize.width - initialWidth) / 2,
+            y: 150,
+            max_width: Math.round(initialWidth),
+            height: Math.round(initialHeight),
+            enabled: true,
+            page_number: currentPage,
+          };
+
+          commitConfigs((prev) => [...prev, newConfig]);
+          setActiveColumn(imgId);
         };
-
-        commitConfigs((prev) => [...prev, newConfig]);
-        setActiveColumn(imgId);
+        img.src = dataUrl;
       };
-      img.src = dataUrl;
-    };
-    reader.readAsDataURL(file);
+      reader.readAsDataURL(normalizedFile);
+    } catch (err) {
+      console.error("Gagal menambahkan gambar:", err);
+      setNotification({
+        show: true,
+        message: `Gagal memproses gambar: ${err.message}`,
+        type: "error",
+      });
+    }
     e.target.value = "";
   };
 
@@ -1187,6 +1248,7 @@ export default function StudioDemoPage() {
       return;
     }
 
+    setIsLoadingPreview(true);
     try {
       setNotification({ show: true, message: "Menyusun pratinjau PDF...", type: "success" });
 
@@ -1212,6 +1274,8 @@ export default function StudioDemoPage() {
       setNotification({ show: true, message: "Pratinjau PDF berhasil dibuka di tab baru.", type: "success" });
     } catch (err) {
       setNotification({ show: true, message: `Gagal pratinjau: ${err.message}`, type: "error" });
+    } finally {
+      setIsLoadingPreview(false);
     }
   };
 
@@ -1311,14 +1375,14 @@ export default function StudioDemoPage() {
       <input
         type="file"
         ref={imageUploadInputRef}
-        accept="image/png, image/jpeg, image/jpg"
+        accept={FILE_LIMITS.IMAGE_ELEMENT.acceptAttribute}
         onChange={handleAddImageElement}
         className="hidden"
       />
       <input
         type="file"
         ref={fontUploadInputRef}
-        accept=".ttf,.otf,font/ttf,font/otf"
+        accept={FILE_LIMITS.CUSTOM_FONT.acceptAttribute}
         onChange={handleUploadCustomFont}
         className="hidden"
       />
@@ -1354,21 +1418,38 @@ export default function StudioDemoPage() {
           <button
             type="button"
             onClick={handleLoadSampleData}
-            className="px-3 py-1.5 text-xs font-mono uppercase rounded-[4px] border border-[#E5E7EB] bg-transparent text-[#111111] hover:bg-[#F5F5F5] transition-colors flex items-center gap-1.5"
+            disabled={isLoadingSampleData}
+            className="px-3 py-1.5 text-xs font-mono uppercase rounded-[4px] border border-[#E5E7EB] bg-transparent text-[#111111] hover:bg-[#F5F5F5] disabled:opacity-50 transition-colors flex items-center gap-1.5"
             title="Coba langsung dengan 5 peserta sampel"
           >
-            <IconSparkles className="w-3.5 h-3.5 text-amber-500" />
-            <span>Coba Data Sampel</span>
+            {isLoadingSampleData ? (
+              <>
+                <Spinner className="w-3.5 h-3.5" />
+                <span>Memuat Sampel...</span>
+              </>
+            ) : (
+              <>
+                <IconSparkles className="w-3.5 h-3.5 text-amber-500" />
+                <span>Coba Data Sampel</span>
+              </>
+            )}
           </button>
 
           <button
             type="button"
             onClick={handleDownloadPreview}
-            disabled={isProcessing || !templateFile}
-            className="px-3 py-1.5 text-xs font-mono uppercase rounded-[4px] border border-[#E5E7EB] bg-transparent text-[#111111] hover:bg-[#F5F5F5] disabled:opacity-40 transition-colors"
+            disabled={isProcessing || !templateFile || isLoadingPreview}
+            className="px-3 py-1.5 text-xs font-mono uppercase rounded-[4px] border border-[#E5E7EB] bg-transparent text-[#111111] hover:bg-[#F5F5F5] disabled:opacity-40 transition-colors flex items-center gap-1.5"
             title="Buka pratinjau PDF di tab baru"
           >
-            Pratinjau PDF
+            {isLoadingPreview ? (
+              <>
+                <Spinner className="w-3.5 h-3.5" />
+                <span>Menyiapkan...</span>
+              </>
+            ) : (
+              <span>Pratinjau PDF</span>
+            )}
           </button>
 
           <button
@@ -1478,11 +1559,11 @@ export default function StudioDemoPage() {
 
                   <div>
                     <label className="block text-[11px] font-mono uppercase text-[#111111] mb-1.5">
-                      Data Peserta (.csv)
+                      Data Peserta (.csv, .xlsx, .xls)
                     </label>
                     <input
                       type="file"
-                      accept=".csv"
+                      accept={FILE_LIMITS.PARTICIPANT_DATA.acceptAttribute}
                       onChange={handleCsvChange}
                       className="block w-full text-[11px] font-mono rounded-[4px] p-2 border border-[#E5E7EB] bg-[#FFFFFF] text-[#111111] file:mr-3 file:py-1 file:px-2.5 file:rounded-[2px] file:border file:border-[#E5E7EB] file:bg-[#F5F5F5] file:text-[#111111] file:font-mono file:text-[10px] file:uppercase"
                     />
@@ -1496,11 +1577,11 @@ export default function StudioDemoPage() {
 
                   <div>
                     <label className="block text-[11px] font-mono uppercase text-[#111111] mb-1.5">
-                      Unggah Template Kustom (.pdf)
+                      Unggah Template Kustom (PDF, PNG, JPG, WEBP, SVG)
                     </label>
                     <input
                       type="file"
-                      accept="application/pdf"
+                      accept={FILE_LIMITS.TEMPLATE.acceptAttribute}
                       onChange={handleTemplateChange}
                       className="block w-full text-[11px] font-mono rounded-[4px] p-2 border border-[#E5E7EB] bg-[#FFFFFF] text-[#111111] file:mr-3 file:py-1 file:px-2.5 file:rounded-[2px] file:border file:border-[#E5E7EB] file:bg-[#F5F5F5] file:text-[#111111] file:font-mono file:text-[10px] file:uppercase"
                     />

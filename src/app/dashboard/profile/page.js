@@ -14,13 +14,10 @@ import {
   collection,
   serverTimestamp,
 } from "firebase/firestore";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
-);
-const ASSET_BUCKET = "project-assets";
+import { supabase, ASSET_BUCKET } from "@/lib/supabase";
+import Toast from "@/components/Toast";
+import { FILE_LIMITS, validateFile } from "@/lib/fileValidators";
+import { normalizeImageToPng } from "@/lib/templateConverter";
 
 // Ikon Vektor Minimalis
 const Spinner = ({ className = "w-4 h-4 text-current", ...props }) => (
@@ -130,6 +127,13 @@ export default function ProfilePage() {
           currentActiveOrgId = uData.activeOrgId || null;
         } else {
           const initialName = user.displayName || user.email?.split("@")[0] || "Pengguna SertiGen";
+          const adminEmailsEnv = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "")
+            .toLowerCase()
+            .split(",")
+            .map((e) => e.trim())
+            .filter(Boolean);
+          const isAutoAdmin = user.email && adminEmailsEnv.includes(user.email.toLowerCase());
+
           await setDoc(userRef, {
             uid: user.uid,
             email: user.email,
@@ -137,6 +141,9 @@ export default function ProfilePage() {
             nomorWhatsapp: "",
             jabatan: "Penyelenggara Mandiri",
             accountType: "personal",
+            role: isAutoAdmin ? "admin" : "user",
+            subscription: isAutoAdmin ? "premium" : "free",
+            maxActiveEvents: isAutoAdmin ? 50 : 1,
             dibuatPada: serverTimestamp(),
             terakhirLogin: serverTimestamp(),
           });
@@ -179,21 +186,22 @@ export default function ProfilePage() {
     loadProfileAndOrg();
   }, [user]);
 
-  // Unggah Logo atau Cap Stempel ke Supabase Storage
+  // Unggah Logo atau Cap Stempel ke Supabase Storage (Normalisasi otomatis ke PNG transparan)
   const handleUploadBrandingAsset = async (file, assetType) => {
     if (!file || !user) return;
-
-    // Validasi ukuran berkas (Maks 2 MB)
-    if (file.size > 2 * 1024 * 1024) {
-      notify("Ukuran berkas maksimal 2 MB.", "error");
-      return;
-    }
 
     const isLogo = assetType === "logo";
     if (isLogo) setIsUploadingLogo(true);
     else setIsUploadingStempel(true);
 
     try {
+      // Validasi berkas terpusat (tipe dan ukuran maks 5 MB)
+      validateFile(file, FILE_LIMITS.IMAGE_ELEMENT);
+
+      // Normalisasi semua tipe gambar (JPG/PNG/WEBP/SVG) menjadi PNG transparan
+      notify("Menormalisasi format gambar ke PNG...", "info");
+      const normalizedPngBlob = await normalizeImageToPng(file);
+
       // Pastikan targetOrgId sinkron dengan ID Firestore agar tidak terjadi berkas yatim
       let currentTargetOrgId = orgId;
       if (!currentTargetOrgId) {
@@ -202,13 +210,12 @@ export default function ProfilePage() {
         setOrgId(currentTargetOrgId);
       }
 
-      const ext = file.name.split(".").pop();
-      const filePath = `${user.uid}/organizations/${currentTargetOrgId}/${assetType}_${Date.now()}.${ext}`;
+      const filePath = `${user.uid}/organizations/${currentTargetOrgId}/${assetType}_${Date.now()}.png`;
 
       const { error: uploadError } = await supabase.storage
         .from(ASSET_BUCKET)
-        .upload(filePath, file, {
-          contentType: file.type || "image/png",
+        .upload(filePath, normalizedPngBlob, {
+          contentType: "image/png",
           upsert: true,
         });
 
@@ -220,10 +227,10 @@ export default function ProfilePage() {
 
       if (isLogo) {
         setOrgData((prev) => ({ ...prev, logoUrl: urlData.publicUrl }));
-        notify("Logo berhasil diunggah.", "success");
+        notify("Logo berhasil dinormalisasi dan diunggah.", "success");
       } else {
         setOrgData((prev) => ({ ...prev, capStempelUrl: urlData.publicUrl }));
-        notify("Cap / Tanda tangan berhasil diunggah.", "success");
+        notify("Cap / Tanda tangan berhasil dinormalisasi dan diunggah.", "success");
       }
     } catch (err) {
       console.error("Gagal unggah berkas:", err);
@@ -359,9 +366,53 @@ export default function ProfilePage() {
 
   if (loading || !user || isLoadingData) {
     return (
-      <div className="min-h-screen bg-[#FFFFFF] flex flex-col items-center justify-center font-mono text-xs text-[#6B7280] space-y-3">
-        <div className="w-5 h-5 border-2 border-[#111111] border-t-transparent rounded-full animate-spin" />
-        <p>Memuat profil akun & ruang kerja...</p>
+      <div className="min-h-screen bg-[#FFFFFF] text-[#111111] font-sans antialiased pb-20 animate-pulse">
+        <header className="sticky top-0 z-30 bg-[#FFFFFF] border-b border-[#E5E7EB] px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="h-4 w-20 bg-[#F0F2F5] rounded" />
+            <span className="text-[#E5E7EB]">/</span>
+            <div className="h-3 w-32 bg-[#F0F2F5] rounded" />
+          </div>
+          <div className="h-7 w-28 bg-[#F0F2F5] rounded-[4px]" />
+        </header>
+
+        <main className="max-w-4xl mx-auto px-6 pt-10 space-y-8">
+          <div className="space-y-3">
+            <div className="h-3.5 w-40 bg-[#F0F2F5] rounded" />
+            <div className="h-8 w-72 bg-[#F0F2F5] rounded" />
+            <div className="h-3.5 w-96 bg-[#F0F2F5] rounded" />
+          </div>
+
+          <div className="flex border-b border-[#E5E7EB] gap-6 pb-2">
+            <div className="h-4 w-28 bg-[#F0F2F5] rounded" />
+            <div className="h-4 w-32 bg-[#F0F2F5] rounded" />
+          </div>
+
+          <div className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-md p-6 space-y-6">
+            <div className="flex items-center gap-4">
+              <div className="w-16 h-16 rounded-full bg-[#F0F2F5]" />
+              <div className="space-y-2">
+                <div className="h-4 w-32 bg-[#F0F2F5] rounded" />
+                <div className="h-3 w-48 bg-[#F0F2F5] rounded" />
+              </div>
+            </div>
+
+            <div className="space-y-4 pt-4 border-t border-[#F0F2F5]">
+              <div className="space-y-2">
+                <div className="h-3 w-24 bg-[#F0F2F5] rounded" />
+                <div className="h-9 w-full bg-[#F5F7FA] rounded-[4px]" />
+              </div>
+              <div className="space-y-2">
+                <div className="h-3 w-28 bg-[#F0F2F5] rounded" />
+                <div className="h-9 w-full bg-[#F5F7FA] rounded-[4px]" />
+              </div>
+            </div>
+
+            <div className="pt-4 border-t border-[#F0F2F5] flex justify-end">
+              <div className="h-8 w-32 bg-[#F0F2F5] rounded-[4px]" />
+            </div>
+          </div>
+        </main>
       </div>
     );
   }
@@ -371,19 +422,11 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-[#FFFFFF] text-[#111111] font-sans antialiased pb-20">
       {/* Toast Notifikasi Minimalis */}
-      {statusMessage.text && (
-        <div
-          className={`fixed top-4 right-4 z-50 px-4 py-2.5 rounded-[4px] border text-xs font-mono transition-all duration-150 ${
-            statusMessage.type === "error"
-              ? "bg-[#FFFFFF] text-[#D92D20] border-[#D92D20]"
-              : statusMessage.type === "success"
-              ? "bg-[#111111] text-[#FFFFFF] border-[#111111]"
-              : "bg-[#FFFFFF] text-[#111111] border-[#E5E7EB]"
-          }`}
-        >
-          {statusMessage.text}
-        </div>
-      )}
+      <Toast
+        message={statusMessage.text}
+        type={statusMessage.type}
+        onClose={() => setStatusMessage({ text: "", type: "" })}
+      />
 
       {/* Header Navigasi */}
       <header className="sticky top-0 z-30 bg-[#FFFFFF]/90 border-b border-[#E5E7EB] backdrop-blur-md px-6 h-16 flex items-center justify-between">
@@ -740,10 +783,10 @@ export default function ProfilePage() {
                   <div className="border border-[#E5E7EB] rounded-md p-4 space-y-3 flex flex-col justify-between bg-[#F5F5F5]">
                     <div>
                       <span className="text-xs font-medium text-[#111111] block">
-                        {isPersonalType ? "Logo / Inisial Jenama" : "Logo Lembaga (PNG Transparan)"}
+                        {isPersonalType ? "Logo / Inisial Jenama" : "Logo Lembaga"}
                       </span>
                       <p className="text-[11px] text-[#6B7280] font-mono mt-0.5">
-                        Logo utama untuk disematkan pada kanvas sertifikat. Maks 2 MB.
+                        Logo utama untuk disematkan pada kanvas sertifikat. Mendukung semua jenis gambar (Maks 5 MB).
                       </p>
                     </div>
 
@@ -762,7 +805,7 @@ export default function ProfilePage() {
                     <input
                       type="file"
                       ref={logoInputRef}
-                      accept="image/png, image/jpeg"
+                      accept={FILE_LIMITS.IMAGE_ELEMENT.acceptAttribute}
                       onChange={(e) => handleUploadBrandingAsset(e.target.files?.[0], "logo")}
                       className="hidden"
                     />
@@ -796,13 +839,13 @@ export default function ProfilePage() {
                     <div>
                       <span className="text-xs font-medium text-[#111111] block">
                         {isPersonalType
-                          ? "Tanda Tangan Digital (PNG Transparan)"
-                          : "Cap Stempel Resmi (PNG Transparan)"}
+                          ? "Tanda Tangan Digital"
+                          : "Cap Stempel Resmi"}
                       </span>
                       <p className="text-[11px] text-[#6B7280] font-mono mt-0.5">
                         {isPersonalType
-                          ? "Tanda tangan transparan penanggung jawab. Maks 2 MB."
-                          : "Cap stempel transparan di area tanda tangan. Maks 2 MB."}
+                          ? "Tanda tangan penanggung jawab. Mendukung semua jenis gambar (Maks 5 MB)."
+                          : "Cap stempel di area tanda tangan. Mendukung semua jenis gambar (Maks 5 MB)."}
                       </p>
                     </div>
 
@@ -821,7 +864,7 @@ export default function ProfilePage() {
                     <input
                       type="file"
                       ref={stempelInputRef}
-                      accept="image/png"
+                      accept={FILE_LIMITS.IMAGE_ELEMENT.acceptAttribute}
                       onChange={(e) => handleUploadBrandingAsset(e.target.files?.[0], "stempel")}
                       className="hidden"
                     />

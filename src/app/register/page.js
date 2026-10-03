@@ -111,6 +111,7 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
+  const [isGoogleLoading, setIsGoogleLoading] = useState(false);
 
   // State Verifikasi Link Email
   const [isVerificationSent, setIsVerificationSent] = useState(false);
@@ -167,6 +168,13 @@ export default function RegisterPage() {
     const newOrgRef = await addDoc(collection(db, "organizations"), orgPayload);
     const generatedOrgId = newOrgRef.id;
 
+    const adminEmailsEnv = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "")
+      .toLowerCase()
+      .split(",")
+      .map((e) => e.trim())
+      .filter(Boolean);
+    const isAutoAdmin = firebaseUser.email && adminEmailsEnv.includes(firebaseUser.email.toLowerCase());
+
     const userPayload = {
       uid: firebaseUser.uid,
       email: firebaseUser.email,
@@ -174,6 +182,9 @@ export default function RegisterPage() {
       nomorWhatsapp: "",
       jabatan: type === "personal" ? "Penyelenggara Mandiri" : "Penanggung Jawab",
       accountType: type,
+      role: isAutoAdmin ? "admin" : "user",
+      subscription: isAutoAdmin ? "premium" : "free",
+      maxActiveEvents: isAutoAdmin ? 50 : 1,
       activeOrgId: generatedOrgId,
       organizations: [
         {
@@ -259,7 +270,7 @@ export default function RegisterPage() {
 
   const handleGoogleSignIn = async () => {
     setError("");
-    setIsLoading(true);
+    setIsGoogleLoading(true);
     try {
       const provider = new GoogleAuthProvider();
       const result = await signInWithPopup(auth, provider);
@@ -279,7 +290,7 @@ export default function RegisterPage() {
         setError("Gagal mendaftar dengan Google: " + err.message);
       }
     } finally {
-      setIsLoading(false);
+      setIsGoogleLoading(false);
     }
   };
 
@@ -443,11 +454,20 @@ export default function RegisterPage() {
         <button
           type="button"
           onClick={handleGoogleSignIn}
-          disabled={isLoading}
+          disabled={isLoading || isGoogleLoading}
           className="w-full py-2.5 px-4 text-xs font-semibold uppercase tracking-wider rounded-md border border-[#E5E7EB] bg-[#FFFFFF] text-[#111111] hover:bg-[#F9FAFB] transition-colors flex items-center justify-center gap-2.5 disabled:opacity-50"
         >
-          <IconGoogle />
-          <span>Daftar dengan Google</span>
+          {isGoogleLoading ? (
+            <>
+              <div className="w-3.5 h-3.5 border-2 border-[#111111] border-t-transparent rounded-full animate-spin" />
+              <span>Menghubungkan ke Google...</span>
+            </>
+          ) : (
+            <>
+              <IconGoogle />
+              <span>Daftar dengan Google</span>
+            </>
+          )}
         </button>
 
         <div className="relative flex items-center">

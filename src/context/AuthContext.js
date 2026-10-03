@@ -1,41 +1,91 @@
 // src/context/AuthContext.js
+// Konteks otentikasi global dengan sinkronisasi status akun, role, dan subscription
 
 "use client";
 
 import { createContext, useContext, useState, useEffect } from "react";
 import { onAuthStateChanged } from "firebase/auth";
-import { auth } from "../lib/firebase"; // <-- Impor 'auth' langsung
+import { doc, onSnapshot } from "firebase/firestore";
+import { auth, db } from "../lib/firebase";
 
-// Buat Context
 export const AuthContext = createContext({});
 
-// Buat custom hook untuk kemudahan penggunaan
 export const useAuth = () => useContext(AuthContext);
 
-// Buat Provider
 export const AuthContextProvider = ({ children }) => {
   const [user, setUser] = useState(null);
+  const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        // Kita bisa menyimpan lebih banyak data jika perlu,
-        // tapi untuk sekarang kita simpan objek user-nya langsung.
-        setUser(user);
+    let unsubscribeFirestore = null;
+
+    const unsubscribeAuth = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        setUser(firebaseUser);
+
+        // Langganan pembaruan realtime dokumen pengguna di Firestore
+        const userDocRef = doc(db, "users", firebaseUser.uid);
+        unsubscribeFirestore = onSnapshot(
+          userDocRef,
+          (docSnap) => {
+            if (docSnap.exists()) {
+              setUserData({ id: docSnap.id, ...docSnap.data() });
+            } else {
+              setUserData(null);
+            }
+            setLoading(false);
+          },
+          (err) => {
+            console.warn("Koleksi user belum siap atau izin terbatas:", err.message);
+            setLoading(false);
+          }
+        );
       } else {
+        if (unsubscribeFirestore) {
+          unsubscribeFirestore();
+          unsubscribeFirestore = null;
+        }
         setUser(null);
+        setUserData(null);
+        setLoading(false);
       }
-      setLoading(false);
     });
 
-    // Cleanup subscription on unmount
-    return () => unsubscribe();
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeFirestore) unsubscribeFirestore();
+    };
   }, []);
 
+  // Evaluasi hak administrator (dari field dokumen role atau environment NEXT_PUBLIC_ADMIN_EMAILS)
+  const adminEmailsEnv = (process.env.NEXT_PUBLIC_ADMIN_EMAILS || "")
+    .toLowerCase()
+    .split(",")
+    .map((e) => e.trim())
+    .filter(Boolean);
+
+  const isAdmin = Boolean(
+    userData?.role === "admin" ||
+    (user?.email && adminEmailsEnv.includes(user.email.toLowerCase()))
+  );
+
+  const isPremium = Boolean(
+    userData?.subscription === "premium" ||
+    isAdmin // Admin otomatis mendapatkan akses fasilitas premium
+  );
+
   return (
-    <AuthContext.Provider value={{ user, loading }}>
-        {loading ? <div>Memuat sesi...</div> : children}
+    <AuthContext.Provider
+      value={{
+        user,
+        userData,
+        isAdmin,
+        isPremium,
+        loading,
+      }}
+    >
+      {children}
     </AuthContext.Provider>
   );
 };

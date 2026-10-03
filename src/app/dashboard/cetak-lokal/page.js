@@ -1,6 +1,6 @@
 "use client";
 import "es-iterator-helpers/auto";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Inter, JetBrains_Mono } from "next/font/google";
@@ -15,6 +15,9 @@ import {
   readFullAutosave,
   clearAutosave,
 } from "./idbStorage";
+import { ensurePdfTemplate, normalizeImageToPng } from "@/lib/templateConverter";
+import { FILE_LIMITS, validateUploadFile } from "@/lib/fileValidators";
+import { parseParticipantSpreadsheet } from "@/lib/spreadsheetParser";
 import { db } from "@/lib/firebase";
 import {
   doc,
@@ -25,7 +28,6 @@ import {
   writeBatch,
   serverTimestamp,
 } from "firebase/firestore";
-import { createClient } from "@supabase/supabase-js";
 
 const sansFont = Inter({
   subsets: ["latin"],
@@ -33,17 +35,13 @@ const sansFont = Inter({
   variable: "--font-sans",
 });
 
-const monoFont =  Inter({
+const monoFont = JetBrains_Mono({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   variable: "--font-mono",
 });
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
-);
-const ASSET_BUCKET = "project-assets";
+import { supabase, ASSET_BUCKET } from "@/lib/supabase";
 
 const BUILT_IN_TEMPLATES = [
   {
@@ -360,7 +358,7 @@ const TutorialModal = ({ isOpen, onClose }) => {
   );
 };
 
-export default function CetakLokal() {
+function CetakLokalContent() {
   const { user, loading } = useAuth();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -400,6 +398,7 @@ export default function CetakLokal() {
 
   const [selectedBuiltInTemplateId, setSelectedBuiltInTemplateId] = useState("");
   const [isLoadingBuiltIn, setIsLoadingBuiltIn] = useState(false);
+  const [isLoadingPreview, setIsLoadingPreview] = useState(false);
 
   const [filenamePattern, setFilenamePattern] = useState("sertifikat_{Nama}_{index}");
   const [sliceMode, setSliceMode] = useState("all");
@@ -1428,8 +1427,41 @@ export default function CetakLokal() {
   const handleTemplateChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    const validation = validateUploadFile(file, FILE_LIMITS.TEMPLATE);
+    if (!validation.valid) {
+      setNotification({ show: true, message: validation.error, type: "error" });
+      e.target.value = "";
+      return;
+    }
+
     setSelectedBuiltInTemplateId("");
-    await processAndSetPdfTemplate(file);
+    try {
+      const isImage = file.type.startsWith("image/") || /\.(png|jpe?g|webp|svg)$/i.test(file.name);
+      if (isImage) {
+        setNotification({
+          show: true,
+          message: "Mengonversi gambar template ke format PDF beresolusi tinggi...",
+          type: "info",
+        });
+      }
+      const pdfFile = await ensurePdfTemplate(file);
+      await processAndSetPdfTemplate(pdfFile);
+      if (isImage) {
+        setNotification({
+          show: true,
+          message: `Gambar template "${file.name}" berhasil dikonversi dan diterapkan.`,
+          type: "success",
+        });
+      }
+    } catch (err) {
+      console.error("Gagal memproses template:", err);
+      setNotification({
+        show: true,
+        message: `Gagal memproses template: ${err.message}`,
+        type: "error",
+      });
+    }
   };
 
   const handleSelectBuiltInTemplate = async (templateId) => {
@@ -1489,78 +1521,80 @@ export default function CetakLokal() {
     }
   };
 
-  const handleCsvChange = (e) => {
+  const handleCsvChange = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    setCsvFile(file);
-    setHasNewCsvUpload(true);
-    setHasUnsavedChanges(true);
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (results) => {
-        const rows = results.data;
-        setCsvRows(rows);
+
+    try {
+      const { headers: fields, rows } = await parseParticipantSpreadsheet(file);
+      setCsvFile(file);
+      setHasNewCsvUpload(true);
+      setHasUnsavedChanges(true);
+      setCsvRows(rows);
+      setSliceStart(1);
+      setSliceEnd(rows.length);
+
+      if (rows.length > 2000 && deviceRamGb <= 4) {
+        setSliceMode("custom");
         setSliceStart(1);
-        setSliceEnd(rows.length);
+        setSliceEnd(Math.min(rows.length, 1000));
+        setNotification({
+          show: true,
+          message: `Terdeteksi ${rows.length} data. Mode Rentang otomatis aktif demi stabilitas RAM.`,
+          type: "success",
+        });
+      }
 
-        if (rows.length > 2000 && deviceRamGb <= 4) {
-          setSliceMode("custom");
-          setSliceStart(1);
-          setSliceEnd(Math.min(rows.length, 1000));
-          setNotification({
-            show: true,
-            message: `Terdeteksi ${rows.length} data. Mode Rentang otomatis aktif demi stabilitas RAM.`,
-            type: "success",
-          });
+      if (fields && fields.length > 0) {
+        setCsvHeaders(fields);
+        setFilenamePattern(`sertifikat_{${fields[0]}}_{index}`);
+
+        const scannedLongest = scanLongestRowSample(rows, fields);
+        setLongestRowSample(scannedLongest);
+
+        if (configs.length === 0) {
+          const initialConfigs = fields.map((header, idx) => ({
+            column_name: header,
+            static_text: "",
+            x: (pdfPreviewSize.width - 400) / 2,
+            y: 150 + idx * 60,
+            font_size: 28,
+            line_height: 1.2,
+            letter_spacing: 0,
+            max_width: 400,
+            align: "center",
+            enabled: true,
+            page_number: 1,
+          }));
+          setConfigs(initialConfigs);
+          setActiveColumn(fields[0]);
         }
+      }
 
-        if (results.meta && results.meta.fields) {
-          const fields = results.meta.fields;
-          setCsvHeaders(fields);
+      try {
+        await idbSet(AUTOSAVE_KEYS.CSV, {
+          headers: fields || [],
+          rows,
+        });
+        await saveAutosaveMeta({ csvName: file.name, csvRowCount: rows.length });
+      } catch (err) {
+        console.error("Gagal autosave CSV/Excel:", err);
+      }
 
-          if (fields.length > 0) {
-            setFilenamePattern(`sertifikat_{${fields[0]}}_{index}`);
-          }
-
-          const scannedLongest = scanLongestRowSample(rows, fields);
-          setLongestRowSample(scannedLongest);
-
-          if (configs.length === 0) {
-            const initialConfigs = fields.map((header, idx) => ({
-              column_name: header,
-              static_text: "",
-              x: (pdfPreviewSize.width - 400) / 2,
-              y: 150 + idx * 60,
-              font_size: 28,
-              line_height: 1.2,
-              letter_spacing: 0,
-              max_width: 400,
-              align: "center",
-              enabled: true,
-              page_number: 1,
-            }));
-            setConfigs(initialConfigs);
-            if (fields.length > 0) setActiveColumn(fields[0]);
-          }
-        }
-
-        (async () => {
-          try {
-            await idbSet(AUTOSAVE_KEYS.CSV, {
-              headers: results.meta?.fields || [],
-              rows,
-            });
-            await saveAutosaveMeta({ csvName: file.name, csvRowCount: rows.length });
-          } catch (err) {
-            console.error("Gagal autosave CSV:", err);
-          }
-        })();
-      },
-      error: (err) => {
-        setNotification({ show: true, message: `Gagal membaca CSV: ${err.message}`, type: "error" });
-      },
-    });
+      setNotification({
+        show: true,
+        message: `Berhasil memuat ${rows.length} data peserta dari berkas "${file.name}".`,
+        type: "success",
+      });
+    } catch (err) {
+      console.error("Gagal membaca berkas peserta:", err);
+      setNotification({
+        show: true,
+        message: `Gagal membaca berkas data: ${err.message}`,
+        type: "error",
+      });
+      e.target.value = "";
+    }
   };
 
   const renderTaskRef = useRef(null);
@@ -1768,40 +1802,57 @@ export default function CetakLokal() {
     setActiveColumn(varName);
   };
 
-  const handleAddImageElement = (e) => {
+  const handleAddImageElement = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      const dataUrl = evt.target.result;
-      const img = new Image();
-      img.onload = () => {
-        const aspect = img.width / img.height || 1;
-        const initialWidth = Math.min(180, pdfPreviewSize.width * 0.4);
-        const initialHeight = initialWidth / aspect;
+    const validation = validateUploadFile(file, FILE_LIMITS.IMAGE_ELEMENT);
+    if (!validation.valid) {
+      setNotification({ show: true, message: validation.error, type: "error" });
+      e.target.value = "";
+      return;
+    }
 
-        const imgId = `image_${Date.now()}`;
-        const newConfig = {
-          type: "image",
-          column_name: imgId,
-          image_name: file.name,
-          data_url: dataUrl,
-          mime_type: file.type || "image/png",
-          x: (pdfPreviewSize.width - initialWidth) / 2,
-          y: 150,
-          max_width: Math.round(initialWidth),
-          height: Math.round(initialHeight),
-          enabled: true,
-          page_number: currentPage,
+    try {
+      const normalizedFile = await normalizeImageToPng(file);
+      const reader = new FileReader();
+      reader.onload = (evt) => {
+        const dataUrl = evt.target.result;
+        const img = new Image();
+        img.onload = () => {
+          const aspect = img.width / img.height || 1;
+          const initialWidth = Math.min(180, pdfPreviewSize.width * 0.4);
+          const initialHeight = initialWidth / aspect;
+
+          const imgId = `image_${Date.now()}`;
+          const newConfig = {
+            type: "image",
+            column_name: imgId,
+            image_name: normalizedFile.name,
+            data_url: dataUrl,
+            mime_type: "image/png",
+            x: (pdfPreviewSize.width - initialWidth) / 2,
+            y: 150,
+            max_width: Math.round(initialWidth),
+            height: Math.round(initialHeight),
+            enabled: true,
+            page_number: currentPage,
+          };
+
+          commitConfigs((prev) => [...prev, newConfig]);
+          setActiveColumn(imgId);
         };
-
-        commitConfigs((prev) => [...prev, newConfig]);
-        setActiveColumn(imgId);
+        img.src = dataUrl;
       };
-      img.src = dataUrl;
-    };
-    reader.readAsDataURL(file);
+      reader.readAsDataURL(normalizedFile);
+    } catch (err) {
+      console.error("Gagal menambahkan gambar:", err);
+      setNotification({
+        show: true,
+        message: `Gagal memproses gambar: ${err.message}`,
+        type: "error",
+      });
+    }
     e.target.value = "";
   };
 
@@ -2257,6 +2308,7 @@ export default function CetakLokal() {
       return;
     }
 
+    setIsLoadingPreview(true);
     try {
       setNotification({ show: true, message: "Menyusun pratinjau PDF...", type: "success" });
 
@@ -2283,6 +2335,8 @@ export default function CetakLokal() {
       setNotification({ show: true, message: "Pratinjau PDF berhasil dibuka di tab baru.", type: "success" });
     } catch (err) {
       setNotification({ show: true, message: `Gagal pratinjau: ${err.message || String(err)}`, type: "error" });
+    } finally {
+      setIsLoadingPreview(false);
     }
   };
 
@@ -2586,7 +2640,7 @@ export default function CetakLokal() {
       <input
         type="file"
         ref={imageUploadInputRef}
-        accept="image/png, image/jpeg, image/jpg"
+        accept={FILE_LIMITS.IMAGE_ELEMENT.acceptAttribute}
         onChange={handleAddImageElement}
         className="hidden"
       />
@@ -2595,7 +2649,7 @@ export default function CetakLokal() {
       <input
         type="file"
         ref={fontUploadInputRef}
-        accept=".ttf,.otf,font/ttf,font/otf"
+        accept={FILE_LIMITS.CUSTOM_FONT.acceptAttribute}
         onChange={handleUploadCustomFont}
         className="hidden"
       />
@@ -2716,11 +2770,18 @@ export default function CetakLokal() {
           <button
             type="button"
             onClick={handleDownloadPreview}
-            disabled={isProcessing || !templateFile}
-            className="px-3 py-1.5 text-xs font-mono uppercase rounded-[4px] border border-[#E5E7EB] bg-transparent text-[#111111] hover:bg-[#F5F5F5] disabled:opacity-40 transition-colors"
+            disabled={isProcessing || !templateFile || isLoadingPreview}
+            className="px-3 py-1.5 text-xs font-mono uppercase rounded-[4px] border border-[#E5E7EB] bg-transparent text-[#111111] hover:bg-[#F5F5F5] disabled:opacity-40 transition-colors flex items-center gap-1.5"
             title="Buka pratinjau PDF di tab baru"
           >
-            Pratinjau PDF
+            {isLoadingPreview ? (
+              <>
+                <Spinner className="w-3.5 h-3.5" />
+                <span>Menyiapkan...</span>
+              </>
+            ) : (
+              <span>Pratinjau PDF</span>
+            )}
           </button>
 
           <div className="relative group inline-block">
@@ -2862,11 +2923,11 @@ export default function CetakLokal() {
 
                   <div>
                     <label className="block text-[11px] font-mono uppercase text-[#111111] mb-1.5">
-                      Data Peserta (.csv)
+                      Data Peserta (.csv, .xlsx, .xls)
                     </label>
                     <input
                       type="file"
-                      accept=".csv"
+                      accept={FILE_LIMITS.PARTICIPANT_DATA.acceptAttribute}
                       onChange={handleCsvChange}
                       className="block w-full text-[11px] font-mono rounded-[4px] p-2 border border-[#E5E7EB] bg-[#FFFFFF] text-[#111111] file:mr-3 file:py-1 file:px-2.5 file:rounded-[2px] file:border file:border-[#E5E7EB] file:bg-[#F5F5F5] file:text-[#111111] file:font-mono file:text-[10px] file:uppercase hover:file:bg-[#E5E7EB]"
                     />
@@ -2880,11 +2941,11 @@ export default function CetakLokal() {
 
                   <div>
                     <label className="block text-[11px] font-mono uppercase text-[#111111] mb-1.5">
-                      Template Kustom (.pdf)
+                      Template Kustom (PDF, PNG, JPG, WEBP, SVG)
                     </label>
                     <input
                       type="file"
-                      accept="application/pdf"
+                      accept={FILE_LIMITS.TEMPLATE.acceptAttribute}
                       onChange={handleTemplateChange}
                       className="block w-full text-[11px] font-mono rounded-[4px] p-2 border border-[#E5E7EB] bg-[#FFFFFF] text-[#111111] file:mr-3 file:py-1 file:px-2.5 file:rounded-[2px] file:border file:border-[#E5E7EB] file:bg-[#F5F5F5] file:text-[#111111] file:font-mono file:text-[10px] file:uppercase hover:file:bg-[#E5E7EB]"
                     />
@@ -4086,5 +4147,22 @@ export default function CetakLokal() {
         </div>
       </footer>
     </div>
+  );
+}
+
+export default function CetakLokal() {
+  return (
+    <Suspense
+      fallback={
+        <div className="flex h-screen w-full items-center justify-center bg-[#F9F9F9]">
+          <div className="flex flex-col items-center gap-3">
+            <div className="h-8 w-8 animate-spin rounded-full border-2 border-[#111111] border-t-transparent" />
+            <p className="text-sm font-mono text-[#666666]">Memuat studio kanvas...</p>
+          </div>
+        </div>
+      }
+    >
+      <CetakLokalContent />
+    </Suspense>
   );
 }

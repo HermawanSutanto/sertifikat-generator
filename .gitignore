@@ -39,3 +39,42 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# IDE & editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# AI tooling, agents & orchestrator
+.orchestrator/
+.agents/
+.gemini/
+.claude/
+.cursor/
+.cursorrules
+.windsurfrules
+CLAUDE.md
+GEMINI.md
+AGENTS.md
+*.agent.md
+.fusion.json
+*.fusion.json
+fusion-*
+anti-slop/
+
+# Plans, tasks & internal dev notes
+TASK_PLAN*.md
+*PLAN*.md
+*plan*.md
+TODO*.md
+*TODO*.md
+synthesis*.md
+audit-*.md
+ROADMAP*.md
+
+# Temporary & scratch
+scratch/
+tmp/
+*.tmp
+

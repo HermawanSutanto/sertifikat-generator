@@ -17,13 +17,8 @@ import {
   writeBatch,
   serverTimestamp,
 } from "firebase/firestore";
-import { createClient } from "@supabase/supabase-js";
-
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "",
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ""
-);
-const ASSET_BUCKET = "project-assets";
+import { supabase, ASSET_BUCKET } from "@/lib/supabase";
+import Toast from "@/components/Toast";
 
 const IconSparkles = (props) => (
   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" {...props}>
@@ -62,7 +57,7 @@ const IconLock = (props) => (
 );
 
 export default function DashboardPage() {
-  const { user, loading } = useAuth();
+  const { user, loading, userData, isAdmin, isPremium } = useAuth();
   const router = useRouter();
 
   const [events, setEvents] = useState([]);
@@ -81,6 +76,7 @@ export default function DashboardPage() {
     new Date().toISOString().split("T")[0]
   );
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   const [deleteDialog, setDeleteDialog] = useState({
     isOpen: false,
@@ -209,11 +205,12 @@ export default function DashboardPage() {
       return;
     }
 
-    // Validasi kuota 1 event di sisi klien sebelum menulis ke database
-    if (events.length >= 1) {
+    // Validasi kuota event dinamis sesuai paket langganan (Free: 1, Premium: maxActiveEvents)
+    const allowedMaxEvents = userData?.maxActiveEvents || (isPremium ? 50 : 1);
+    if (!isPremium && events.length >= allowedMaxEvents) {
       setShowCreateModal(false);
       setShowPremiumModal(true);
-      notify("Batas kuota tercapai: Akun Gratis hanya dapat menyimpan 1 event aktif.", "error");
+      notify(`Batas kuota tercapai: Akun Free hanya dapat menyimpan ${allowedMaxEvents} event aktif.`, "error");
       return;
     }
 
@@ -363,11 +360,13 @@ export default function DashboardPage() {
   };
 
   const handleLogout = async () => {
+    setIsLoggingOut(true);
     try {
       await signOut(auth);
       router.push("/login");
     } catch (err) {
       console.error("Gagal keluar:", err);
+      setIsLoggingOut(false);
     }
   };
 
@@ -381,19 +380,11 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-[#FFFFFF] text-[#111111] font-sans antialiased pb-20">
-      {statusMessage.text && (
-        <div
-          className={`fixed top-4 right-4 z-50 px-4 py-2.5 rounded-[4px] border text-xs font-mono transition-all ${
-            statusMessage.type === "error"
-              ? "bg-[#FFFFFF] text-[#D92D20] border-[#D92D20]"
-              : statusMessage.type === "success"
-              ? "bg-[#111111] text-[#FFFFFF] border-[#111111]"
-              : "bg-[#FFFFFF] text-[#111111] border-[#E5E7EB]"
-          }`}
-        >
-          {statusMessage.text}
-        </div>
-      )}
+      <Toast
+        message={statusMessage.text}
+        type={statusMessage.type}
+        onClose={() => setStatusMessage({ text: "", type: "" })}
+      />
 
       {/* Header Utama Navigasi */}
       <header className="sticky top-0 z-30 bg-[#FFFFFF]/90 border-b border-[#E5E7EB] backdrop-blur-md px-6 h-16 flex items-center justify-between">
@@ -410,7 +401,18 @@ export default function DashboardPage() {
           </span>
         </div>
 
-        <div className="flex items-center gap-4 text-xs font-mono">
+        <div className="flex items-center gap-3 text-xs font-mono">
+          {isAdmin && (
+            <Link
+              href="/dashboard/admin"
+              className="px-3 py-1.5 border border-purple-200 bg-purple-50 text-purple-800 hover:bg-purple-100 rounded-[4px] transition-colors font-medium flex items-center gap-1.5"
+              title="Panel Manajemen Pengguna & Langganan"
+            >
+              <span className="w-1.5 h-1.5 rounded-full bg-purple-600" />
+              <span>Admin Panel</span>
+            </Link>
+          )}
+
           <Link
             href="/dashboard/profile"
             className="px-3 py-1.5 border border-[#E5E7EB] hover:bg-[#F5F5F5] rounded-[4px] transition-colors text-[#111111]"
@@ -422,9 +424,17 @@ export default function DashboardPage() {
           <span className="text-[#6B7280] hidden md:inline">{user.email}</span>
           <button
             onClick={handleLogout}
-            className="px-3 py-1.5 text-[#6B7280] hover:text-[#111111] hover:bg-[#F5F5F5] rounded-[4px] transition-colors"
+            disabled={isLoggingOut}
+            className="px-3 py-1.5 text-[#6B7280] hover:text-[#111111] hover:bg-[#F5F5F5] rounded-[4px] transition-colors disabled:opacity-50 flex items-center gap-1.5"
           >
-            Keluar
+            {isLoggingOut ? (
+              <>
+                <div className="w-3 h-3 border-2 border-[#111111] border-t-transparent rounded-full animate-spin" />
+                <span>Keluar...</span>
+              </>
+            ) : (
+              <span>Keluar</span>
+            )}
           </button>
         </div>
       </header>
@@ -566,16 +576,36 @@ export default function DashboardPage() {
             <button
               onClick={() => fetchEvents()}
               disabled={isLoadingEvents}
-              className="text-xs font-mono text-[#6B7280] hover:text-[#111111] transition-colors disabled:opacity-40"
+              className="text-xs font-mono text-[#6B7280] hover:text-[#111111] transition-colors disabled:opacity-40 flex items-center gap-1.5"
             >
-              Segarkan Data
+              {isLoadingEvents && (
+                <div className="w-3 h-3 border-2 border-[#6B7280] border-t-transparent rounded-full animate-spin" />
+              )}
+              <span>{isLoadingEvents ? "Menyegarkan..." : "Segarkan Data"}</span>
             </button>
           </div>
 
           {isLoadingEvents ? (
-            <div className="p-16 text-center text-xs font-mono text-[#6B7280] space-y-3 border border-[#E5E7EB] rounded-md">
-              <div className="w-5 h-5 border-2 border-[#111111] border-t-transparent rounded-full animate-spin mx-auto" />
-              <p>Memuat daftar acara dari database...</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6" aria-label="Memuat daftar event">
+              {[1, 2, 3].map((n) => (
+                <div
+                  key={n}
+                  className="bg-[#FFFFFF] border border-[#E5E7EB] rounded-md p-6 flex flex-col justify-between space-y-6 animate-pulse"
+                >
+                  <div className="space-y-4">
+                    <div className="flex items-start justify-between">
+                      <div className="h-4 w-24 bg-[#F0F2F5] rounded-[2px]" />
+                      <div className="h-4 w-4 bg-[#F0F2F5] rounded-full" />
+                    </div>
+                    <div className="h-6 w-3/4 bg-[#F0F2F5] rounded" />
+                    <div className="h-3.5 w-1/2 bg-[#F0F2F5] rounded" />
+                  </div>
+                  <div className="pt-4 border-t border-[#F0F2F5] space-y-2">
+                    <div className="h-3 w-1/3 bg-[#F0F2F5] rounded" />
+                    <div className="h-8 w-full bg-[#F5F7FA] rounded-[4px]" />
+                  </div>
+                </div>
+              ))}
             </div>
           ) : events.length === 0 ? (
             <div className="border border-dashed border-[#E5E7EB] bg-[#F5F5F5]/50 rounded-md p-16 text-center space-y-4">
