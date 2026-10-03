@@ -1504,14 +1504,15 @@ const revokeParticipantLink = async (p) => {
                           Pratinjau PDF
                         </button>
 
-                        {sharing.perPeserta && (
+                       {sharing.perPeserta && (
                           <button
                             type="button"
                             onClick={() => revokeParticipantLink(p)}
-                            className="px-2 py-1 text-[#6B7280] hover:text-[#111111] font-mono text-[11px] uppercase transition-colors"
+                            disabled={revokingId !== null}
+                            className="px-2 py-1 text-[#6B7280] hover:text-[#111111] font-mono text-[11px] uppercase transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                             title="Cabut tautan lama peserta ini dan buat tautan baru"
                           >
-                            Cabut Tautan
+                            {revokingId === p.id ? "Memproses..." : "Cabut Tautan"}
                           </button>
                         )}
                         <button
