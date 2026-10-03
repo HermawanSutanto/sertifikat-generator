@@ -170,7 +170,7 @@ export default function EventDetailPage() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [isSavingShare, setIsSavingShare] = useState(false);
   const [isExportingLinks, setIsExportingLinks] = useState(false);
-
+  const [revokingId, setRevokingId] = useState(null);
   // State Pemrosesan Render Wasm Sisi Klien
   const [isRendering, setIsRendering] = useState(false);
   const [renderProgress, setRenderProgress] = useState(null);
@@ -405,7 +405,10 @@ export default function EventDetailPage() {
     );
   };
 const revokeParticipantLink = async (p) => {
+  if (revokingId) return; // cegah klik ganda
   if (!window.confirm(`Tautan lama ${p.nama} akan berhenti berfungsi dan tautan baru dibuat. Lanjutkan?`)) return;
+
+  setRevokingId(p.id);
   try {
     await updateDoc(doc(db, `events/${eventId}/peserta`, p.id), { tv: increment(1) });
     setParticipants((prev) => prev.map((x) => (x.id === p.id ? { ...x, tv: (x.tv || 0) + 1 } : x)));
@@ -426,6 +429,8 @@ const revokeParticipantLink = async (p) => {
     }
   } catch (err) {
     notify(err.message, "error");
+  } finally {
+    setRevokingId(null);
   }
 };
   const renderInterpolatedText = (cfg, row) => {
