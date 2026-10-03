@@ -73,6 +73,10 @@ synthesis*.md
 audit-*.md
 ROADMAP*.md
 
+# Documentation & project guides
+PANDUAN_PRODUK.md
+DOKUMENTASI_TEKNIS.md
+
 # Temporary & scratch
 scratch/
 tmp/

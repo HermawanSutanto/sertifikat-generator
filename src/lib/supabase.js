@@ -16,5 +16,7 @@ const validKey =
 
 export const supabase = createClient(validUrl, validKey);
 
-export const ASSET_BUCKET = "event-assets";
-export const CERTIFICATE_BUCKET = "certificates";
+export const ASSET_BUCKET =
+  process.env.NEXT_PUBLIC_SUPABASE_ASSET_BUCKET || "project-assets";
+export const CERTIFICATE_BUCKET =
+  process.env.NEXT_PUBLIC_SUPABASE_CERTIFICATE_BUCKET || "generated-certificates";

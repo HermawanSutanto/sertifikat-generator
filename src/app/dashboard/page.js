@@ -13,6 +13,8 @@ import {
   getDocs,
   addDoc,
   deleteDoc,
+  updateDoc,
+  increment,
   doc,
   writeBatch,
   serverTimestamp,
@@ -232,6 +234,11 @@ export default function DashboardPage() {
         diperbaruiPada: serverTimestamp(),
       });
 
+      await updateDoc(doc(db, "users", user.uid), {
+        activeEventsCount: increment(1),
+        diperbaruiPada: serverTimestamp(),
+      }).catch((e) => console.warn("Peringatan update activeEventsCount:", e));
+
       setShowCreateModal(false);
       setNamaEvent("");
       notify("Event berhasil dibuat. Mengalihkan ke editor...", "success");
@@ -342,6 +349,11 @@ export default function DashboardPage() {
       }));
 
       await deleteDoc(doc(db, "events", eventId));
+
+      await updateDoc(doc(db, "users", user.uid), {
+        activeEventsCount: increment(-1),
+        diperbaruiPada: serverTimestamp(),
+      }).catch((e) => console.warn("Peringatan update activeEventsCount:", e));
 
       setEvents((prev) => prev.filter((item) => item.id !== eventId));
       notify("Acara, seluruh data peserta, dan berkas aset berhasil dibersihkan.", "success");

@@ -12,7 +12,6 @@ import {
   getParticipantDoc,
   verifyToken,
   parseTokenId,
-  tokenVersion,
   isValidId,
   rateLimit,
   clientIp,
@@ -49,7 +48,7 @@ export async function POST(request, { params }) {
       if (!sharing.perPeserta) return json({ error: "invalid" }, 404);
       const pid = parseTokenId(body.t);
       const doc = pid ? await getParticipantDoc(eventId, pid) : null;
-      if (doc && verifyToken(eventId, body.t, sharing.epoch, tokenVersion(doc.data))) {
+      if (doc && verifyToken(eventId, body.t, sharing.epoch)) {
         found = doc;
       }
     }

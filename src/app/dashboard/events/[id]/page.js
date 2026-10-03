@@ -23,6 +23,7 @@ import {
   increment,
   serverTimestamp,
 } from "firebase/firestore";
+import { fetchSnapshot, uploadSnapshot } from "@/lib/pesertaSnapshot";
 
 // Helper batas waktu agar permintaan ke Firestore tidak macet saat jaringan bermasalah
 const withTimeout = (promise, ms = 6000, errorMsg = "Koneksi ke Firestore timeout (jaringan terhambat).") => {
@@ -173,7 +174,6 @@ function EventDetailPageContent() {
   const [showShareModal, setShowShareModal] = useState(false);
   const [isSavingShare, setIsSavingShare] = useState(false);
   const [isExportingLinks, setIsExportingLinks] = useState(false);
-  const [revokingId, setRevokingId] = useState(null);
   // State Pemrosesan Render Wasm Sisi Klien
   const [isRendering, setIsRendering] = useState(false);
   const [renderProgress, setRenderProgress] = useState(null);
@@ -299,15 +299,33 @@ function EventDetailPageContent() {
 
       setEventData(eventPayload);
 
-      // 2. Ambil data peserta dari subkoleksi event
+      // 2. Ambil data peserta (prioritaskan snapshot Supabase untuk menghemat kuota Firestore)
       try {
-        const pesertaColRef = collection(db, `events/${eventId}/peserta`);
-        const pesertaSnap = await withTimeout(getDocs(pesertaColRef), 5000);
+        let list = null;
+        if (eventPayload.snapshotKey) {
+          list = await fetchSnapshot(eventId, eventPayload.snapshotKey);
+        }
 
-        const list = pesertaSnap.docs.map((d) => ({
-          id: d.id,
-          ...d.data(),
-        }));
+        // Fallback jika belum memiliki snapshot atau gagal dibaca dari Supabase
+        if (!list) {
+          const pesertaColRef = collection(db, `events/${eventId}/peserta`);
+          const pesertaSnap = await withTimeout(getDocs(pesertaColRef), 6000);
+
+          list = pesertaSnap.docs.map((d) => ({
+            id: d.id,
+            ...d.data(),
+          }));
+
+          // Buat snapshot secara otomatis untuk kunjungan berikutnya jika data ada
+          if (list.length > 0) {
+            uploadSnapshot(eventId, list, eventPayload.snapshotKey)
+              .then(async ({ snapshotKey }) => {
+                await updateDoc(doc(db, "events", eventId), { snapshotKey });
+                setEventData((prev) => ({ ...prev, snapshotKey }));
+              })
+              .catch((e) => console.warn("Auto-snapshot background warning:", e));
+          }
+        }
 
         list.sort((a, b) => (a.nomorUrut || 0) - (b.nomorUrut || 0));
         setParticipants(list);
@@ -343,6 +361,20 @@ function EventDetailPageContent() {
       fetchEventAndParticipants();
     }
   }, [user, eventId, fetchEventAndParticipants]);
+
+  // Sinkronisasi snapshot di Supabase Storage saat ada mutasi data peserta
+  const syncSnapshot = async (updatedList) => {
+    try {
+      const { snapshotKey } = await uploadSnapshot(eventId, updatedList, eventData?.snapshotKey);
+      await updateDoc(doc(db, "events", eventId), {
+        snapshotKey,
+        diperbaruiPada: serverTimestamp(),
+      });
+      setEventData((prev) => ({ ...prev, snapshotKey }));
+    } catch (e) {
+      console.warn("Gagal sinkronisasi snapshot peserta ke Supabase:", e);
+    }
+  };
 
   // ---- Bagikan ke peserta (akses publik via tautan per peserta aman & hemat kuota) ----
   const sharing = {
@@ -414,35 +446,7 @@ function EventDetailPageContent() {
       "Semua tautan lama dinonaktifkan. Unduh daftar tautan baru untuk dibagikan."
     );
   };
-const revokeParticipantLink = async (p) => {
-  if (revokingId) return; // cegah klik ganda
-  if (!window.confirm(`Tautan lama ${p.nama} akan berhenti berfungsi dan tautan baru dibuat. Lanjutkan?`)) return;
 
-  setRevokingId(p.id);
-  try {
-    await updateDoc(doc(db, `events/${eventId}/peserta`, p.id), { tv: increment(1) });
-    setParticipants((prev) => prev.map((x) => (x.id === p.id ? { ...x, tv: (x.tv || 0) + 1 } : x)));
-
-    const idToken = await user.getIdToken();
-    const res = await fetch(`/api/events/${eventId}/links?id=${encodeURIComponent(p.id)}`, {
-      headers: { Authorization: `Bearer ${idToken}` },
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.error || "Gagal membuat tautan baru.");
-
-    const url = data.links[0].url;
-    try {
-      await navigator.clipboard.writeText(url);
-      notify(`Tautan lama ${p.nama} dicabut. Tautan baru disalin.`, "success");
-    } catch {
-      window.prompt("Tautan lama dicabut. Salin tautan baru:", url);
-    }
-  } catch (err) {
-    notify(err.message, "error");
-  } finally {
-    setRevokingId(null);
-  }
-};
   const renderInterpolatedText = (cfg, row) => {
     if (cfg.is_custom_var) {
       const parts = (cfg.custom_var_values || "").split(",").map((s) => s.trim());
@@ -666,11 +670,13 @@ const revokeParticipantLink = async (p) => {
       });
 
       // Optimistic UI Update: perbarui state lokal secara langsung tanpa re-read dari Firestore
-      setParticipants((prev) => [...prev, ...newParticipantsList]);
+      const allUpdated = [...participants, ...newParticipantsList];
+      setParticipants(allUpdated);
       setEventData((prev) => ({
         ...prev,
         totalPeserta: (prev?.totalPeserta || 0) + rows.length,
       }));
+      syncSnapshot(allUpdated);
 
       notify(`Berhasil mengimpor ${rows.length} peserta baru.`, "success");
     } catch (err) {
@@ -715,8 +721,10 @@ const revokeParticipantLink = async (p) => {
       });
 
       // Optimistic update
-      setParticipants((prev) => [...prev, { id: docRef.id, ...newParticipantData }]);
+      const allUpdated = [...participants, { id: docRef.id, ...newParticipantData }];
+      setParticipants(allUpdated);
       setEventData((prev) => ({ ...prev, totalPeserta: (prev?.totalPeserta || 0) + 1 }));
+      syncSnapshot(allUpdated);
 
       setManualName("");
       setManualEmail("");
@@ -742,11 +750,13 @@ const revokeParticipantLink = async (p) => {
         diperbaruiPada: serverTimestamp(),
       });
 
-      setParticipants((prev) => prev.filter((p) => p.id !== participantId));
+      const allUpdated = participants.filter((p) => p.id !== participantId);
+      setParticipants(allUpdated);
       setEventData((prev) => ({
         ...prev,
         totalPeserta: Math.max(0, (prev?.totalPeserta || 1) - 1),
       }));
+      syncSnapshot(allUpdated);
       setSelectedIds((prev) => {
         const next = new Set(prev);
         next.delete(participantId);
@@ -783,11 +793,13 @@ const revokeParticipantLink = async (p) => {
         diperbaruiPada: serverTimestamp(),
       });
 
-      setParticipants((prev) => prev.filter((p) => !selectedIds.has(p.id)));
+      const allUpdated = participants.filter((p) => !selectedIds.has(p.id));
+      setParticipants(allUpdated);
       setEventData((prev) => ({
         ...prev,
         totalPeserta: Math.max(0, (prev?.totalPeserta || count) - count),
       }));
+      syncSnapshot(allUpdated);
       setSelectedIds(new Set());
       notify(`Berhasil menghapus ${count} peserta.`, "success");
       setDeleteDialog({ isOpen: false, mode: "single", participantId: null, participantName: "", isDeleting: false });
@@ -821,6 +833,7 @@ const revokeParticipantLink = async (p) => {
 
       setParticipants([]);
       setEventData((prev) => ({ ...prev, totalPeserta: 0 }));
+      syncSnapshot([]);
       setSelectedIds(new Set());
       notify("Seluruh data peserta berhasil dibersihkan.", "success");
       setDeleteDialog({ isOpen: false, mode: "single", participantId: null, participantName: "", isDeleting: false });
@@ -858,13 +871,13 @@ const revokeParticipantLink = async (p) => {
       await deleteDoc(doc(db, `events/${eventId}/revisi_nama`, rev.id));
 
       // 3. Optimistic UI update
-      setParticipants((prev) =>
-        prev.map((p) =>
-          p.id === rev.participantId
-            ? { ...p, nama: rev.namaBaru, attributes: { ...(p.attributes || {}), Nama: rev.namaBaru } }
-            : p
-        )
+      const allUpdated = participants.map((p) =>
+        p.id === rev.participantId
+          ? { ...p, nama: rev.namaBaru, attributes: { ...(p.attributes || {}), Nama: rev.namaBaru } }
+          : p
       );
+      setParticipants(allUpdated);
+      syncSnapshot(allUpdated);
       setRevisions((prev) => prev.filter((r) => r.id !== rev.id));
       notify(`Nama berhasil diperbarui menjadi "${rev.namaBaru}".`, "success");
     } catch (err) {
@@ -1603,17 +1616,7 @@ const revokeParticipantLink = async (p) => {
                           )}
                         </button>
 
-                       {sharing.perPeserta && (
-                          <button
-                            type="button"
-                            onClick={() => revokeParticipantLink(p)}
-                            disabled={revokingId !== null}
-                            className="px-2 py-1 text-[#6B7280] hover:text-[#111111] font-mono text-[11px] uppercase transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="Cabut tautan lama peserta ini dan buat tautan baru"
-                          >
-                            {revokingId === p.id ? "Memproses..." : "Cabut Tautan"}
-                          </button>
-                        )}
+
                         <button
                           type="button"
                           onClick={() =>

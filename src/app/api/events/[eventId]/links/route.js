@@ -10,10 +10,10 @@ import {
   loadEvent,
   sharingState,
   makeToken,
-  tokenVersion,
   getParticipantDoc,
   isValidId,
 } from "@/lib/share";
+import { fetchSnapshot } from "@/lib/pesertaSnapshot";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -51,11 +51,11 @@ export async function GET(request, { params }) {
       nama: String(data.nama || ""),
       email: String(data.email || ""),
       url: `${origin}/sertifikat/${eventId}?t=${encodeURIComponent(
-        makeToken(eventId, id, sharing.epoch, tokenVersion(data))
+        makeToken(eventId, id, sharing.epoch)
       )}`,
     });
 
-    // Mode satu peserta: dipakai setelah tautan seseorang dicabut dan diterbitkan ulang.
+    // Mode satu peserta: jika ada parameter id
     const only = url.searchParams.get("id");
     if (only !== null) {
       if (!isValidId(only)) return json({ error: "ID peserta tidak valid." }, 400);
@@ -64,22 +64,30 @@ export async function GET(request, { params }) {
       return json({ links: [buildLink(found.id, found.data)] });
     }
 
-    // Mode semua peserta
-    const snap = await getAdminDb()
-      .collection(`events/${eventId}/peserta`)
-      .select("nama", "email", "nomorUrut", "tv")
-      .get();
+    // Mode semua peserta: prioritaskan snapshot Supabase (1 download, 0 reads subkoleksi)
+    let participants = null;
+    if (event.snapshotKey) {
+      participants = await fetchSnapshot(eventId, event.snapshotKey);
+    }
 
-    const links = snap.docs
-      .map((d) =>
-        buildLink(d.id, {
-          nomorUrut: d.get("nomorUrut"),
-          nama: d.get("nama"),
-          email: d.get("email"),
-          tv: d.get("tv"),
-        })
-      )
-      .sort((a, b) => a.nomorUrut - b.nomorUrut);
+    // Fallback jika belum ada snapshot atau snapshot gagal dibaca
+    if (!participants) {
+      const snap = await getAdminDb()
+        .collection(`events/${eventId}/peserta`)
+        .select("nama", "email", "nomorUrut")
+        .get();
+
+      participants = snap.docs.map((d) => ({
+        id: d.id,
+        nomorUrut: d.get("nomorUrut"),
+        nama: d.get("nama"),
+        email: d.get("email"),
+      }));
+    }
+
+    const links = participants
+      .map((p) => buildLink(p.id, p))
+      .sort((a, b) => (a.nomorUrut || 0) - (b.nomorUrut || 0));
 
     return json({ links });
   } catch (err) {

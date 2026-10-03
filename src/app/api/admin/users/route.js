@@ -19,18 +19,8 @@ export async function GET(request) {
 
     const db = getAdminDb();
 
-    // 1. Ambil seluruh dokumen user
+    // 1. Ambil seluruh dokumen user (tanpa melakukan full scan koleksi events)
     const usersSnap = await db.collection("users").get();
-
-    // 2. Ambil snapshot ringan dokumen events untuk menghitung jumlah event aktif per user
-    const eventsSnap = await db.collection("events").select("userId").get();
-    const eventCountsByUserId = {};
-    eventsSnap.docs.forEach((doc) => {
-      const uId = doc.get("userId");
-      if (uId) {
-        eventCountsByUserId[uId] = (eventCountsByUserId[uId] || 0) + 1;
-      }
-    });
 
     const users = usersSnap.docs.map((d) => {
       const data = d.data();
@@ -50,7 +40,7 @@ export async function GET(request) {
         subscription: effectiveSubscription,
         maxActiveEvents: data.maxActiveEvents ?? (effectiveSubscription === "premium" ? 50 : 1),
         accountType: data.accountType || "personal",
-        activeEventsCount: eventCountsByUserId[d.id] || eventCountsByUserId[data.uid] || 0,
+        activeEventsCount: typeof data.activeEventsCount === "number" ? Math.max(0, data.activeEventsCount) : 0,
         dibuatPada: data.dibuatPada?.toDate ? data.dibuatPada.toDate().toISOString() : null,
         terakhirLogin: data.terakhirLogin?.toDate ? data.terakhirLogin.toDate().toISOString() : null,
       };

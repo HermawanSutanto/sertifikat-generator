@@ -13,7 +13,6 @@ import {
   getParticipantDoc,
   verifyToken,
   parseTokenId,
-  tokenVersion,
   rateLimit,
   clientIp,
   TOO_MANY,
@@ -40,7 +39,7 @@ if (token) {
   if (!sharing.perPeserta) return json({ error: "invalid" }, 404);
   const pid = parseTokenId(token);
   const found = pid ? await getParticipantDoc(eventId, pid) : null;
-  if (!found || !verifyToken(eventId, token, sharing.epoch, tokenVersion(found.data))) {
+  if (!found || !verifyToken(eventId, token, sharing.epoch)) {
     return json({ error: "invalid" }, 404);
   }
   return json({
